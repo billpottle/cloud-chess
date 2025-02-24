@@ -8,9 +8,16 @@
 </head>
 <body>
     <div class="game-container">
-        <div id="board"></div>
-        <div class="game-info">
-            <p>Current Turn: <span id="current-turn">White</span></p>
+        <div id="mode-selection" class="mode-selection">
+            <h2>Select Game Mode</h2>
+            <button id="vs-player">Play vs Player</button>
+            <button id="vs-computer">Play vs Computer</button>
+        </div>
+        <div id="game-board" style="display: none;">
+            <div id="board"></div>
+            <div class="game-info">
+                <p>Current Turn: <span id="current-turn">White</span></p>
+            </div>
         </div>
     </div>
     <script src="chess.js"></script>

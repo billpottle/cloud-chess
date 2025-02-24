@@ -1,10 +1,36 @@
+// Game initialization
+window.addEventListener('load', () => {
+    const modeSelection = document.getElementById('mode-selection');
+    const gameBoard = document.getElementById('game-board');
+    const vsPlayerBtn = document.getElementById('vs-player');
+    const vsComputerBtn = document.getElementById('vs-computer');
+    
+    vsPlayerBtn.addEventListener('click', () => {
+        modeSelection.style.display = 'none';
+        gameBoard.style.display = 'block';
+        new ChessGame(false); // false means not vs computer
+    });
+    
+    vsComputerBtn.addEventListener('click', () => {
+        modeSelection.style.display = 'none';
+        gameBoard.style.display = 'block';
+        new ChessGame(true); // true means vs computer
+    });
+});
+
 class ChessGame {
-    constructor() {
+    constructor(vsComputer) {
         this.board = document.getElementById('board');
         this.currentPlayer = 'white';
         this.selectedPiece = null;
         this.gameBoard = this.createInitialBoard();
+        this.vsComputer = vsComputer;
         this.initializeBoard();
+        
+        // Initialize turn handling if playing vs computer
+        if (this.vsComputer) {
+            this.handleTurn();
+        }
     }
 
     createInitialBoard() {
@@ -67,6 +93,9 @@ class ChessGame {
     }
 
     handleSquareClick(event) {
+        // Only allow moves for the current player
+        if (this.vsComputer && this.currentPlayer === 'black') return;
+        
         const square = event.target.classList.contains('square') 
             ? event.target 
             : event.target.parentElement;
@@ -84,6 +113,11 @@ class ChessGame {
                 this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
                 document.getElementById('current-turn').textContent = 
                     this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
+                
+                // Trigger AI move if playing vs computer and it's black's turn
+                if (this.vsComputer && this.currentPlayer === 'black') {
+                    this.handleTurn();
+                }
             } else {
                 this.selectedPiece = null;
             }
@@ -289,9 +323,68 @@ class ChessGame {
         fromSquare.removeChild(piece);
         toSquare.appendChild(piece);
     }
-}
 
-// Initialize the game when the page loads
-window.addEventListener('load', () => {
-    new ChessGame();
-}); 
+    handleTurn() {
+        if (this.currentPlayer === 'black') {
+            setTimeout(() => this.makeAIMove(), 500); // Delay for better UX
+        }
+    }
+
+    makeAIMove() {
+        // Find all black pieces
+        const blackPieces = [];
+        for (let row = 0; row < 10; row++) {
+            for (let col = 0; col < 10; col++) {
+                const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                const piece = square.querySelector('.piece');
+                if (piece && piece.dataset.color === 'black') {
+                    blackPieces.push({ row, col, square, piece });
+                }
+            }
+        }
+        
+        // Find all possible moves, prioritizing captures
+        const captureMoves = [];
+        const normalMoves = [];
+        
+        for (const { row, col, square } of blackPieces) {
+            this.selectedPiece = square;
+            
+            for (let toRow = 0; toRow < 10; toRow++) {
+                for (let toCol = 0; toCol < 10; toCol++) {
+                    if (this.isValidMove(toRow, toCol)) {
+                        const targetSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
+                        const targetPiece = targetSquare.querySelector('.piece');
+                        
+                        if (targetPiece) {
+                            captureMoves.push({ fromRow: row, fromCol: col, toRow, toCol });
+                        } else {
+                            normalMoves.push({ fromRow: row, fromCol: col, toRow, toCol });
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Choose a move, prioritizing captures
+        let move;
+        if (captureMoves.length > 0) {
+            move = captureMoves[Math.floor(Math.random() * captureMoves.length)];
+        } else if (normalMoves.length > 0) {
+            move = normalMoves[Math.floor(Math.random() * normalMoves.length)];
+        } else {
+            console.log("No valid moves for black");
+            return;
+        }
+        
+        // Execute the move
+        const fromSquare = document.querySelector(`[data-row="${move.fromRow}"][data-col="${move.fromCol}"]`);
+        this.selectedPiece = fromSquare;
+        this.movePiece(move.toRow, move.toCol);
+        
+        // Update turn
+        this.selectedPiece = null;
+        this.currentPlayer = 'white';
+        document.getElementById('current-turn').textContent = 'White';
+    }
+} 
