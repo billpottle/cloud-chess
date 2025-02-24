@@ -11,23 +11,31 @@ class ChessGame {
         // Create a 10x10 board with empty spaces
         const board = Array(10).fill().map(() => Array(10).fill(''));
         
-        // Black pieces (top row)
-        board[0][1] = '♜'; board[0][2] = '♞'; board[0][3] = '♝'; board[0][4] = '♛';
-        board[0][5] = '♚'; board[0][6] = '♝'; board[0][7] = '♞'; board[0][8] = '♜';
+        // Black pieces (top row) - wraths in corners, other pieces moved inward
+        board[0][0] = '🐉'; // Black Wrath (dragon) in left corner
+        board[0][1] = '♜'; board[0][2] = '♞'; board[0][3] = '♝'; 
+        board[0][4] = '♛'; board[0][5] = '♚'; // Queen and King
+        board[0][6] = '♝'; board[0][7] = '♞'; board[0][8] = '♜';
+        board[0][9] = '🐉'; // Black Wrath (dragon) in right corner
         
-        // Black pawns (second row)
-        for (let col = 1; col <= 8; col++) {
-            board[1][col] = '♟';
-        }
+        // Black pawns and archers (second row)
+        board[1][0] = '♟'; board[1][1] = '♟'; board[1][2] = '♟'; board[1][3] = '♟';
+        board[1][4] = '🏹'; // Black archer in front of queen
+        board[1][5] = '🏹'; // Black archer in front of king
+        board[1][6] = '♟'; board[1][7] = '♟'; board[1][8] = '♟'; board[1][9] = '♟';
         
-        // White pawns (second-to-last row)
-        for (let col = 1; col <= 8; col++) {
-            board[8][col] = '♙';
-        }
+        // White pawns and archers (ninth row)
+        board[8][0] = '♙'; board[8][1] = '♙'; board[8][2] = '♙'; board[8][3] = '♙';
+        board[8][4] = '🏹'; // White archer in front of queen
+        board[8][5] = '🏹'; // White archer in front of king
+        board[8][6] = '♙'; board[8][7] = '♙'; board[8][8] = '♙'; board[8][9] = '♙';
         
-        // White pieces (bottom row)
-        board[9][1] = '♖'; board[9][2] = '♘'; board[9][3] = '♗'; board[9][4] = '♕';
-        board[9][5] = '♔'; board[9][6] = '♗'; board[9][7] = '♘'; board[9][8] = '♖';
+        // White pieces (bottom row) - wraths in corners, other pieces moved inward
+        board[9][0] = '🐉'; // White Wrath (dragon) in left corner
+        board[9][1] = '♖'; board[9][2] = '♘'; board[9][3] = '♗'; 
+        board[9][4] = '♕'; board[9][5] = '♔'; // Queen and King
+        board[9][6] = '♗'; board[9][7] = '♘'; board[9][8] = '♖';
+        board[9][9] = '🐉'; // White Wrath (dragon) in right corner
         
         return board;
     }
@@ -107,6 +115,29 @@ class ChessGame {
 
         // Movement rules for each piece type
         switch (pieceType) {
+            case '🏹': // Archer
+                // Store whether this is a capture move for later use in movePiece
+                this.isArcherCapture = false;
+                
+                if (piece.dataset.color === 'black') {
+                    if (fromCol === toCol && !targetPiece) { // Moving straight (no capture)
+                        if (fromRow === 1 && toRow === 3) return true; // First move can be 2 squares
+                        return toRow === fromRow + 1; // Regular move 1 square
+                    } else if (Math.abs(fromCol - toCol) === 1 && toRow === fromRow + 1 && targetPiece) {
+                        this.isArcherCapture = true; // Diagonal capture
+                        return true;
+                    }
+                } else { // White archer
+                    if (fromCol === toCol && !targetPiece) { // Moving straight (no capture)
+                        if (fromRow === 8 && toRow === 6) return true; // First move can be 2 squares
+                        return toRow === fromRow - 1; // Regular move 1 square
+                    } else if (Math.abs(fromCol - toCol) === 1 && toRow === fromRow - 1 && targetPiece) {
+                        this.isArcherCapture = true; // Diagonal capture
+                        return true;
+                    }
+                }
+                return false;
+
             case '♟': // Black pawn
                 if (fromCol === toCol) { // Moving straight
                     if (!targetPiece) { // No piece blocking
@@ -153,6 +184,32 @@ class ChessGame {
             case '♘': // Knight
                 return (Math.abs(fromRow - toRow) === 2 && Math.abs(fromCol - toCol) === 1) ||
                        (Math.abs(fromRow - toRow) === 1 && Math.abs(fromCol - toCol) === 2);
+
+            case '🐉': // Wrath (dragon)
+                // Can move 1 or 2 squares in any direction
+                const rowDiff = Math.abs(fromRow - toRow);
+                const colDiff = Math.abs(fromCol - toCol);
+                
+                // Check if move is 1 or 2 squares in any direction (including diagonal)
+                if ((rowDiff <= 2 && colDiff <= 2) && !(rowDiff === 0 && colDiff === 0)) {
+                    // For 2-square moves, check if it's a straight line
+                    if (rowDiff === 2 || colDiff === 2) {
+                        // Must be a straight line (horizontal, vertical, or diagonal)
+                        if (!(rowDiff === 0 || colDiff === 0 || rowDiff === colDiff)) {
+                            return false;
+                        }
+                        
+                        // Store information about the path for later use in movePiece
+                        this.wrathPath = {
+                            fromRow: fromRow,
+                            fromCol: fromCol,
+                            toRow: toRow,
+                            toCol: toCol
+                        };
+                    }
+                    return true;
+                }
+                return false;
         }
         return false;
     }
@@ -190,7 +247,39 @@ class ChessGame {
         const fromSquare = this.selectedPiece;
         const toSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
         const piece = fromSquare.querySelector('.piece');
+        const pieceType = piece.textContent;
         
+        // Special handling for archer capture
+        if (pieceType === '🏹' && this.isArcherCapture) {
+            // Remove the target piece (capture without moving)
+            toSquare.removeChild(toSquare.querySelector('.piece'));
+            this.isArcherCapture = false;
+            return;
+        }
+        
+        // Special handling for Wrath (dragon) movement
+        if (pieceType === '🐉' && this.wrathPath) {
+            const { fromRow, fromCol, toRow, toCol } = this.wrathPath;
+            
+            // Calculate the middle square for 2-square moves
+            if (Math.abs(toRow - fromRow) === 2 || Math.abs(toCol - fromCol) === 2) {
+                const midRow = Math.round((fromRow + toRow) / 2);
+                const midCol = Math.round((fromCol + toCol) / 2);
+                
+                // Check if there's a piece in the middle square
+                const midSquare = document.querySelector(`[data-row="${midRow}"][data-col="${midCol}"]`);
+                const midPiece = midSquare.querySelector('.piece');
+                
+                // Capture the middle piece if it exists and isn't the player's own piece
+                if (midPiece && midPiece.dataset.color !== this.currentPlayer) {
+                    midSquare.removeChild(midPiece);
+                }
+            }
+            
+            this.wrathPath = null;
+        }
+        
+        // Regular piece movement
         // Remove any piece at the destination (capture)
         if (toSquare.querySelector('.piece')) {
             toSquare.removeChild(toSquare.querySelector('.piece'));
