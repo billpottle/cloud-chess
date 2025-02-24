@@ -3,32 +3,39 @@ window.addEventListener('load', () => {
     const modeSelection = document.getElementById('mode-selection');
     const gameBoard = document.getElementById('game-board');
     const vsPlayerBtn = document.getElementById('vs-player');
-    const vsComputerBtn = document.getElementById('vs-computer');
+    const vsComputer1Btn = document.getElementById('vs-computer-1');
+    const vsComputer2Btn = document.getElementById('vs-computer-2');
     
     vsPlayerBtn.addEventListener('click', () => {
         modeSelection.style.display = 'none';
         gameBoard.style.display = 'block';
-        new ChessGame(false); // false means not vs computer
+        new ChessGame(0); // 0 means not vs computer
     });
     
-    vsComputerBtn.addEventListener('click', () => {
+    vsComputer1Btn.addEventListener('click', () => {
         modeSelection.style.display = 'none';
         gameBoard.style.display = 'block';
-        new ChessGame(true); // true means vs computer
+        new ChessGame(1); // 1 means vs computer level 1 (easy)
+    });
+    
+    vsComputer2Btn.addEventListener('click', () => {
+        modeSelection.style.display = 'none';
+        gameBoard.style.display = 'block';
+        new ChessGame(2); // 2 means vs computer level 2 (medium)
     });
 });
 
 class ChessGame {
-    constructor(vsComputer) {
+    constructor(aiLevel) {
         this.board = document.getElementById('board');
         this.currentPlayer = 'white';
         this.selectedPiece = null;
         this.gameBoard = this.createInitialBoard();
-        this.vsComputer = vsComputer;
+        this.aiLevel = aiLevel; // 0: no AI, 1: easy AI, 2: medium AI
         this.initializeBoard();
         
         // Initialize turn handling if playing vs computer
-        if (this.vsComputer) {
+        if (this.aiLevel > 0) {
             this.handleTurn();
         }
     }
@@ -94,7 +101,7 @@ class ChessGame {
 
     handleSquareClick(event) {
         // Only allow moves for the current player
-        if (this.vsComputer && this.currentPlayer === 'black') return;
+        if (this.aiLevel > 0 && this.currentPlayer === 'black') return;
         
         const square = event.target.classList.contains('square') 
             ? event.target 
@@ -115,7 +122,7 @@ class ChessGame {
                     this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
                 
                 // Trigger AI move if playing vs computer and it's black's turn
-                if (this.vsComputer && this.currentPlayer === 'black') {
+                if (this.aiLevel > 0 && this.currentPlayer === 'black') {
                     this.handleTurn();
                 }
             } else {
@@ -331,23 +338,103 @@ class ChessGame {
     }
 
     makeAIMove() {
-        // Find all black pieces
-        const blackPieces = [];
+        if (this.aiLevel === 1) {
+            this.makeEasyAIMove();
+        } else if (this.aiLevel === 2) {
+            this.makeMediumAIMove();
+        }
+    }
+
+    makeEasyAIMove() {
+        // This is the existing AI logic - prioritize captures, otherwise random move
+        const blackPieces = this.findPieces('black');
+        const { captureMoves, normalMoves } = this.findAllMoves(blackPieces);
+        
+        // Choose a move, prioritizing captures
+        let move;
+        if (captureMoves.length > 0) {
+            move = captureMoves[Math.floor(Math.random() * captureMoves.length)];
+        } else if (normalMoves.length > 0) {
+            move = normalMoves[Math.floor(Math.random() * normalMoves.length)];
+        } else {
+            console.log("No valid moves for black");
+            return;
+        }
+        
+        this.executeMove(move);
+    }
+
+    makeMediumAIMove() {
+        const blackPieces = this.findPieces('black');
+        const { captureMoves, normalMoves } = this.findAllMoves(blackPieces);
+        
+        // First priority: capture moves
+        if (captureMoves.length > 0) {
+            const move = captureMoves[Math.floor(Math.random() * captureMoves.length)];
+            this.executeMove(move);
+            return;
+        }
+        
+        // Second priority: avoid pieces that are in danger
+        const piecesInDanger = this.findPiecesInDanger('black');
+        
+        if (piecesInDanger.length > 0) {
+            // Find safe moves for pieces in danger
+            const safeMoves = [];
+            
+            for (const { row, col } of piecesInDanger) {
+                const piece = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                this.selectedPiece = piece;
+                
+                // Find all possible moves for this piece
+                for (let toRow = 0; toRow < 10; toRow++) {
+                    for (let toCol = 0; toCol < 10; toCol++) {
+                        if (this.isValidMove(toRow, toCol)) {
+                            // Check if this move would make the piece safe
+                            if (!this.wouldPieceBeInDanger(row, col, toRow, toCol)) {
+                                safeMoves.push({ fromRow: row, fromCol: col, toRow, toCol });
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (safeMoves.length > 0) {
+                // Choose a random safe move
+                const move = safeMoves[Math.floor(Math.random() * safeMoves.length)];
+                this.executeMove(move);
+                return;
+            }
+        }
+        
+        // Third priority: just make a random move
+        if (normalMoves.length > 0) {
+            const move = normalMoves[Math.floor(Math.random() * normalMoves.length)];
+            this.executeMove(move);
+        } else {
+            console.log("No valid moves for black");
+        }
+    }
+
+    findPieces(color) {
+        const pieces = [];
         for (let row = 0; row < 10; row++) {
             for (let col = 0; col < 10; col++) {
                 const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
                 const piece = square.querySelector('.piece');
-                if (piece && piece.dataset.color === 'black') {
-                    blackPieces.push({ row, col, square, piece });
+                if (piece && piece.dataset.color === color) {
+                    pieces.push({ row, col, square, piece });
                 }
             }
         }
-        
-        // Find all possible moves, prioritizing captures
+        return pieces;
+    }
+
+    findAllMoves(pieces) {
         const captureMoves = [];
         const normalMoves = [];
         
-        for (const { row, col, square } of blackPieces) {
+        for (const { row, col, square } of pieces) {
             this.selectedPiece = square;
             
             for (let toRow = 0; toRow < 10; toRow++) {
@@ -366,18 +453,74 @@ class ChessGame {
             }
         }
         
-        // Choose a move, prioritizing captures
-        let move;
-        if (captureMoves.length > 0) {
-            move = captureMoves[Math.floor(Math.random() * captureMoves.length)];
-        } else if (normalMoves.length > 0) {
-            move = normalMoves[Math.floor(Math.random() * normalMoves.length)];
-        } else {
-            console.log("No valid moves for black");
-            return;
+        return { captureMoves, normalMoves };
+    }
+
+    findPiecesInDanger(color) {
+        const piecesInDanger = [];
+        const pieces = this.findPieces(color);
+        const opponentColor = color === 'white' ? 'black' : 'white';
+        const opponentPieces = this.findPieces(opponentColor);
+        
+        // For each of our pieces, check if any opponent piece can capture it
+        for (const { row, col } of pieces) {
+            for (const { square: opponentSquare } of opponentPieces) {
+                const originalSelectedPiece = this.selectedPiece;
+                this.selectedPiece = opponentSquare;
+                
+                if (this.isValidMove(row, col)) {
+                    piecesInDanger.push({ row, col });
+                    break; // No need to check other opponent pieces
+                }
+                
+                this.selectedPiece = originalSelectedPiece;
+            }
         }
         
-        // Execute the move
+        return piecesInDanger;
+    }
+
+    wouldPieceBeInDanger(fromRow, fromCol, toRow, toCol) {
+        // Temporarily move the piece to see if it would be in danger
+        const fromSquare = document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`);
+        const toSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
+        const piece = fromSquare.querySelector('.piece');
+        const color = piece.dataset.color;
+        const opponentColor = color === 'white' ? 'black' : 'white';
+        
+        // Simulate the move
+        const originalToContent = toSquare.innerHTML;
+        const originalFromContent = fromSquare.innerHTML;
+        
+        toSquare.innerHTML = '';
+        toSquare.appendChild(piece.cloneNode(true));
+        fromSquare.innerHTML = '';
+        
+        // Check if any opponent piece can capture the moved piece
+        const opponentPieces = this.findPieces(opponentColor);
+        let inDanger = false;
+        
+        for (const { square: opponentSquare } of opponentPieces) {
+            const originalSelectedPiece = this.selectedPiece;
+            this.selectedPiece = opponentSquare;
+            
+            if (this.isValidMove(toRow, toCol)) {
+                inDanger = true;
+                this.selectedPiece = originalSelectedPiece;
+                break;
+            }
+            
+            this.selectedPiece = originalSelectedPiece;
+        }
+        
+        // Restore the board
+        fromSquare.innerHTML = originalFromContent;
+        toSquare.innerHTML = originalToContent;
+        
+        return inDanger;
+    }
+
+    executeMove(move) {
         const fromSquare = document.querySelector(`[data-row="${move.fromRow}"][data-col="${move.fromCol}"]`);
         this.selectedPiece = fromSquare;
         this.movePiece(move.toRow, move.toCol);
