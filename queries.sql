@@ -22,3 +22,31 @@ INSERT INTO game_usage (game_type, number) VALUES
     ('Vs Computer Level 1', 0),
     ('Vs Computer Level 2', 0),
     ('Vs Computer Level 3', 0);
+
+CREATE TABLE games (
+    id SERIAL PRIMARY KEY,  -- Unique game ID, auto-incrementing
+    white_player VARCHAR(50) NOT NULL,  -- References users.username
+    black_player VARCHAR(50) NOT NULL,  -- References users.username
+    turn ENUM('white', 'black') NOT NULL,  -- Either 'white' or 'black'
+    is_complete BOOLEAN DEFAULT FALSE,  -- Whether the game is finished
+    board_state TEXT NOT NULL,  -- Stores board state as a FEN string or JSON
+    start_timestamp INT NOT NULL,  -- Game start time (Unix timestamp)
+    end_timestamp INT DEFAULT NULL,  -- Game end time (NULL if ongoing)
+    
+    -- Foreign Key Constraints
+    CONSTRAINT fk_white FOREIGN KEY (white_player) REFERENCES users(username) ON DELETE RESTRICT,
+    CONSTRAINT fk_black FOREIGN KEY (black_player) REFERENCES users(username) ON DELETE RESTRICT
+);
+
+CREATE TABLE challenges (
+    id SERIAL PRIMARY KEY,  -- Unique challenge ID, auto-incrementing
+    challenger VARCHAR(50) NOT NULL,  -- References users.username
+    player_being_challenged VARCHAR(50) NOT NULL,  -- References users.username
+    accepted BOOLEAN DEFAULT FALSE,  -- Whether the challenge has been accepted
+    challenge_timestamp INT NOT NULL,  -- When the challenge was issued (Unix timestamp)
+    expires INT DEFAULT NULL,  -- When the challenge expires (Unix timestamp, NULL = no expiration)
+
+    -- Foreign Key Constraints
+    CONSTRAINT fk_challenger FOREIGN KEY (challenger) REFERENCES users(username) ON DELETE RESTRICT,
+    CONSTRAINT fk_challenged FOREIGN KEY (player_being_challenged) REFERENCES users(username) ON DELETE RESTRICT
+);

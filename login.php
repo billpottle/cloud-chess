@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     // Check if user exists
-    $query = "SELECT id, username, password_hash FROM users WHERE username = '$username'";
+    $query = "SELECT id, username, password_hash, elo FROM users WHERE username = '$username'";
     $result = execute_query($conn, $query);
     
     if ($result->num_rows === 0) {
@@ -53,6 +53,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Start session and store user info
     $_SESSION['user_id'] = $user['id'];
     $_SESSION['username'] = $user['username'];
+    $_SESSION['elo'] = $user['elo'];
+    
+    // Set session to expire after 1 hour
+    $_SESSION['expires'] = time() + 3600;
+    
+    // Update user's last activity timestamp
+    $current_time = time();
+    
+    // Check if last_activity column exists before updating
+    $check_column_query = "SHOW COLUMNS FROM users LIKE 'last_activity'";
+    $column_result = execute_query($conn, $check_column_query);
+    
+    if ($column_result->num_rows > 0) {
+        $update_query = "UPDATE users SET last_activity = $current_time WHERE id = " . $user['id'];
+        execute_query($conn, $update_query);
+    }
     
     // Create an authentication token
     $token = create_auth_token($user['id']);

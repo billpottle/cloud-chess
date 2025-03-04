@@ -8,13 +8,13 @@ if (headers_sent()) {
     session_name('CHESS_SESSION');
 
     // Configure session settings
-    ini_set('session.cookie_lifetime', 86400); // 1 day
-    ini_set('session.gc_maxlifetime', 86400); // 1 day
+    ini_set('session.cookie_lifetime', 3600); // 1 hour
+    ini_set('session.gc_maxlifetime', 3600); // 1 hour
 
     // Set session cookie parameters
     session_set_cookie_params([
-        'lifetime' => 86400, // 1 day
-        'path' => '/cloud-chess/', // Restrict to the chess subdirectory
+        'lifetime' => 3600, // 1 hour
+        'path' => '/', // Use the root path if your app is not in a subdirectory
         'domain' => '',
         'secure' => isset($_SERVER['HTTPS']), // Secure if HTTPS
         'httponly' => true,
