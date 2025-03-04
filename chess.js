@@ -126,9 +126,18 @@ class ChessGame {
     }
 
     initializeBoard() {
+        // Clear the board first
+        this.board.innerHTML = '';
+        
         // Update CSS grid to 10x10
-        this.board.style.gridTemplateColumns = 'repeat(10, 60px)';
-        this.board.style.gridTemplateRows = 'repeat(10, 60px)';
+        const isMobile = window.innerWidth <= 768;
+        if (isMobile) {
+            this.board.style.gridTemplateColumns = 'repeat(10, 30px)';
+            this.board.style.gridTemplateRows = 'repeat(10, 30px)';
+        } else {
+            this.board.style.gridTemplateColumns = 'repeat(10, 60px)';
+            this.board.style.gridTemplateRows = 'repeat(10, 60px)';
+        }
         
         for (let row = 0; row < 10; row++) {
             for (let col = 0; col < 10; col++) {
@@ -541,46 +550,47 @@ class ChessGame {
     }
 
     movePiece(toRow, toCol) {
+        const fromRow = parseInt(this.selectedPiece.dataset.row);
+        const fromCol = parseInt(this.selectedPiece.dataset.col);
         const fromSquare = this.selectedPiece;
         const toSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
         const piece = fromSquare.querySelector('.piece');
-        const pieceType = piece.textContent;
         
-        // Special handling for archer capture
-        if ((pieceType.includes('⇣') || pieceType.includes('⇡')) && this.isArcherCapture) {
-            // Remove the target piece (capture without moving)
-            toSquare.removeChild(toSquare.querySelector('.piece'));
-            this.isArcherCapture = false;
-            return;
-        }
+        // Check if this is an archer capture without moving
+        const isArcher = piece.textContent === '♟⇣' || piece.textContent === '♙⇡';
+        const isPawn = piece.textContent === '♟' || piece.textContent === '♙';
+        const isArcherCapture = isArcher && this.isArcherCapture;
         
-        // Special handling for Wrath (dragon) movement
-        if (piece.dataset.type === 'dragon' && this.wrathPath) {
-            const { midRow, midCol, hasMidPiece } = this.wrathPath;
-            
-            // If there was a piece in the middle, capture it
-            if (hasMidPiece) {
-                const midSquare = document.querySelector(`[data-row="${midRow}"][data-col="${midCol}"]`);
-                const midPiece = midSquare.querySelector('.piece');
-                
-                // Capture the middle piece
-                if (midPiece && midPiece.dataset.color !== this.currentPlayer) {
-                    midSquare.removeChild(midPiece);
-                }
+        if (isArcherCapture) {
+            // For archer capture without moving, just remove the target piece
+            console.log("Archer capturing without moving");
+            toSquare.innerHTML = '';
+        } else {
+            // Handle dragon's wrath ability (capturing through a piece)
+            if (this.wrathPath) {
+                const midSquare = document.querySelector(`[data-row="${this.wrathPath.midRow}"][data-col="${this.wrathPath.midCol}"]`);
+                midSquare.innerHTML = '';
+                this.wrathPath = null;
             }
             
-            this.wrathPath = null;
+            // Move the piece to the new square
+            const pieceClone = piece.cloneNode(true);
+            toSquare.innerHTML = '';
+            toSquare.appendChild(pieceClone);
+            fromSquare.innerHTML = '';
+            
+            // Check for pawn/archer promotion
+            if ((isPawn || isArcher) && 
+                ((piece.dataset.color === 'white' && toRow === 0) || 
+                 (piece.dataset.color === 'black' && toRow === 9))) {
+                // Promote to queen
+                const promotedPiece = toSquare.querySelector('.piece');
+                promotedPiece.textContent = piece.dataset.color === 'white' ? '♕' : '♛';
+                
+                // Show promotion animation
+                this.showGameStatusAnimation('promotion', 'PROMOTION!');
+            }
         }
-        
-        // Regular piece movement
-        // Remove any piece at the destination (capture)
-        if (toSquare.querySelector('.piece')) {
-            toSquare.removeChild(toSquare.querySelector('.piece'));
-        }
-        
-        // Move the piece
-        fromSquare.removeChild(piece);
-        toSquare.appendChild(piece);
     }
 
     handleTurn() {
