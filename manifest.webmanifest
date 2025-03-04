@@ -1,0 +1,16 @@
+{
+  "name": "Cloud Chess",
+  "short_name": "Chess",
+  "description": "A web-based chess game with special pieces and rules",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4CAF50",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+} 
