@@ -3,22 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chess Game</title>
+    <title>Cloud Chess Game</title>
     <link rel="stylesheet" href="styles.css">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="favicon.ico" sizes="any">
+    <link rel="manifest" href="manifest.webmanifest">
 </head>
 <body>
-    <div class="game-container">
+    <div class="navbar">
+        <a href="index.html">Home</a>
+        <a href="#" id="rules-link">Rules</a>
+    </div>
+    
+    <!-- Rules Modal -->
+    <div id="rules-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h1>Cloud Chess Rules</h1>
+            
+            <div class="rules-content">
+                <h2>Basic Rules</h2>
+                <p>Cloud Chess follows standard chess rules with the addition of special pieces and a larger 10x10 board.</p>
+                
+                <h2>Special Pieces</h2>
+                <div class="piece-rules">
+                    <div class="piece-rule">
+                        <div class="piece-icon dragon-icon">
+                            <img src="dragon_icon_white.png" alt="Dragon" class="rules-piece-image">
+                        </div>
+                        <div class="piece-description">
+                            <h4>Wrath (Dragon)</h4>
+                            <p>Can move 1 or 2 squares in any direction (horizontal, vertical, or diagonal). If it moves 2 squares and there's an enemy piece in the middle, it captures both pieces.</p>
+                        </div>
+                    </div>
+                    <div class="piece-rule">
+                        <div class="piece-icon">♙⇡</div>
+                        <div class="piece-description">
+                            <h4>Archer</h4>
+                            <p>Moves like a pawn but can capture diagonally without moving. Either moves without capturing, or captures without moving.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <h2>Board Layout</h2>
+                <p>The game is played on a 10x10 board with the following setup:</p>
+                <ul>
+                    <li>Wraths (Dragons) are positioned in the corners</li>
+                    <li>Archers are positioned in front of the King and Queen</li>
+                    <li>All other pieces follow standard chess positioning</li>
+                </ul>
+                
+                <div class="rules-image-container">
+                    <img src="./rules.jpeg" alt="Chess Game Rules" class="rules-image">
+                </div>
+                
+                <h2>Game Modes</h2>
+                <ul>
+                    <li><strong>Player vs Player:</strong> Play against another person</li>
+                    <li><strong>Player vs Computer (Easy):</strong> Play against an AI that prioritizes captures</li>
+                    <li><strong>Player vs Computer (Medium):</strong> Play against an AI that prioritizes captures and avoids danger</li>
+                    <li><strong>Player vs Computer (Hard):</strong> Play against an AI that prioritizes safe captures, avoids danger, and makes strategic sacrifices when necessary</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div id="game-container">
         <div id="mode-selection" class="mode-selection">
-            <h2>Select Game Mode</h2>
-            <button id="vs-player">Play vs Player</button>
-            <button id="vs-computer-1">Play vs Computer (Easy)</button>
-            <button id="vs-computer-2">Play vs Computer (Medium)</button>
+            <h2>Welcome to Cloud Chess</h2>
+            
+            <div class="game-mode-options">
+                <button id="vs-player" class="main-button">Player vs Player</button>
+                
+                <div class="computer-mode">
+                    <select id="computer-difficulty" class="difficulty-select">
+                        <option value="" disabled selected>Player vs Computer</option>
+                        <option value="1">Easy</option>
+                        <option value="2">Medium</option>
+                        <option value="3">Hard</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Add intro image below the buttons -->
+            <div class="intro-image-container">
+                <img src="./intro.jpeg" alt="Chess Game Introduction" class="intro-image">
+            </div>
+
+            <!-- Add this section below the intro image -->
+            <div class="attribution">
+                <p>Cloud Chess was inspired by the short story in <a href="https://www.amazon.com/Cloud-Chess-Lands-Saga-Adventure-ebook/dp/B019BU17VU/" target="_blank">Cloud Chess: A Cloudlands Saga Adventure</a> by Katie Pottle.</p>
+                <p>Discover more books in the Cloudlands series on <a href="https://www.amazon.com/stores/Katie-Pottle/author/B01BED1W44" target="_blank">Katie Pottle's Amazon page</a>.</p>
+            </div>
         </div>
         <div id="game-board" style="display: none;">
-            <div id="board"></div>
             <div class="game-info">
-                <p>Current Turn: <span id="current-turn">White</span></p>
+                <div>Current Turn: <span id="current-turn">White</span></div>
             </div>
+            <div id="board"></div>
         </div>
     </div>
     <script src="chess.js"></script>

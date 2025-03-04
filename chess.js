@@ -1,74 +1,126 @@
-// Game initialization
-window.addEventListener('load', () => {
-    const modeSelection = document.getElementById('mode-selection');
-    const gameBoard = document.getElementById('game-board');
+// Update the navigation links based on game state
+function updateNavigation(inGame) {
+    const homeLink = document.querySelector('.navbar a:first-child');
+    
+    if (inGame) {
+        // In game mode, show "New Game" instead of "Home"
+        homeLink.textContent = 'New Game';
+        homeLink.href = '#';
+        homeLink.style.display = 'inline-block'; // Ensure it's visible
+        
+        // Remove any existing event listeners by cloning and replacing the element
+        const newHomeLink = homeLink.cloneNode(true);
+        homeLink.parentNode.replaceChild(newHomeLink, homeLink);
+        
+        // Add the event listener to the new element
+        newHomeLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (confirm('Are you sure you want to start a new game?')) {
+                window.location.reload();
+            }
+        });
+        
+        console.log('Navigation updated for game mode - New Game button should be visible');
+    } else {
+        // In home mode, hide the "Home" link since we're already home
+        homeLink.style.display = 'none';
+        console.log('Navigation updated for home mode - Home button hidden');
+    }
+}
+
+// Initialize the game when the DOM is loaded
+let gameInstance = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Ensure we only create one game instance
+    if (!window.gameInstance) {
+        window.gameInstance = new ChessGame();
+    }
+    
+    // Set up event listeners for game mode buttons
     const vsPlayerBtn = document.getElementById('vs-player');
-    const vsComputer1Btn = document.getElementById('vs-computer-1');
-    const vsComputer2Btn = document.getElementById('vs-computer-2');
+    if (vsPlayerBtn) {
+        vsPlayerBtn.addEventListener('click', () => {
+            window.gameInstance.startGame('pvp');
+        });
+    }
     
-    vsPlayerBtn.addEventListener('click', () => {
-        modeSelection.style.display = 'none';
-        gameBoard.style.display = 'block';
-        new ChessGame(0); // 0 means not vs computer
-    });
+    const computerDifficulty = document.getElementById('computer-difficulty');
+    if (computerDifficulty) {
+        computerDifficulty.addEventListener('change', () => {
+            const difficulty = parseInt(computerDifficulty.value);
+            if (difficulty > 0) {
+                window.gameInstance.startGame('pvc', difficulty);
+            }
+        });
+    }
     
-    vsComputer1Btn.addEventListener('click', () => {
-        modeSelection.style.display = 'none';
-        gameBoard.style.display = 'block';
-        new ChessGame(1); // 1 means vs computer level 1 (easy)
-    });
+    // Initialize navigation for home screen
+    updateNavigation(false);
     
-    vsComputer2Btn.addEventListener('click', () => {
-        modeSelection.style.display = 'none';
-        gameBoard.style.display = 'block';
-        new ChessGame(2); // 2 means vs computer level 2 (medium)
-    });
+    // Rules modal functionality
+    const rulesModal = document.getElementById('rules-modal');
+    const rulesLink = document.getElementById('rules-link');
+    const closeModal = document.querySelector('.close-modal');
+    
+    if (rulesLink && rulesModal && closeModal) {
+        rulesLink.addEventListener('click', () => {
+            rulesModal.style.display = 'block';
+        });
+        
+        closeModal.addEventListener('click', () => {
+            rulesModal.style.display = 'none';
+        });
+        
+        window.addEventListener('click', (e) => {
+            if (e.target === rulesModal) {
+                rulesModal.style.display = 'none';
+            }
+        });
+    }
 });
 
 class ChessGame {
-    constructor(aiLevel) {
-        this.board = document.getElementById('board');
+    constructor() {
+        this.board = null;
         this.currentPlayer = 'white';
         this.selectedPiece = null;
-        this.gameBoard = this.createInitialBoard();
-        this.aiLevel = aiLevel; // 0: no AI, 1: easy AI, 2: medium AI
-        this.initializeBoard();
-        
-        // Initialize turn handling if playing vs computer
-        if (this.aiLevel > 0) {
-            this.handleTurn();
-        }
+        this.gameBoard = null;
+        this.aiLevel = 0;
+        this.gameMode = null;
+        this.isArcherCapture = false;
+        this.wrathPath = null;
     }
 
     createInitialBoard() {
         // Create a 10x10 board with empty spaces
         const board = Array(10).fill().map(() => Array(10).fill(''));
         
-        // Black pieces (top row) - wraths in corners, other pieces moved inward
-        board[0][0] = '🐉'; // Black Wrath (dragon) in left corner
+        // Black pieces (top row)
+        board[0][0] = 'dragon-black'; // Black Wrath (black dragon)
         board[0][1] = '♜'; board[0][2] = '♞'; board[0][3] = '♝'; 
-        board[0][4] = '♛'; board[0][5] = '♚'; // Queen and King
+        board[0][4] = '♛'; board[0][5] = '♚';
         board[0][6] = '♝'; board[0][7] = '♞'; board[0][8] = '♜';
-        board[0][9] = '🐉'; // Black Wrath (dragon) in right corner
+        board[0][9] = 'dragon-black'; // Black Wrath
         
         // Black pawns and archers (second row)
         board[1][0] = '♟'; board[1][1] = '♟'; board[1][2] = '♟'; board[1][3] = '♟';
-        board[1][4] = '🏹'; // Black archer in front of queen
-        board[1][5] = '🏹'; // Black archer in front of king
+        board[1][4] = '♟⇣'; // Black archer (pawn with arrow)
+        board[1][5] = '♟⇣'; // Black archer
         board[1][6] = '♟'; board[1][7] = '♟'; board[1][8] = '♟'; board[1][9] = '♟';
         
         // White pawns and archers (ninth row)
         board[8][0] = '♙'; board[8][1] = '♙'; board[8][2] = '♙'; board[8][3] = '♙';
-        board[8][4] = '🏹'; // White archer in front of queen
-        board[8][5] = '🏹'; // White archer in front of king
+        board[8][4] = '♙⇡'; // White archer (pawn with arrow)
+        board[8][5] = '♙⇡'; // White archer
         board[8][6] = '♙'; board[8][7] = '♙'; board[8][8] = '♙'; board[8][9] = '♙';
         
-        // White pieces (bottom row) - wraths in corners, other pieces moved inward
-        board[9][0] = '🐉'; // White Wrath (dragon) in left corner
+        // White pieces (bottom row)
+        board[9][0] = 'dragon-white'; // White Wrath (white dragon)
         board[9][1] = '♖'; board[9][2] = '♘'; board[9][3] = '♗'; 
-        board[9][4] = '♕'; board[9][5] = '♔'; // Queen and King
+        board[9][4] = '♕'; board[9][5] = '♔';
         board[9][6] = '♗'; board[9][7] = '♘'; board[9][8] = '♖';
-        board[9][9] = '🐉'; // White Wrath (dragon) in right corner
+        board[9][9] = 'dragon-white'; // White Wrath
         
         return board;
     }
@@ -87,9 +139,36 @@ class ChessGame {
                 
                 if (this.gameBoard[row][col]) {
                     const piece = document.createElement('div');
-                    piece.className = 'piece';
-                    piece.textContent = this.gameBoard[row][col];
-                    piece.dataset.color = row < 2 ? 'black' : (row > 7 ? 'white' : '');
+                    
+                    // Handle special dragon pieces
+                    if (this.gameBoard[row][col] === 'dragon-black') {
+                        piece.className = 'piece dragon-piece black-piece';
+                        piece.dataset.color = 'black';
+                        piece.dataset.type = 'dragon';
+                    } else if (this.gameBoard[row][col] === 'dragon-white') {
+                        piece.className = 'piece dragon-piece white-piece';
+                        piece.dataset.color = 'white';
+                        piece.dataset.type = 'dragon';
+                    } else {
+                        // Regular pieces
+                        piece.className = 'piece';
+                        piece.textContent = this.gameBoard[row][col];
+                        
+                        // Set color
+                        if (row < 2) {
+                            piece.dataset.color = 'black';
+                            piece.classList.add('black-piece');
+                        } else if (row > 7) {
+                            piece.dataset.color = 'white';
+                            piece.classList.add('white-piece');
+                        }
+                    }
+                    
+                    if (this.gameBoard[row][col] === '♔' || this.gameBoard[row][col] === '♚') {
+                        piece.dataset.type = 'king';
+                        console.log(`King piece created at ${row},${col}`);
+                    }
+                    
                     square.appendChild(piece);
                 }
 
@@ -99,39 +178,92 @@ class ChessGame {
         }
     }
 
-    handleSquareClick(event) {
-        // Only allow moves for the current player
-        if (this.aiLevel > 0 && this.currentPlayer === 'black') return;
-        
-        const square = event.target.classList.contains('square') 
-            ? event.target 
-            : event.target.parentElement;
+    handleSquareClick(e) {
+        const square = e.currentTarget;
         const row = parseInt(square.dataset.row);
         const col = parseInt(square.dataset.col);
-        const piece = square.querySelector('.piece');
-
-        // Clear previous selections
-        this.clearHighlights();
-
+        
+        // If a piece is already selected
         if (this.selectedPiece) {
-            if (this.isValidMove(row, col)) {
-                this.movePiece(row, col);
+            const selectedRow = parseInt(this.selectedPiece.dataset.row);
+            const selectedCol = parseInt(this.selectedPiece.dataset.col);
+            
+            // If clicking on the same square, deselect it
+            if (selectedRow === row && selectedCol === col) {
+                this.selectedPiece.classList.remove('selected');
+                this.clearValidMoves();
                 this.selectedPiece = null;
-                this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
-                document.getElementById('current-turn').textContent = 
-                    this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
+                return;
+            }
+            
+            // Check if the move is valid
+            if (this.isValidMove(row, col)) {
+                // Check if the move would leave the king in check
+                if (this.wouldMoveLeaveKingInCheck(selectedRow, selectedCol, row, col)) {
+                    alert("That move would leave your king in check!");
+                    return;
+                }
                 
-                // Trigger AI move if playing vs computer and it's black's turn
+                // Move the piece
+                this.movePiece(row, col);
+                
+                // Clear selection and valid moves
+                this.selectedPiece.classList.remove('selected');
+                this.clearValidMoves();
+                this.selectedPiece = null;
+                
+                // Switch turns
+                this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
+                document.getElementById('current-turn').textContent = this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
+                
+                // Check if the opponent's king is in check
+                const opponentColor = this.currentPlayer;
+                console.log(`Checking if ${opponentColor} king is in check`);
+                const inCheck = this.isKingInCheck(opponentColor);
+                console.log(`${opponentColor} king in check: ${inCheck}`);
+                
+                if (inCheck) {
+                    // Check if it's checkmate
+                    if (this.isCheckmate(opponentColor)) {
+                        const winner = opponentColor === 'white' ? 'Black' : 'White';
+                        this.showGameStatusAnimation('checkmate', 'CHECKMATE!');
+                        setTimeout(() => {
+                            alert(`${winner} wins!`);
+                        }, 2000);
+                    } else {
+                        this.showGameStatusAnimation('check', 'CHECK!');
+                    }
+                }
+                
+                // If playing against AI, make the AI move
                 if (this.aiLevel > 0 && this.currentPlayer === 'black') {
-                    this.handleTurn();
+                    setTimeout(() => {
+                        this.makeAIMove();
+                        this.clearValidMoves();
+                    }, 500);
                 }
             } else {
-                this.selectedPiece = null;
+                // If the move is not valid, try to select a different piece
+                const piece = square.querySelector('.piece');
+                if (piece && piece.dataset.color === this.currentPlayer) {
+                    // Clear previous selection
+                    this.selectedPiece.classList.remove('selected');
+                    this.clearValidMoves();
+                    
+                    // Select new piece
+                    this.selectedPiece = square;
+                    square.classList.add('selected');
+                    this.showValidMoves();
+                }
             }
-        } else if (piece && piece.dataset.color === this.currentPlayer) {
-            this.selectedPiece = square;
-            square.classList.add('selected');
-            this.showValidMoves(row, col);
+        } else {
+            // Try to select a piece
+            const piece = square.querySelector('.piece');
+            if (piece && piece.dataset.color === this.currentPlayer) {
+                this.selectedPiece = square;
+                square.classList.add('selected');
+                this.showValidMoves();
+            }
         }
     }
 
@@ -150,108 +282,232 @@ class ChessGame {
         // Basic validation: can't capture your own pieces
         const targetSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
         const targetPiece = targetSquare.querySelector('.piece');
-        if (targetPiece && targetPiece.dataset.color === this.currentPlayer) {
+        if (targetPiece && targetPiece.dataset.color === piece.dataset.color) {
             return false;
         }
 
-        // Movement rules for each piece type
-        switch (pieceType) {
-            case '🏹': // Archer
-                // Store whether this is a capture move for later use in movePiece
-                this.isArcherCapture = false;
-                
-                if (piece.dataset.color === 'black') {
-                    if (fromCol === toCol && !targetPiece) { // Moving straight (no capture)
-                        if (fromRow === 1 && toRow === 3) return true; // First move can be 2 squares
-                        return toRow === fromRow + 1; // Regular move 1 square
-                    } else if (Math.abs(fromCol - toCol) === 1 && toRow === fromRow + 1 && targetPiece) {
-                        this.isArcherCapture = true; // Diagonal capture
-                        return true;
+        // Check if this is a dragon piece
+        if (piece.dataset.type === 'dragon') {
+            // Dragon movement logic
+            const rowDiff = Math.abs(fromRow - toRow);
+            const colDiff = Math.abs(fromCol - toCol);
+            
+            // Check if move is 1 or 2 squares in any direction (including diagonal)
+            if ((rowDiff <= 2 && colDiff <= 2) && !(rowDiff === 0 && colDiff === 0)) {
+                // For 2-square moves, check if it's a straight line
+                if (rowDiff === 2 || colDiff === 2) {
+                    // Must be a straight line (horizontal, vertical, or diagonal)
+                    if (!(rowDiff === 0 || colDiff === 0 || rowDiff === colDiff)) {
+                        return false;
                     }
-                } else { // White archer
-                    if (fromCol === toCol && !targetPiece) { // Moving straight (no capture)
-                        if (fromRow === 8 && toRow === 6) return true; // First move can be 2 squares
-                        return toRow === fromRow - 1; // Regular move 1 square
-                    } else if (Math.abs(fromCol - toCol) === 1 && toRow === fromRow - 1 && targetPiece) {
-                        this.isArcherCapture = true; // Diagonal capture
-                        return true;
-                    }
-                }
-                return false;
-
-            case '♟': // Black pawn
-                if (fromCol === toCol) { // Moving straight
-                    if (!targetPiece) { // No piece blocking
-                        if (fromRow === 1 && toRow === 3) return true; // First move can be 2 squares
-                        return toRow === fromRow + 1; // Regular move 1 square
-                    }
-                } else if (Math.abs(fromCol - toCol) === 1 && toRow === fromRow + 1) {
-                    return targetPiece !== null; // Diagonal capture
-                }
-                return false;
-
-            case '♙': // White pawn
-                if (fromCol === toCol) { // Moving straight
-                    if (!targetPiece) { // No piece blocking
-                        if (fromRow === 8 && toRow === 6) return true; // First move can be 2 squares
-                        return toRow === fromRow - 1; // Regular move 1 square
-                    }
-                } else if (Math.abs(fromCol - toCol) === 1 && toRow === fromRow - 1) {
-                    return targetPiece !== null; // Diagonal capture
-                }
-                return false;
-
-            case '♜':
-            case '♖': // Rook
-                return (fromRow === toRow || fromCol === toCol) && 
-                       this.isPathClear(fromRow, fromCol, toRow, toCol);
-
-            case '♝':
-            case '♗': // Bishop
-                return (Math.abs(fromRow - toRow) === Math.abs(fromCol - toCol)) && 
-                       this.isPathClear(fromRow, fromCol, toRow, toCol);
-
-            case '♛':
-            case '♕': // Queen
-                return ((fromRow === toRow || fromCol === toCol) || 
-                       (Math.abs(fromRow - toRow) === Math.abs(fromCol - toCol))) && 
-                       this.isPathClear(fromRow, fromCol, toRow, toCol);
-
-            case '♚':
-            case '♔': // King
-                return Math.abs(fromRow - toRow) <= 1 && Math.abs(fromCol - toCol) <= 1;
-
-            case '♞':
-            case '♘': // Knight
-                return (Math.abs(fromRow - toRow) === 2 && Math.abs(fromCol - toCol) === 1) ||
-                       (Math.abs(fromRow - toRow) === 1 && Math.abs(fromCol - toCol) === 2);
-
-            case '🐉': // Wrath (dragon)
-                // Can move 1 or 2 squares in any direction
-                const rowDiff = Math.abs(fromRow - toRow);
-                const colDiff = Math.abs(fromCol - toCol);
-                
-                // Check if move is 1 or 2 squares in any direction (including diagonal)
-                if ((rowDiff <= 2 && colDiff <= 2) && !(rowDiff === 0 && colDiff === 0)) {
-                    // For 2-square moves, check if it's a straight line
-                    if (rowDiff === 2 || colDiff === 2) {
-                        // Must be a straight line (horizontal, vertical, or diagonal)
-                        if (!(rowDiff === 0 || colDiff === 0 || rowDiff === colDiff)) {
+                    
+                    // Calculate the middle square
+                    const midRow = Math.round((fromRow + toRow) / 2);
+                    const midCol = Math.round((fromCol + toCol) / 2);
+                    
+                    // Check if there's a piece in the middle square
+                    const midSquare = document.querySelector(`[data-row="${midRow}"][data-col="${midCol}"]`);
+                    const midPiece = midSquare.querySelector('.piece');
+                    
+                    // For dragon, we allow capturing through a piece
+                    if (midPiece) {
+                        // Store the path for later use in movePiece
+                        this.wrathPath = { midRow, midCol };
+                        
+                        // Can only capture enemy pieces
+                        if (midPiece.dataset.color === piece.dataset.color) {
                             return false;
                         }
-                        
-                        // Store information about the path for later use in movePiece
-                        this.wrathPath = {
-                            fromRow: fromRow,
-                            fromCol: fromCol,
-                            toRow: toRow,
-                            toCol: toCol
-                        };
+                    } else {
+                        this.wrathPath = null;
                     }
-                    return true;
+                } else {
+                    this.wrathPath = null;
                 }
+                
+                return true;
+            }
+            
+            return false;
+        } 
+        // Queen movement (♛ or ♕)
+        else if (pieceType === '♛' || pieceType === '♕') {
+            console.log(`Checking queen move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
+            const rowDiff = Math.abs(fromRow - toRow);
+            const colDiff = Math.abs(fromCol - toCol);
+            
+            // Queen can move any number of squares horizontally, vertically, or diagonally
+            if (!(rowDiff === 0 || colDiff === 0 || rowDiff === colDiff)) {
+                console.log('Invalid queen move - not horizontal, vertical, or diagonal');
                 return false;
+            }
+            
+            // Check for pieces in the path
+            const rowStep = fromRow === toRow ? 0 : (toRow > fromRow ? 1 : -1);
+            const colStep = fromCol === toCol ? 0 : (toCol > fromCol ? 1 : -1);
+            
+            let currentRow = fromRow + rowStep;
+            let currentCol = fromCol + colStep;
+            
+            while (currentRow !== toRow || currentCol !== toCol) {
+                const pathSquare = document.querySelector(`[data-row="${currentRow}"][data-col="${currentCol}"]`);
+                if (pathSquare.querySelector('.piece')) {
+                    console.log(`Path blocked at ${currentRow},${currentCol}`);
+                    return false; // Path is blocked
+                }
+                currentRow += rowStep;
+                currentCol += colStep;
+            }
+            
+            console.log('Valid queen move');
+            return true;
         }
+        // Rook movement (♜ or ♖)
+        else if (pieceType === '♜' || pieceType === '♖') {
+            console.log(`Checking rook move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
+            const rowDiff = Math.abs(fromRow - toRow);
+            const colDiff = Math.abs(fromCol - toCol);
+            
+            // Rook can only move horizontally or vertically
+            if (!(rowDiff === 0 || colDiff === 0) || (rowDiff === 0 && colDiff === 0)) {
+                console.log('Invalid rook move - not horizontal or vertical');
+                return false;
+            }
+            
+            // Check for pieces in the path
+            const rowStep = fromRow === toRow ? 0 : (toRow > fromRow ? 1 : -1);
+            const colStep = fromCol === toCol ? 0 : (toCol > fromCol ? 1 : -1);
+            
+            let currentRow = fromRow + rowStep;
+            let currentCol = fromCol + colStep;
+            
+            while (currentRow !== toRow || currentCol !== toCol) {
+                const pathSquare = document.querySelector(`[data-row="${currentRow}"][data-col="${currentCol}"]`);
+                if (pathSquare.querySelector('.piece')) {
+                    console.log(`Path blocked at ${currentRow},${currentCol}`);
+                    return false; // Path is blocked
+                }
+                currentRow += rowStep;
+                currentCol += colStep;
+            }
+            
+            console.log('Valid rook move');
+            return true;
+        }
+        // Bishop movement (♝ or ♗)
+        else if (pieceType === '♝' || pieceType === '♗') {
+            console.log(`Checking bishop move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
+            const rowDiff = Math.abs(fromRow - toRow);
+            const colDiff = Math.abs(fromCol - toCol);
+            
+            // Bishop can only move diagonally
+            if (rowDiff !== colDiff || rowDiff === 0) {
+                console.log('Invalid bishop move - not diagonal');
+                return false;
+            }
+            
+            // Check for pieces in the path
+            const rowStep = toRow > fromRow ? 1 : -1;
+            const colStep = toCol > fromCol ? 1 : -1;
+            
+            let currentRow = fromRow + rowStep;
+            let currentCol = fromCol + colStep;
+            
+            while (currentRow !== toRow && currentCol !== toCol) {
+                const pathSquare = document.querySelector(`[data-row="${currentRow}"][data-col="${currentCol}"]`);
+                if (pathSquare.querySelector('.piece')) {
+                    console.log(`Path blocked at ${currentRow},${currentCol}`);
+                    return false; // Path is blocked
+                }
+                currentRow += rowStep;
+                currentCol += colStep;
+            }
+            
+            console.log('Valid bishop move');
+            return true;
+        }
+        // Knight movement (♞ or ♘)
+        else if (pieceType === '♞' || pieceType === '♘') {
+            const rowDiff = Math.abs(fromRow - toRow);
+            const colDiff = Math.abs(fromCol - toCol);
+            
+            // Knight moves in an L-shape: 2 squares in one direction and 1 square perpendicular
+            return (rowDiff === 2 && colDiff === 1) || (rowDiff === 1 && colDiff === 2);
+        }
+        // King movement (♚ or ♔)
+        else if (pieceType === '♚' || pieceType === '♔') {
+            const rowDiff = Math.abs(fromRow - toRow);
+            const colDiff = Math.abs(fromCol - toCol);
+            
+            // King can move 1 square in any direction
+            return rowDiff <= 1 && colDiff <= 1 && !(rowDiff === 0 && colDiff === 0);
+        }
+        // Pawn movement (♟ or ♙)
+        else if (pieceType === '♟' || pieceType === '♙') {
+            const direction = piece.dataset.color === 'white' ? -1 : 1;
+            const startRow = piece.dataset.color === 'white' ? 8 : 1;
+            const rowDiff = toRow - fromRow;
+            const colDiff = Math.abs(toCol - fromCol);
+            
+            // Regular pawn move (forward 1 square)
+            if (colDiff === 0 && rowDiff === direction && !targetPiece) {
+                return true;
+            }
+            
+            // Initial pawn move (forward 2 squares)
+            if (colDiff === 0 && rowDiff === 2 * direction && fromRow === startRow && !targetPiece) {
+                // Check if the path is clear
+                const midRow = fromRow + direction;
+                const midSquare = document.querySelector(`[data-row="${midRow}"][data-col="${fromCol}"]`);
+                return !midSquare.querySelector('.piece');
+            }
+            
+            // Pawn capture (diagonal 1 square)
+            if (colDiff === 1 && rowDiff === direction && targetPiece) {
+                return true;
+            }
+            
+            return false;
+        }
+        // Archer movement (♟⇣ or ♙⇡)
+        else if (pieceType === '♟⇣' || pieceType === '♙⇡') {
+            const direction = piece.dataset.color === 'white' ? -1 : 1;
+            const startRow = piece.dataset.color === 'white' ? 8 : 1;
+            const rowDiff = toRow - fromRow;
+            const colDiff = Math.abs(toCol - fromCol);
+            
+            // Archer can either move like a pawn or capture diagonally without moving
+            
+            // Capture without moving (archer special ability)
+            if (rowDiff === 0 && colDiff === 1 && targetPiece) {
+                this.isArcherCapture = true;
+                return true;
+            }
+            
+            // Regular pawn move (forward 1 square)
+            if (colDiff === 0 && rowDiff === direction && !targetPiece) {
+                this.isArcherCapture = false;
+                return true;
+            }
+            
+            // Initial pawn move (forward 2 squares)
+            if (colDiff === 0 && rowDiff === 2 * direction && fromRow === startRow && !targetPiece) {
+                // Check if the path is clear
+                const midRow = fromRow + direction;
+                const midSquare = document.querySelector(`[data-row="${midRow}"][data-col="${fromCol}"]`);
+                this.isArcherCapture = false;
+                return !midSquare.querySelector('.piece');
+            }
+            
+            // Pawn capture (diagonal 1 square)
+            if (colDiff === 1 && rowDiff === direction && targetPiece) {
+                this.isArcherCapture = false;
+                return true;
+            }
+            
+            return false;
+        }
+        
         return false;
     }
 
@@ -291,7 +547,7 @@ class ChessGame {
         const pieceType = piece.textContent;
         
         // Special handling for archer capture
-        if (pieceType === '🏹' && this.isArcherCapture) {
+        if ((pieceType.includes('⇣') || pieceType.includes('⇡')) && this.isArcherCapture) {
             // Remove the target piece (capture without moving)
             toSquare.removeChild(toSquare.querySelector('.piece'));
             this.isArcherCapture = false;
@@ -299,19 +555,15 @@ class ChessGame {
         }
         
         // Special handling for Wrath (dragon) movement
-        if (pieceType === '🐉' && this.wrathPath) {
-            const { fromRow, fromCol, toRow, toCol } = this.wrathPath;
+        if (piece.dataset.type === 'dragon' && this.wrathPath) {
+            const { midRow, midCol, hasMidPiece } = this.wrathPath;
             
-            // Calculate the middle square for 2-square moves
-            if (Math.abs(toRow - fromRow) === 2 || Math.abs(toCol - fromCol) === 2) {
-                const midRow = Math.round((fromRow + toRow) / 2);
-                const midCol = Math.round((fromCol + toCol) / 2);
-                
-                // Check if there's a piece in the middle square
+            // If there was a piece in the middle, capture it
+            if (hasMidPiece) {
                 const midSquare = document.querySelector(`[data-row="${midRow}"][data-col="${midCol}"]`);
                 const midPiece = midSquare.querySelector('.piece');
                 
-                // Capture the middle piece if it exists and isn't the player's own piece
+                // Capture the middle piece
                 if (midPiece && midPiece.dataset.color !== this.currentPlayer) {
                     midSquare.removeChild(midPiece);
                 }
@@ -342,7 +594,12 @@ class ChessGame {
             this.makeEasyAIMove();
         } else if (this.aiLevel === 2) {
             this.makeMediumAIMove();
+        } else if (this.aiLevel === 3) {
+            this.makeHardAIMove();
         }
+        
+        // After making the move, clear any valid move indicators
+        this.clearValidMoves();
     }
 
     makeEasyAIMove() {
@@ -416,14 +673,107 @@ class ChessGame {
         }
     }
 
+    makeHardAIMove() {
+        const blackPieces = this.findPieces('black');
+        const { captureMoves, normalMoves } = this.findAllMoves(blackPieces);
+        
+        // First priority: capture moves that don't put the piece in danger
+        if (captureMoves.length > 0) {
+            const safeCapturesMoves = captureMoves.filter(move => 
+                !this.wouldPieceBeInDanger(move.fromRow, move.fromCol, move.toRow, move.toCol)
+            );
+            
+            if (safeCapturesMoves.length > 0) {
+                const move = safeCapturesMoves[Math.floor(Math.random() * safeCapturesMoves.length)];
+                this.executeMove(move);
+                return;
+            }
+        }
+        
+        // Second priority: save pieces that are in danger
+        const piecesInDanger = this.findPiecesInDanger('black');
+        
+        if (piecesInDanger.length > 0) {
+            // Find safe moves for pieces in danger
+            const safeMoves = [];
+            
+            for (const { row, col } of piecesInDanger) {
+                const piece = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                this.selectedPiece = piece;
+                
+                // Find all possible moves for this piece
+                for (let toRow = 0; toRow < 10; toRow++) {
+                    for (let toCol = 0; toCol < 10; toCol++) {
+                        if (this.isValidMove(toRow, toCol)) {
+                            // Check if this move would make the piece safe
+                            if (!this.wouldPieceBeInDanger(row, col, toRow, toCol)) {
+                                safeMoves.push({ fromRow: row, fromCol: col, toRow, toCol });
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (safeMoves.length > 0) {
+                // Choose a random safe move
+                const move = safeMoves[Math.floor(Math.random() * safeMoves.length)];
+                this.executeMove(move);
+                return;
+            }
+        }
+        
+        // Third priority: make a move that doesn't put a piece in danger
+        const safeMoves = normalMoves.filter(move => 
+            !this.wouldPieceBeInDanger(move.fromRow, move.fromCol, move.toRow, move.toCol)
+        );
+        
+        if (safeMoves.length > 0) {
+            const move = safeMoves[Math.floor(Math.random() * safeMoves.length)];
+            this.executeMove(move);
+            return;
+        }
+        
+        // Fourth priority: if all moves would put pieces in danger, sacrifice the least valuable piece
+        if (normalMoves.length > 0 || captureMoves.length > 0) {
+            const allMoves = [...normalMoves, ...captureMoves];
+            
+            // Assign piece values
+            const pieceValues = {
+                '♟': 1, '♙': 1,  // Pawns
+                '♟⇣': 2, '♙⇡': 2, // Archers
+                '♞': 3, '♘': 3,   // Knights
+                '♝': 3, '♗': 3,   // Bishops
+                '♜': 5, '♖': 5,   // Rooks
+                '🐲': 7, '🐉': 7,  // Wraths (Dragons)
+                '♛': 9, '♕': 9,   // Queens
+                '♚': 100, '♔': 100 // Kings (extremely high value to avoid sacrificing)
+            };
+            
+            // Sort moves by piece value (ascending)
+            allMoves.sort((a, b) => {
+                const pieceA = document.querySelector(`[data-row="${a.fromRow}"][data-col="${a.fromCol}"]`);
+                const pieceB = document.querySelector(`[data-row="${b.fromRow}"][data-col="${b.fromCol}"]`);
+                return pieceValues[pieceA.textContent] - pieceValues[pieceB.textContent];
+            });
+            
+            // Choose the first move in the sorted list
+            const move = allMoves[0];
+            this.executeMove(move);
+        }
+    }
+
+    executeMove(move) {
+        const { fromRow, fromCol, toRow, toCol } = move;
+        this.movePiece(toRow, toCol);
+    }
+
     findPieces(color) {
         const pieces = [];
         for (let row = 0; row < 10; row++) {
             for (let col = 0; col < 10; col++) {
-                const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-                const piece = square.querySelector('.piece');
+                const piece = document.querySelector(`[data-row="${row}"][data-col="${col}"] .piece`);
                 if (piece && piece.dataset.color === color) {
-                    pieces.push({ row, col, square, piece });
+                    pieces.push({ row, col });
                 }
             }
         }
@@ -433,62 +783,46 @@ class ChessGame {
     findAllMoves(pieces) {
         const captureMoves = [];
         const normalMoves = [];
-        
-        for (const { row, col, square } of pieces) {
-            this.selectedPiece = square;
-            
+        for (const { row, col } of pieces) {
             for (let toRow = 0; toRow < 10; toRow++) {
                 for (let toCol = 0; toCol < 10; toCol++) {
                     if (this.isValidMove(toRow, toCol)) {
-                        const targetSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
-                        const targetPiece = targetSquare.querySelector('.piece');
-                        
-                        if (targetPiece) {
-                            captureMoves.push({ fromRow: row, fromCol: col, toRow, toCol });
+                        const move = { fromRow: row, fromCol: col, toRow, toCol };
+                        if (this.isArcherCapture) {
+                            captureMoves.push(move);
                         } else {
-                            normalMoves.push({ fromRow: row, fromCol: col, toRow, toCol });
+                            normalMoves.push(move);
                         }
                     }
                 }
             }
         }
-        
         return { captureMoves, normalMoves };
     }
 
     findPiecesInDanger(color) {
-        const piecesInDanger = [];
         const pieces = this.findPieces(color);
-        const opponentColor = color === 'white' ? 'black' : 'white';
-        const opponentPieces = this.findPieces(opponentColor);
-        
-        // For each of our pieces, check if any opponent piece can capture it
+        const inDanger = [];
         for (const { row, col } of pieces) {
-            for (const { square: opponentSquare } of opponentPieces) {
-                const originalSelectedPiece = this.selectedPiece;
-                this.selectedPiece = opponentSquare;
-                
-                if (this.isValidMove(row, col)) {
-                    piecesInDanger.push({ row, col });
-                    break; // No need to check other opponent pieces
-                }
-                
-                this.selectedPiece = originalSelectedPiece;
+            if (this.isKingInCheck(color)) {
+                inDanger.push({ row, col });
             }
         }
-        
-        return piecesInDanger;
+        return inDanger;
     }
 
     wouldPieceBeInDanger(fromRow, fromCol, toRow, toCol) {
-        // Temporarily move the piece to see if it would be in danger
+        const move = { fromRow, fromCol, toRow, toCol };
+        return this.wouldMoveLeaveKingInCheck(fromRow, fromCol, toRow, toCol);
+    }
+
+    wouldMoveLeaveKingInCheck(fromRow, fromCol, toRow, toCol) {
         const fromSquare = document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`);
         const toSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
         const piece = fromSquare.querySelector('.piece');
         const color = piece.dataset.color;
-        const opponentColor = color === 'white' ? 'black' : 'white';
         
-        // Simulate the move
+        // Temporarily make the move
         const originalToContent = toSquare.innerHTML;
         const originalFromContent = fromSquare.innerHTML;
         
@@ -496,38 +830,201 @@ class ChessGame {
         toSquare.appendChild(piece.cloneNode(true));
         fromSquare.innerHTML = '';
         
-        // Check if any opponent piece can capture the moved piece
-        const opponentPieces = this.findPieces(opponentColor);
-        let inDanger = false;
+        // Check if the king is in check after the move
+        const inCheck = this.isKingInCheck(color);
         
-        for (const { square: opponentSquare } of opponentPieces) {
-            const originalSelectedPiece = this.selectedPiece;
-            this.selectedPiece = opponentSquare;
-            
-            if (this.isValidMove(toRow, toCol)) {
-                inDanger = true;
-                this.selectedPiece = originalSelectedPiece;
-                break;
-            }
-            
-            this.selectedPiece = originalSelectedPiece;
-        }
-        
-        // Restore the board
+        // Restore the original board state
         fromSquare.innerHTML = originalFromContent;
         toSquare.innerHTML = originalToContent;
         
-        return inDanger;
+        return inCheck;
     }
 
-    executeMove(move) {
-        const fromSquare = document.querySelector(`[data-row="${move.fromRow}"][data-col="${move.fromCol}"]`);
-        this.selectedPiece = fromSquare;
-        this.movePiece(move.toRow, move.toCol);
+    isKingInCheck(color) {
+        // Find the king's position
+        let kingRow = -1;
+        let kingCol = -1;
         
-        // Update turn
+        // Look for the king on the board
+        for (let row = 0; row < 10; row++) {
+            for (let col = 0; col < 10; col++) {
+                const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                const piece = square?.querySelector('.piece');
+                
+                if (piece && piece.dataset.color === color) {
+                    // Check for king pieces
+                    if (piece.dataset.type === 'king' || 
+                        piece.textContent === '♔' || 
+                        piece.textContent === '♚') {
+                        kingRow = row;
+                        kingCol = col;
+                        console.log(`Found ${color} king at ${row},${col}`);
+                        break;
+                    }
+                }
+            }
+            if (kingRow !== -1) break;
+        }
+        
+        if (kingRow === -1) {
+            console.log(`King not found for ${color}`);
+            return false; // King not found
+        }
+        
+        console.log(`${color} king found at ${kingRow},${kingCol}`);
+        
+        // Check if any opponent piece can capture the king
+        const opponentColor = color === 'white' ? 'black' : 'white';
+        
+        for (let row = 0; row < 10; row++) {
+            for (let col = 0; col < 10; col++) {
+                const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                const piece = square?.querySelector('.piece');
+                
+                if (piece && piece.dataset.color === opponentColor) {
+                    // Save current selected piece
+                    const originalSelectedPiece = this.selectedPiece;
+                    
+                    // Temporarily select this opponent piece
+                    this.selectedPiece = square;
+                    
+                    // Log the piece type and position
+                    console.log(`Checking if ${opponentColor} ${piece.textContent || piece.dataset.type} at ${row},${col} can capture the ${color} king at ${kingRow},${kingCol}`);
+
+                    // Check if it can capture the king
+                    const canCapture = this.isValidMove(kingRow, kingCol);
+                    console.log(`Can capture: ${canCapture}`);
+
+                    // Restore original selection
+                    this.selectedPiece = originalSelectedPiece;
+                    
+                    if (canCapture) {
+                        console.log(`${opponentColor} piece at ${row},${col} can capture the ${color} king`);
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        return false;
+    }
+
+    isCheckmate(color) {
+        // If the king is not in check, it's not checkmate
+        if (!this.isKingInCheck(color)) {
+            return false;
+        }
+        
+        // Check if any move can get the king out of check
+        for (let fromRow = 0; fromRow < 10; fromRow++) {
+            for (let fromCol = 0; fromCol < 10; fromCol++) {
+                const fromSquare = document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`);
+                const piece = fromSquare?.querySelector('.piece');
+                
+                if (piece && piece.dataset.color === color) {
+                    // Try all possible moves for this piece
+                    for (let toRow = 0; toRow < 10; toRow++) {
+                        for (let toCol = 0; toCol < 10; toCol++) {
+                            // Save current selected piece
+                            const originalSelectedPiece = this.selectedPiece;
+                            
+                            // Temporarily select this piece
+                            this.selectedPiece = fromSquare;
+                            
+                            // Check if the move is valid
+                            if (this.isValidMove(toRow, toCol)) {
+                                // Check if this move would get the king out of check
+                                if (!this.wouldMoveLeaveKingInCheck(fromRow, fromCol, toRow, toCol)) {
+                                    // Restore original selection
+                                    this.selectedPiece = originalSelectedPiece;
+                                    return false; // Found a legal move, not checkmate
+                                }
+                            }
+                            
+                            // Restore original selection
+                            this.selectedPiece = originalSelectedPiece;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // No legal moves found, it's checkmate
+        return true;
+    }
+
+    showGameStatusAnimation(type, text) {
+        // Create the animation element
+        const animation = document.createElement('div');
+        animation.className = `game-status-animation ${type}-animation`;
+        animation.textContent = text;
+        
+        // Add it to the board
+        if (this.board) {
+            this.board.appendChild(animation);
+            
+            // Remove it after the animation completes
+            setTimeout(() => {
+                if (animation.parentNode === this.board) {
+                    this.board.removeChild(animation);
+                }
+            }, type === 'checkmate' ? 3000 : 2000);
+        }
+    }
+
+    startGame(mode, aiLevel = 0) {
+        this.gameMode = mode;
+        this.aiLevel = aiLevel;
+        
+        // Clear any existing game boards
+        const gameBoard = document.getElementById('game-board');
+        const boardContainer = document.getElementById('board');
+        
+        // Clear the board container
+        if (boardContainer) {
+            boardContainer.innerHTML = '';
+        }
+        
+        // Initialize the game board
+        this.gameBoard = this.createInitialBoard();
+        this.board = boardContainer;
+        this.initializeBoard();
+        
+        // Reset game state
         this.selectedPiece = null;
         this.currentPlayer = 'white';
-        document.getElementById('current-turn').textContent = 'White';
+        
+        // Update turn display
+        const turnDisplay = document.getElementById('current-turn');
+        if (turnDisplay) {
+            turnDisplay.textContent = 'White';
+        }
+        
+        // Show the game board, hide mode selection
+        const modeSelection = document.getElementById('mode-selection');
+        if (modeSelection) {
+            modeSelection.style.display = 'none';
+        }
+        if (gameBoard) {
+            gameBoard.style.display = 'block';
+        }
+        
+        // Update navigation
+        updateNavigation(true);
+        
+        // Show the "Begin" animation
+        setTimeout(() => {
+            this.showGameStatusAnimation('game-begin', 'BEGIN!');
+        }, 100);
     }
-} 
+
+    clearValidMoves() {
+        // Get all squares with the valid-move class
+        const validMoveSquares = document.querySelectorAll('.valid-move');
+        
+        // Remove the class from each square
+        validMoveSquares.forEach(square => {
+            square.classList.remove('valid-move');
+        });
+    }
+}

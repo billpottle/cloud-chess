@@ -10,6 +10,18 @@
     grid-template-columns: repeat(10, 60px);
     grid-template-rows: repeat(10, 60px);
     border: 2px solid #333;
+    margin: 0 auto;
+    max-width: 600px;
+    box-sizing: content-box;
+}
+
+#game-board {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 620px;
+    margin: 0 auto;
 }
 
 .square {
@@ -19,6 +31,7 @@
     justify-content: center;
     align-items: center;
     cursor: pointer;
+    position: relative;
 }
 
 .white {
@@ -35,16 +48,59 @@
 }
 
 .selected {
-    background-color: #7b61ff;
+    box-shadow: inset 0 0 0 3px #7b61ff;
 }
 
 .valid-move {
-    background-color: #90EE90;
+    /* Remove the background-color property */
+}
+
+.valid-move::after {
+    content: "";
+    display: block;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: rgba(0, 200, 0, 0.7);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation: pulse 1.5s infinite ease-in-out;
+}
+
+/* Add the pulse animation */
+@keyframes pulse {
+    0% {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 0.7;
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.1);
+        opacity: 0.9;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 0.7;
+    }
 }
 
 .mode-selection {
     text-align: center;
     margin: 50px auto;
+    padding: 30px;
+    background: linear-gradient(to bottom, #e6f0ff, #ffffff);
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    max-width: 90%;
+    width: 800px;
+}
+
+.mode-selection h2 {
+    color: #3366cc;
+    font-size: 32px;
+    margin-bottom: 30px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .mode-selection button {
@@ -52,12 +108,486 @@
     margin: 10px;
     font-size: 18px;
     cursor: pointer;
-    background-color: #4CAF50;
+    background-color: #4a90e2;
     color: white;
     border: none;
-    border-radius: 5px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .mode-selection button:hover {
-    background-color: #45a049;
+    background-color: #3366cc;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+}
+
+body {
+    background-color: #f0f8ff;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.rules-section {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #f5f5f5;
+    border-radius: 8px;
+    max-width: 600px;
+}
+
+.rules-section h3 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #333;
+}
+
+.piece-rules {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.piece-rule {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 10px;
+    background-color: white;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.piece-icon {
+    font-size: 40px;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #f0d9b5;
+    border-radius: 5px;
+}
+
+.piece-description h4 {
+    margin: 0 0 8px 0;
+    color: #333;
+}
+
+.piece-description p {
+    margin: 0;
+    line-height: 1.4;
+    color: #555;
+}
+
+.piece[data-color="white"] {
+    color: white;
+    text-shadow: 0 0 3px black, 0 0 3px black, 0 0 3px black;
+    font-weight: bold;
+}
+
+.piece[data-color="black"] {
+    color: black;
+    text-shadow: 0 0 3px white, 0 0 3px white, 0 0 3px white;
+    font-weight: bold;
+}
+
+.black-piece.piece {
+    color: black;
+    text-shadow: 0 0 3px white, 0 0 3px white, 0 0 3px white;
+    font-weight: bold;
+}
+
+.white-piece.piece {
+    color: white;
+    text-shadow: 0 0 3px black, 0 0 3px black, 0 0 3px black;
+    font-weight: bold;
+}
+
+.intro-image-container {
+    margin-top: 30px;
+    text-align: center;
+}
+
+.intro-image {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.rules-image-container {
+    margin-top: 30px;
+    text-align: center;
+}
+
+.rules-image {
+    max-width: 80%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+/* Ensure navbar is always visible and properly positioned */
+.navbar {
+    width: 100%;
+    background-color: #4a90e2;
+    padding: 15px 0;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 0;
+    z-index: 900;
+}
+
+.navbar a {
+    color: white;
+    text-decoration: none;
+    margin: 0 15px;
+    font-size: 18px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    display: inline-block;
+    padding: 5px 10px;
+}
+
+.navbar a:hover {
+    color: #e6f0ff;
+    text-decoration: underline;
+}
+
+/* Add a highlight for the active navigation item */
+.navbar a.active {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+}
+
+/* Add styles for the attribution section */
+.attribution {
+    margin-top: 30px;
+    padding: 15px;
+    background-color: #e6f0ff;
+    border-radius: 8px;
+    text-align: center;
+    max-width: 800px;
+}
+
+.attribution p {
+    margin: 10px 0;
+    color: #333;
+    line-height: 1.5;
+}
+
+.attribution a {
+    color: #3366cc;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.attribution a:hover {
+    text-decoration: underline;
+    color: #4a90e2;
+}
+
+/* Completely revise the button layout */
+.game-mode-options {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+    margin: 30px 0;
+    width: 100%;
+}
+
+/* Style the main button */
+.main-button, .difficulty-select {
+    width: 220px;
+    padding: 12px 15px;
+    font-size: 16px;
+    cursor: pointer;
+    background-color: #4a90e2;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    white-space: nowrap;
+    text-align: center;
+    box-sizing: border-box;
+    height: 45px;
+    line-height: 21px;
+}
+
+.main-button:hover, .difficulty-select:hover {
+    background-color: #3366cc;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Style the dropdown */
+.difficulty-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="white" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+}
+
+.difficulty-select option {
+    background-color: white;
+    color: #333;
+}
+
+.difficulty-select option:first-child {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.computer-mode {
+    position: relative;
+    width: 220px;
+}
+
+/* Improve dropdown positioning */
+.difficulty-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 0;
+    width: 100%;
+    background-color: #4a90e2;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+}
+
+/* Make dropdown appear on click instead of hover */
+.show-dropdown {
+    display: block;
+}
+
+.difficulty-option {
+    width: 100%;
+    padding: 12px 15px;
+    border: none;
+    background-color: #4a90e2;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-bottom: 1px solid #3366cc;
+    text-align: center;
+}
+
+/* Update the game info section styling */
+.game-info {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    max-width: 600px;
+    margin: 10px auto;
+    padding: 0 10px;
+    font-weight: bold;
+    font-size: 18px;
+    color: #333;
+}
+
+/* Modal styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.5);
+    animation: fadeIn 0.3s;
+}
+
+.modal-content {
+    background: linear-gradient(to bottom, #e6f0ff, #ffffff);
+    margin: 5% auto;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    width: 80%;
+    max-width: 900px;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: slideDown 0.4s;
+}
+
+.close-modal {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.close-modal:hover {
+    color: #4a90e2;
+}
+
+@keyframes fadeIn {
+    from {opacity: 0;}
+    to {opacity: 1;}
+}
+
+@keyframes slideDown {
+    from {transform: translateY(-50px); opacity: 0;}
+    to {transform: translateY(0); opacity: 1;}
+}
+
+/* Update the dragon piece styling to use images */
+.dragon-piece {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 50px;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+/* Remove the text-based styling */
+.dragon-piece::before,
+.dragon-piece::after {
+    content: none;
+}
+
+/* Use the image files for each color */
+.black-piece.dragon-piece {
+    background-image: url('dragon_icon_black.png');
+}
+
+.white-piece.dragon-piece {
+    background-image: url('dragon_icon_white.png');
+}
+
+/* Add styles for the dragon icon in the rules */
+.dragon-icon {
+    padding: 5px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.rules-piece-image {
+    width: 45px;
+    height: 45px;
+    object-fit: contain;
+}
+
+/* Fine-tune the position of the game status animations */
+.game-status-animation {
+    position: absolute;
+    top: 45%; /* Adjust to be in the middle of the chess board */
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0;
+    font-weight: bold;
+    color: white;
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
+    z-index: 100;
+    pointer-events: none;
+    white-space: nowrap;
+    opacity: 0;
+}
+
+/* Remove the individual top positions from these classes */
+.game-begin-animation {
+    animation: gameBeginAnimation 2s ease-out forwards;
+    color: #4a90e2;
+}
+
+.check-animation {
+    animation: checkAnimation 1.5s ease-out forwards;
+    color: #ff9800;
+}
+
+.checkmate-animation {
+    animation: checkmateAnimation 3s ease-out forwards;
+    color: #e53935;
+}
+
+/* Update the animations to use the correct transform */
+@keyframes gameBeginAnimation {
+    0% {
+        font-size: 0;
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.5);
+    }
+    50% {
+        font-size: 80px;
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.2);
+    }
+    80% {
+        font-size: 80px;
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    100% {
+        font-size: 80px;
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.5);
+    }
+}
+
+@keyframes checkAnimation {
+    0% {
+        font-size: 0;
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.5) rotate(-10deg);
+    }
+    20% {
+        font-size: 60px;
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.1) rotate(5deg);
+    }
+    80% {
+        font-size: 60px;
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    }
+    100% {
+        font-size: 60px;
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.2) rotate(0deg);
+    }
+}
+
+@keyframes checkmateAnimation {
+    0% {
+        font-size: 0;
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.5);
+    }
+    20% {
+        font-size: 80px;
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.2);
+    }
+    40% {
+        font-size: 80px;
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    80% {
+        font-size: 80px;
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+    100% {
+        font-size: 80px;
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.5);
+    }
 } 
