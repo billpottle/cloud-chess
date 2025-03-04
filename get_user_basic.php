@@ -41,6 +41,12 @@ try {
     $user = $result->fetch_assoc();
     error_log("User data retrieved: " . print_r($user, true));
     
+    // Convert string values to integers
+    if (isset($user['id'])) $user['id'] = (int)$user['id'];
+    if (isset($user['elo'])) $user['elo'] = (int)$user['elo'];
+    if (isset($user['wins'])) $user['wins'] = (int)$user['wins'];
+    if (isset($user['losses'])) $user['losses'] = (int)$user['losses'];
+    
     // Clear the output buffer before sending JSON
     ob_end_clean();
     

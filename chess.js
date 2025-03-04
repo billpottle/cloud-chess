@@ -1026,6 +1026,13 @@ class ChessGame {
         setTimeout(() => {
             this.showGameStatusAnimation('game-begin', 'BEGIN!');
         }, 100);
+        
+        // Track game usage
+        if (mode === 'computer') {
+            updateGameStats('Vs Computer Level ' + aiLevel);
+        } else if (mode === 'player') {
+            updateGameStats('Player Vs Player (Local)');
+        }
     }
 
     clearValidMoves() {
@@ -1037,4 +1044,26 @@ class ChessGame {
             square.classList.remove('valid-move');
         });
     }
+}
+
+// Add this function to chess.js if it doesn't already have access to the one in index.html
+function updateGameStats(gameType) {
+    const formData = new FormData();
+    formData.append('game_type', gameType);
+    
+    fetch('update_game_stats.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Game usage updated:', data);
+        } else {
+            console.error('Failed to update game usage:', data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error updating game usage:', error);
+    });
 }

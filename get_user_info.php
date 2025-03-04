@@ -57,7 +57,7 @@ try {
         error_log("Query 2: $ranking_query");
         $ranking_result = execute_query($conn, $ranking_query);
         $ranking_data = $ranking_result->fetch_assoc();
-        $user['ranking'] = $ranking_data['rank'];
+        $user['ranking'] = (int)$ranking_data['rank'];
     } catch (Exception $e) {
         // If ranking query fails, set a default ranking
         $user['ranking'] = 1;

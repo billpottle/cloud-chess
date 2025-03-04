@@ -104,6 +104,31 @@
                 <p>Cloud Chess was inspired by the short story in <a href="https://www.amazon.com/Cloud-Chess-Lands-Saga-Adventure-ebook/dp/B019BU17VU/" target="_blank">Cloud Chess: A Cloudlands Saga Adventure</a> by Katie Pottle.</p>
                 <p>Discover more books in the Cloudlands series on <a href="https://www.amazon.com/stores/Katie-Pottle/author/B01BED1W44" target="_blank">Katie Pottle's Amazon page</a>.</p>
             </div>
+
+            <!-- Add this after the intro image container -->
+            <div class="stats-container">
+                <div class="stats-section">
+                    <h3>Game Statistics</h3>
+                    <div id="game-stats-container">
+                        <p>Loading game statistics...</p>
+                    </div>
+                </div>
+                
+                <div class="stats-section">
+                    <h3>Top Players</h3>
+                    <div class="ranking-controls">
+                        <span>Sort by (highest first):</span>
+                        <select id="ranking-sort">
+                            <option value="elo">ELO</option>
+                            <option value="wins">Wins</option>
+                            <option value="losses">Losses</option>
+                        </select>
+                    </div>
+                    <div id="player-rankings-container">
+                        <p>Loading player rankings...</p>
+                    </div>
+                </div>
+            </div>
         </div>
         <div id="game-board" style="display: none;">
             <div class="game-info">
@@ -193,6 +218,133 @@
                         }
                     });
             });
+            
+            // Function to update game usage statistics
+            function updateGameStats(gameType) {
+                const formData = new FormData();
+                formData.append('game_type', gameType);
+                
+                fetch('update_game_stats.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Game usage updated:', data);
+                    } else {
+                        console.error('Failed to update game usage:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating game usage:', error);
+                });
+            }
+            
+            // Add event listeners to game mode buttons
+            document.getElementById('vs-player').addEventListener('click', function() {
+                updateGameStats('Player Vs Player (Local)');
+                // Existing code to start the game
+            });
+            
+            document.getElementById('computer-difficulty').addEventListener('change', function() {
+                const level = this.value;
+                if (level) {
+                    updateGameStats('Vs Computer Level ' + level);
+                    // Existing code to start the game
+                }
+            });
+
+            // Function to load game statistics
+            function loadGameStats() {
+                fetch('get_game_stats.php')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const container = document.getElementById('game-stats-container');
+                            
+                            // Create table
+                            let html = '<table class="stats-table">';
+                            html += '<thead><tr><th>Game Type</th><th>Games Played</th></tr></thead>';
+                            html += '<tbody>';
+                            
+                            data.stats.forEach(stat => {
+                                html += `<tr>
+                                    <td>${stat.game_type}</td>
+                                    <td>${stat.number}</td>
+                                </tr>`;
+                            });
+                            
+                            html += '</tbody></table>';
+                            container.innerHTML = html;
+                        } else {
+                            document.getElementById('game-stats-container').innerHTML = 
+                                '<p>Unable to load game statistics.</p>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading game stats:', error);
+                        document.getElementById('game-stats-container').innerHTML = 
+                            '<p>Error loading game statistics.</p>';
+                    });
+            }
+            
+            // Function to load player rankings
+            function loadPlayerRankings(sortBy = 'elo') {
+                fetch(`get_top_players.php?sort=${sortBy}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const container = document.getElementById('player-rankings-container');
+                            const currentUserId = window.currentUserId || null;
+                            
+                            // Create table
+                            let html = '<table class="stats-table">';
+                            html += '<thead><tr><th>Rank</th><th>Player</th><th>ELO</th><th>Wins</th><th>Losses</th></tr></thead>';
+                            html += '<tbody>';
+                            
+                            data.players.forEach(player => {
+                                const isCurrentUser = currentUserId && player.id == currentUserId;
+                                html += `<tr class="${isCurrentUser ? 'current-user' : ''}">
+                                    <td class="player-rank">${player.rank}</td>
+                                    <td>${player.username}</td>
+                                    <td>${parseInt(player.elo) || 0}</td>
+                                    <td>${parseInt(player.wins) || 0}</td>
+                                    <td>${parseInt(player.losses) || 0}</td>
+                                </tr>`;
+                            });
+                            
+                            html += '</tbody></table>';
+                            container.innerHTML = html;
+                        } else {
+                            document.getElementById('player-rankings-container').innerHTML = 
+                                '<p>Unable to load player rankings.</p>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading player rankings:', error);
+                        document.getElementById('player-rankings-container').innerHTML = 
+                            '<p>Error loading player rankings.</p>';
+                    });
+            }
+            
+            // Add event listener for ranking sort dropdown
+            document.getElementById('ranking-sort').addEventListener('change', function() {
+                loadPlayerRankings(this.value);
+            });
+            
+            // Load stats when page loads
+            loadGameStats();
+            loadPlayerRankings();
+            
+            // Store current user ID for highlighting in rankings
+            fetch('check_session.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.logged_in) {
+                        window.currentUserId = data.user_id;
+                    }
+                });
         });
     </script>
 </body>
