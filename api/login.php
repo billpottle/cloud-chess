@@ -213,7 +213,7 @@ ob_end_clean();
                     messageDiv.textContent = data.message;
                     // Redirect to index page after 1 second
                     setTimeout(() => {
-                        window.location.href = 'index.html';
+                        window.location.href = '../index.html';
                     }, 1000);
                 } else {
                     messageDiv.className = 'error';

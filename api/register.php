@@ -196,7 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <button type="submit">Register</button>
         </form>
         <div class="links">
-            <a href="index.html">Back to Game</a>
+            <a href="../index.html">Back to Game</a>
         </div>
     </div>
 
@@ -219,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     messageDiv.textContent = data.message;
                     // Redirect to index page after 2 seconds
                     setTimeout(() => {
-                        window.location.href = 'index.html';
+                        window.location.href = '../index.html';
                     }, 2000);
                 } else {
                     messageDiv.className = 'error';

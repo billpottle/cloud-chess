@@ -3,178 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chess Game - Register</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
-            margin: 0;
-            padding: 0;
-        }
-        
-        .container {
-            max-width: 600px;
-            margin: 50px auto;
-            background-color: white;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        h1 {
-            text-align: center;
-            color: #333;
-        }
-        
-        .form-group {
-            margin-bottom: 15px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        
-        input[type="text"],
-        input[type="email"],
-        input[type="password"] {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        
-        button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        
-        button:hover {
-            background-color: #45a049;
-        }
-        
-        .error {
-            color: red;
-            margin-top: 10px;
-        }
-        
-        .success {
-            color: green;
-            margin-top: 10px;
-        }
-        
-        .links {
-            text-align: center;
-            margin-top: 20px;
-        }
-        
-        .links a {
-            color: #4CAF50;
-            text-decoration: none;
-        }
-        
-        .links a:hover {
-            text-decoration: underline;
-        }
-    </style>
+    <title>Register - Cloud Chess</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="icon" href="images/favicon.ico" sizes="any">
 </head>
 <body>
+    <div class="navbar">
+        <a href="index.html">Home</a>
+        <a href="#" id="rules-link">Rules</a>
+        <span id="auth-section">
+            <a href="login.html" id="login-link">Login</a>
+            <a href="register.html" id="register-link">Register</a>
+        </span>
+    </div>
+
     <div class="container">
-        <h1>Register for Chess Game</h1>
-        <div id="message"></div>
-        <form id="registerForm">
+        <h1>Register for Cloud Chess</h1>
+        <div id="error-message" class="error-message"></div>
+        
+        <form id="register-form" action="api/register.php" method="post">
             <div class="form-group">
                 <label for="username">Username:</label>
                 <input type="text" id="username" name="username" required>
             </div>
+            
             <div class="form-group">
-                <label for="email">Email (optional):</label>
-                <input type="email" id="email" name="email">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required>
             </div>
+            
             <div class="form-group">
                 <label for="password">Password:</label>
                 <input type="password" id="password" name="password" required>
             </div>
+            
             <div class="form-group">
-                <label for="confirmPassword">Confirm Password:</label>
-                <input type="password" id="confirmPassword" name="confirmPassword" required>
+                <label for="confirm_password">Confirm Password:</label>
+                <input type="password" id="confirm_password" name="confirm_password" required>
             </div>
-            <button type="submit">Register</button>
-        </form>
-        <div class="links">
+            
+            <div class="form-group">
+                <button type="submit" class="main-button">Register</button>
+            </div>
+            
             <p>Already have an account? <a href="login.html">Login here</a></p>
-            <p><a href="index.html">Back to Game</a></p>
-        </div>
+        </form>
     </div>
 
     <script>
-        document.getElementById('registerForm').addEventListener('submit', function(e) {
+        document.getElementById('register-form').addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const username = document.getElementById('username').value;
-            const email = document.getElementById('email').value;
+            // Check if passwords match
             const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
-            const messageDiv = document.getElementById('message');
+            const confirmPassword = document.getElementById('confirm_password').value;
             
-            // Clear previous messages
-            messageDiv.innerHTML = '';
-            messageDiv.className = '';
-            
-            // Validate form
             if (password !== confirmPassword) {
-                messageDiv.innerHTML = 'Passwords do not match';
-                messageDiv.className = 'error';
+                document.getElementById('error-message').textContent = 'Passwords do not match.';
                 return;
             }
             
-            if (password.length < 6) {
-                messageDiv.innerHTML = 'Password must be at least 6 characters long';
-                messageDiv.className = 'error';
-                return;
-            }
+            const formData = new FormData(this);
             
-            // Create form data
-            const formData = new FormData();
-            formData.append('action', 'register');
-            formData.append('username', username);
-            formData.append('email', email);
-            formData.append('password', password);
-            
-            // Send registration request
-            fetch('user_api.php', {
+            fetch('api/register.php', {
                 method: 'POST',
                 body: formData
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    messageDiv.innerHTML = data.message + '. Redirecting to login...';
-                    messageDiv.className = 'success';
-                    
-                    // Clear form
-                    document.getElementById('registerForm').reset();
-                    
-                    // Redirect to login page after 2 seconds
-                    setTimeout(() => {
-                        window.location.href = 'login.html';
-                    }, 2000);
+                    window.location.href = 'login.html?registered=true';
                 } else {
-                    messageDiv.innerHTML = data.message;
-                    messageDiv.className = 'error';
+                    document.getElementById('error-message').textContent = data.message || 'Registration failed. Please try again.';
                 }
             })
             .catch(error => {
-                messageDiv.innerHTML = 'An error occurred. Please try again.';
-                messageDiv.className = 'error';
                 console.error('Error:', error);
+                document.getElementById('error-message').textContent = 'An error occurred. Please try again later.';
             });
         });
     </script>

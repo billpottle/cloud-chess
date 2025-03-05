@@ -3,150 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chess Game - Login</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
-            margin: 0;
-            padding: 0;
-        }
-        
-        .container {
-            max-width: 600px;
-            margin: 50px auto;
-            background-color: white;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        h1 {
-            text-align: center;
-            color: #333;
-        }
-        
-        .form-group {
-            margin-bottom: 15px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        
-        input[type="text"],
-        input[type="password"] {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        
-        button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        
-        button:hover {
-            background-color: #45a049;
-        }
-        
-        .error {
-            color: red;
-            margin-top: 10px;
-        }
-        
-        .success {
-            color: green;
-            margin-top: 10px;
-        }
-        
-        .links {
-            text-align: center;
-            margin-top: 20px;
-        }
-        
-        .links a {
-            color: #4CAF50;
-            text-decoration: none;
-        }
-        
-        .links a:hover {
-            text-decoration: underline;
-        }
-    </style>
+    <title>Login - Cloud Chess</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="icon" href="images/favicon.ico" sizes="any">
 </head>
 <body>
+    <div class="navbar">
+        <a href="index.html">Home</a>
+        <a href="#" id="rules-link">Rules</a>
+        <span id="auth-section">
+            <a href="login.html" id="login-link">Login</a>
+            <a href="register.html" id="register-link">Register</a>
+        </span>
+    </div>
+
     <div class="container">
-        <h1>Login to Chess Game</h1>
-        <div id="message"></div>
-        <form id="loginForm">
+        <h1>Login to Cloud Chess</h1>
+        <div id="error-message" class="error-message"></div>
+        
+        <form id="login-form" action="api/login.php" method="post">
             <div class="form-group">
                 <label for="username">Username:</label>
                 <input type="text" id="username" name="username" required>
             </div>
+            
             <div class="form-group">
                 <label for="password">Password:</label>
                 <input type="password" id="password" name="password" required>
             </div>
-            <button type="submit">Login</button>
-        </form>
-        <div class="links">
+            
+            <div class="form-group">
+                <button type="submit" class="main-button">Login</button>
+            </div>
+            
             <p>Don't have an account? <a href="register.html">Register here</a></p>
-            <p><a href="index.html">Back to Game</a></p>
-        </div>
+        </form>
     </div>
 
     <script>
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
+        document.getElementById('login-form').addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            const messageDiv = document.getElementById('message');
+            const formData = new FormData(this);
             
-            // Clear previous messages
-            messageDiv.innerHTML = '';
-            messageDiv.className = '';
-            
-            // Create form data
-            const formData = new FormData();
-            formData.append('action', 'login');
-            formData.append('username', username);
-            formData.append('password', password);
-            
-            // Send login request
-            fetch('user_api.php', {
+            fetch('api/login.php', {
                 method: 'POST',
                 body: formData
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    messageDiv.innerHTML = data.message + '. Redirecting to game...';
-                    messageDiv.className = 'success';
-                    
-                    // Redirect to game page after 1 second
-                    setTimeout(() => {
-                        window.location.href = 'index.html';
-                    }, 1000);
+                    window.location.href = 'index.html';
                 } else {
-                    messageDiv.innerHTML = data.message;
-                    messageDiv.className = 'error';
+                    document.getElementById('error-message').textContent = data.message || 'Login failed. Please try again.';
                 }
             })
             .catch(error => {
-                messageDiv.innerHTML = 'An error occurred. Please try again.';
-                messageDiv.className = 'error';
                 console.error('Error:', error);
+                document.getElementById('error-message').textContent = 'An error occurred. Please try again later.';
             });
         });
     </script>

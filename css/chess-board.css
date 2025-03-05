@@ -1,0 +1,63 @@
+/* Chess board and game-specific styles */
+#board {
+    width: 500px;
+    height: 500px;
+    margin: 0 auto;
+    border: 2px solid #333;
+}
+
+.game-info {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 18px;
+}
+
+#current-turn {
+    font-weight: bold;
+}
+
+.square {
+    float: left;
+    width: 50px;
+    height: 50px;
+    text-align: center;
+    line-height: 50px;
+    font-size: 30px;
+    cursor: pointer;
+}
+
+.light {
+    background-color: #f0d9b5;
+}
+
+.dark {
+    background-color: #b58863;
+}
+
+.selected {
+    background-color: #7b68ee;
+}
+
+.valid-move {
+    background-color: #90ee90;
+}
+
+.check {
+    background-color: #ff6347;
+}
+
+.piece {
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Update any background images in your CSS */
+.piece-white-pawn {
+    background-image: url('../images/white_pawn.png');
+}
+
+.piece-black-pawn {
+    background-image: url('../images/black_pawn.png');
+}
+
+/* And so on for all chess pieces */ 

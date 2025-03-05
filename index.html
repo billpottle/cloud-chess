@@ -4,208 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Cloud Chess Game</title>
-    <link rel="stylesheet" href="styles.css">
+    
+    <!-- CSS files -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/chess-board.css">
+    <link rel="stylesheet" href="css/tables.css">
+    <link rel="stylesheet" href="css/modals.css">
+    <link rel="stylesheet" href="css/challenges.css">
     
     <!-- Favicon -->
-    <link rel="icon" href="favicon.ico" sizes="any">
+    <link rel="icon" href="images/favicon.ico" sizes="any">
     <link rel="manifest" href="manifest.webmanifest">
-    <style>
-        /* Existing styles... */
-        
-        /* Update challenge button styles */
-        .challenge-btn, .resume-btn {
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            padding: 3px 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 11px;
-            min-width: 70px;
-        }
-        
-        .challenge-btn:hover, .resume-btn:hover {
-            background-color: #45a049;
-        }
-        
-        .challenge-btn:disabled, .resume-btn:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        
-        .game-status {
-            font-size: 11px;
-            font-style: italic;
-            color: #666;
-        }
-        
-        .your-turn {
-            color: #4CAF50;
-            font-weight: bold;
-        }
-        
-        .waiting {
-            color: #f39c12;
-        }
-        
-        /* Challenge notification styles */
-        .challenge-notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background-color: #f8f9fa;
-            border: 1px solid #ddd;
-            border-left: 4px solid #4CAF50;
-            padding: 15px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            z-index: 1000;
-            max-width: 300px;
-            display: none;
-        }
-        
-        .challenge-notification h4 {
-            margin-top: 0;
-            margin-bottom: 10px;
-        }
-        
-        .challenge-notification .buttons {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 10px;
-        }
-        
-        .challenge-notification .accept-btn {
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        
-        .challenge-notification .decline-btn {
-            background-color: #f44336;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        
-        /* Spinner for loading state */
-        .spinner {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 1s ease-in-out infinite;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        /* Challenge modal */
-        .challenge-modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-        }
-        
-        .challenge-modal-content {
-            background-color: white;
-            margin: 15% auto;
-            padding: 20px;
-            border-radius: 5px;
-            width: 80%;
-            max-width: 500px;
-        }
-        
-        .challenge-modal h3 {
-            margin-top: 0;
-        }
-        
-        .challenge-list {
-            margin-bottom: 20px;
-        }
-        
-        .challenge-item {
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .challenge-item:last-child {
-            border-bottom: none;
-        }
-        
-        .challenge-info {
-            flex-grow: 1;
-        }
-        
-        .challenge-actions {
-            display: flex;
-            gap: 5px;
-        }
-        
-        .close-modal {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        
-        .close-modal:hover {
-            color: black;
-        }
-        
-        .tab-buttons {
-            display: flex;
-            margin-bottom: 15px;
-        }
-        
-        .tab-button {
-            padding: 8px 15px;
-            background-color: #f1f1f1;
-            border: none;
-            cursor: pointer;
-            flex-grow: 1;
-        }
-        
-        .tab-button.active {
-            background-color: #4CAF50;
-            color: white;
-        }
-        
-        .tab-content {
-            display: none;
-        }
-        
-        .tab-content.active {
-            display: block;
-        }
-    </style>
 </head>
 <body>
     <div class="navbar">
         <a href="index.html">Home</a>
         <a href="#" id="rules-link">Rules</a>
         <span id="auth-section">
-            <a href="login.php" id="login-link">Login</a>
-            <a href="register.php" id="register-link">Register</a>
+            <a href="api/login.php" id="login-link">Login</a>
+            <a href="api/register.php" id="register-link">Register</a>
         </span>
         <span id="user-section" style="display: none;">
             <span id="user-welcome"></span>
+            <a href="#" id="challenges-link" onclick="showChallengeModal(); return false;">Challenges</a> | 
             <a href="#" id="logout-link">Logout</a>
         </span>
     </div>
@@ -224,7 +45,7 @@
                 <div class="piece-rules">
                     <div class="piece-rule">
                         <div class="piece-icon dragon-icon">
-                            <img src="dragon_icon_white.png" alt="Dragon" class="rules-piece-image">
+                            <img src="images/dragon_icon_white.png" alt="Dragon" class="rules-piece-image">
                         </div>
                         <div class="piece-description">
                             <h4>Wrath (Dragon)</h4>
@@ -259,6 +80,41 @@
                     <li><strong>Player vs Computer (Medium):</strong> Play against an AI that prioritizes captures and avoids danger</li>
                     <li><strong>Player vs Computer (Hard):</strong> Play against an AI that prioritizes safe captures, avoids danger, and makes strategic sacrifices when necessary</li>
                 </ul>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Challenge notification -->
+    <div id="challenge-notification" class="challenge-notification">
+        <h4>New Challenge</h4>
+        <p>Someone has challenged you to a game!</p>
+        <div class="buttons">
+            <button id="accept-challenge-btn" class="accept-btn">Accept</button>
+            <button id="decline-challenge-btn" class="decline-btn">Decline</button>
+        </div>
+    </div>
+    
+    <!-- Challenge modal -->
+    <div id="challenge-modal" class="challenge-modal">
+        <div class="challenge-modal-content">
+            <span id="close-challenge-modal" class="close-modal">&times;</span>
+            <h3>Challenges</h3>
+            
+            <div class="tab-buttons">
+                <button class="tab-button active" data-tab="pending">Pending Challenges</button>
+                <button class="tab-button" data-tab="outgoing">Outgoing Challenges</button>
+            </div>
+            
+            <div id="pending-challenges" class="tab-content active">
+                <div id="pending-challenge-list" class="challenge-list">
+                    <p>Loading challenges...</p>
+                </div>
+            </div>
+            
+            <div id="outgoing-challenges" class="tab-content">
+                <div id="outgoing-challenge-list" class="challenge-list">
+                    <p>Loading challenges...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -338,644 +194,13 @@
         </div>
     </div>
     
-    <!-- Challenge notification -->
-    <div id="challenge-notification" class="challenge-notification">
-        <h4>New Challenge</h4>
-        <p id="challenge-message"></p>
-        <div class="buttons">
-            <button class="accept-btn" id="accept-challenge-btn">Accept</button>
-            <button class="decline-btn" id="decline-challenge-btn">Decline</button>
-        </div>
-    </div>
-    
-    <!-- Challenge modal -->
-    <div id="challenge-modal" class="challenge-modal">
-        <div class="challenge-modal-content">
-            <span class="close-modal" id="close-challenge-modal">&times;</span>
-            <h3>Chess Challenges</h3>
-            
-            <div class="tab-buttons">
-                <button class="tab-button active" data-tab="pending">Pending Challenges</button>
-                <button class="tab-button" data-tab="outgoing">Outgoing Challenges</button>
-            </div>
-            
-            <div id="pending-challenges" class="tab-content active">
-                <div class="challenge-list" id="pending-challenge-list">
-                    <p>Loading challenges...</p>
-                </div>
-            </div>
-            
-            <div id="outgoing-challenges" class="tab-content">
-                <div class="challenge-list" id="outgoing-challenge-list">
-                    <p>Loading challenges...</p>
-                </div>
-            </div>
-        </div>
-    </div>
-    
+    <!-- JavaScript files -->
     <script src="chess.js"></script>
-    <script>
-        // Check if user is logged in
-        document.addEventListener('DOMContentLoaded', function() {
-            fetch('check_session.php')
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Session check response:', data);
-                    if (data.logged_in) {
-                        // User is logged in
-                        document.getElementById('auth-section').style.display = 'none';
-                        document.getElementById('user-section').style.display = 'inline';
-                        
-                        // Get user ELO
-                        fetch('get_user_info.php?user_id=' + data.user_id)
-                            .then(response => {
-                                if (!response.ok) {
-                                    throw new Error('Network response was not ok: ' + response.status);
-                                }
-                                if (response.headers.get('content-length') === '0') {
-                                    throw new Error('Empty response received');
-                                }
-                                return response.json();
-                            })
-                            .then(userData => {
-                                console.log('User data response:', userData);
-                                if (!userData || !userData.success) {
-                                    throw new Error('Invalid user data response');
-                                }
-                                
-                                // Convert ELO to number and format it
-                                const elo = parseInt(userData.elo) || 1000;
-                                let welcomeMsg = 'Welcome, ' + data.username + ' (ELO: ' + elo;
-                                
-                                // Add ranking information if available
-                                if (userData.ranking && userData.total_users) {
-                                    welcomeMsg += ' | Rank: ' + userData.ranking + '/' + userData.total_users;
-                                }
-                                
-                                welcomeMsg += ')';
-                                document.getElementById('user-welcome').textContent = welcomeMsg;
-                            })
-                            .catch(error => {
-                                console.error('Error fetching user data:', error);
-                                console.log('Trying fallback API endpoint...');
-                                // Try the simplified endpoint
-                                fetch('get_user_basic.php?user_id=' + data.user_id)
-                                    .then(response => response.json())
-                                    .then(userData => {
-                                        if (userData && userData.success) {
-                                            console.log('Fallback API response:', userData);
-                                            document.getElementById('user-welcome').textContent = 
-                                                'Welcome, ' + data.username + ' (ELO: ' + userData.elo + ')';
-                                        } else {
-                                            throw new Error('Fallback API also failed');
-                                        }
-                                    })
-                                    .catch(err => {
-                                        console.error('Fallback API also failed:', err);
-                                        console.log('Using session data only');
-                                        document.getElementById('user-welcome').textContent = 
-                                            'Welcome, ' + data.username + ' (ELO: ' + data.elo + ')';
-                                    });
-                            });
-                    }
-                })
-                .catch(error => {
-                    console.error('Error checking session:', error);
-                });
-            
-            // Handle logout
-            document.getElementById('logout-link').addEventListener('click', function(e) {
-                e.preventDefault();
-                fetch('logout.php')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            window.location.reload();
-                        }
-                    });
-            });
-            
-            // Function to update game usage statistics
-            function updateGameStats(gameType) {
-                const formData = new FormData();
-                formData.append('game_type', gameType);
-                
-                fetch('update_game_stats.php', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        console.log('Game usage updated:', data);
-                    } else {
-                        console.error('Failed to update game usage:', data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error updating game usage:', error);
-                });
-            }
-            
-            // Add event listeners to game mode buttons
-            document.getElementById('vs-player').addEventListener('click', function() {
-                updateGameStats('Player Vs Player (Local)');
-                // Existing code to start the game
-            });
-            
-            document.getElementById('computer-difficulty').addEventListener('change', function() {
-                const level = this.value;
-                if (level) {
-                    updateGameStats('Vs Computer Level ' + level);
-                    // Existing code to start the game
-                }
-            });
-
-            // Function to load game statistics
-            function loadGameStats() {
-                fetch('get_game_stats.php')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            const container = document.getElementById('game-stats-container');
-                            
-                            // Create table
-                            let html = '<table class="stats-table">';
-                            html += '<thead><tr><th>Game Type</th><th>Games Played</th></tr></thead>';
-                            html += '<tbody>';
-                            
-                            data.stats.forEach(stat => {
-                                html += `<tr>
-                                    <td>${stat.game_type}</td>
-                                    <td>${stat.number}</td>
-                                </tr>`;
-                            });
-                            
-                            html += '</tbody></table>';
-                            container.innerHTML = html;
-                        } else {
-                            document.getElementById('game-stats-container').innerHTML = 
-                                '<p>Unable to load game statistics.</p>';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error loading game stats:', error);
-                        document.getElementById('game-stats-container').innerHTML = 
-                            '<p>Error loading game statistics.</p>';
-                    });
-            }
-            
-            // Function to load player rankings
-            function loadPlayerRankings(sortBy = 'elo') {
-                fetch(`get_top_players.php?sort=${sortBy}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            const container = document.getElementById('player-rankings-container');
-                            const currentUserId = window.currentUserId || null;
-                            
-                            // Create table
-                            let html = '<table class="stats-table">';
-                            html += '<thead><tr><th>Rank</th><th>Player</th><th>ELO</th><th>Wins</th><th>Losses</th></tr></thead>';
-                            html += '<tbody>';
-                            
-                            data.players.forEach(player => {
-                                const isCurrentUser = currentUserId && player.id == currentUserId;
-                                html += `<tr class="${isCurrentUser ? 'current-user' : ''}">
-                                    <td class="player-rank">${player.rank}</td>
-                                    <td>${player.username}</td>
-                                    <td>${parseInt(player.elo) || 0}</td>
-                                    <td>${parseInt(player.wins) || 0}</td>
-                                    <td>${parseInt(player.losses) || 0}</td>
-                                </tr>`;
-                            });
-                            
-                            html += '</tbody></table>';
-                            container.innerHTML = html;
-                        } else {
-                            document.getElementById('player-rankings-container').innerHTML = 
-                                '<p>Unable to load player rankings.</p>';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error loading player rankings:', error);
-                        document.getElementById('player-rankings-container').innerHTML = 
-                            '<p>Error loading player rankings.</p>';
-                    });
-            }
-            
-            // Add event listener for ranking sort dropdown
-            document.getElementById('ranking-sort').addEventListener('change', function() {
-                loadPlayerRankings(this.value);
-            });
-            
-            // Load stats when page loads
-            loadGameStats();
-            loadPlayerRankings();
-            
-            // Store current user ID for highlighting in rankings
-            fetch('check_session.php')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.logged_in) {
-                        window.currentUserId = data.user_id;
-                       
-                        // Show My Games section and load games if user is logged in
-                        document.getElementById('my-games-section').style.display = 'block';
-                        loadUserGames();
-                    }
-                });
-
-            // Function to load user's active games
-            function loadUserGames() {
-                if (!window.currentUserId) {
-                    return; // Don't load games if user is not logged in
-                }
-                
-                fetch('get_user_games.php')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            const container = document.getElementById('my-games-container');
-                            
-                            if (data.games.length === 0) {
-                                container.innerHTML = '<p>You have no active games.</p>';
-                                return;
-                            }
-                            
-                            // Create table
-                            let html = '<table class="stats-table">';
-                            html += '<thead><tr><th>Opponent</th><th>Your Color</th><th>Started</th><th>Status</th><th>Action</th></tr></thead>';
-                            html += '<tbody>';
-                            
-                            data.games.forEach(game => {
-                                const statusClass = game.is_my_turn ? 'your-turn' : 'waiting';
-                                const statusText = game.is_my_turn ? 'Your turn' : 'Waiting for opponent';
-                                
-                                html += `<tr>
-                                    <td>${game.opponent}</td>
-                                    <td>${game.player_color.charAt(0).toUpperCase() + game.player_color.slice(1)}</td>
-                                    <td>${game.start_date}</td>
-                                    <td><span class="game-status ${statusClass}">${statusText}</span></td>
-                                    <td><button class="resume-btn" onclick="resumeGame(${game.id})">Resume</button></td>
-                                </tr>`;
-                            });
-                            
-                            html += '</tbody></table>';
-                            container.innerHTML = html;
-                        } else {
-                            document.getElementById('my-games-container').innerHTML = 
-                                '<p>Unable to load your games.</p>';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error loading user games:', error);
-                        document.getElementById('my-games-container').innerHTML = 
-                            '<p>Error loading your games.</p>';
-                    });
-            }
-            
-            // Function to resume a game
-            function resumeGame(gameId) {
-                console.log(`Resuming game ${gameId}`);
-                // Here you would implement the code to load and resume the game
-                alert(`Resuming game ${gameId}. This feature is coming soon.`);
-            }
-
-            // Function to load active users
-            function loadActiveUsers() {
-                fetch('active_users.php')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            const container = document.getElementById('active-users-container');
-                            
-                            if (data.active_users.length === 0) {
-                                container.innerHTML = '<p>No users currently online.</p>';
-                                return;
-                            }
-                            
-                            // Create table
-                            let html = '<table class="stats-table">';
-                            html += '<thead><tr><th>Player</th><th>ELO</th><th>Action</th></tr></thead>';
-                            html += '<tbody>';
-                            
-                            data.active_users.forEach(user => {
-                                // Check if this is the current user
-                                const isCurrentUser = window.currentUserId && window.currentUserId == user.id;
-                                
-                                html += `<tr>
-                                    <td>${user.username}</td>
-                                    <td>${user.elo}</td>
-                                    <td>`;
-                                
-                                // Only show challenge button for other users
-                                if (!isCurrentUser) {
-                                    html += `<button class="challenge-btn" data-user-id="${user.id}" onclick="challengeUser(${user.id}, '${user.username}')">Challenge</button>`;
-                                } else {
-                                    html += `<em>(You)</em>`;
-                                }
-                                
-                                html += `</td></tr>`;
-                            });
-                            
-                            html += '</tbody></table>';
-                            container.innerHTML = html;
-                        } else {
-                            document.getElementById('active-users-container').innerHTML = 
-                                '<p>Unable to load online players.</p>';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error loading active users:', error);
-                        document.getElementById('active-users-container').innerHTML = 
-                            '<p>Error loading online players.</p>';
-                    });
-            }
-            
-            // Function to challenge a user
-            function challengeUser(userId, username) {
-                if (!window.currentUserId) {
-                    alert('You must be logged in to challenge other players.');
-                    return;
-                }
-                
-                // Get the button that was clicked
-                const button = document.querySelector(`button[data-user-id="${userId}"]`);
-                const originalText = button.textContent;
-                
-                // Disable the button and show loading spinner
-                button.disabled = true;
-                button.innerHTML = '<span class="spinner"></span> Sending...';
-                
-                // Send the challenge request
-                fetch('challenge_api.php?action=create', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        challenged_username: username
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    // Re-enable the button and restore text
-                    button.disabled = false;
-                    
-                    if (data.success) {
-                        button.innerHTML = 'Challenged';
-                        button.disabled = true;
-                    } else {
-                        button.innerHTML = originalText;
-                        alert(data.message || 'Failed to send challenge');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error sending challenge:', error);
-                    button.disabled = false;
-                    button.innerHTML = originalText;
-                    alert('An error occurred while sending the challenge');
-                });
-            }
-            
-            // Function to check for pending challenges
-            function checkPendingChallenges() {
-                if (!window.currentUserId) {
-                    return; // Don't check if not logged in
-                }
-                
-                fetch('challenge_api.php?action=pending')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success && data.challenges.length > 0) {
-                            // Show the newest challenge notification
-                            const challenge = data.challenges[0];
-                            document.getElementById('challenge-message').textContent = 
-                                `${challenge.challenger} (ELO: ${challenge.elo}) has challenged you to a game!`;
-                            
-                            // Store the challenge ID for accept/decline actions
-                            document.getElementById('accept-challenge-btn').setAttribute('data-challenge-id', challenge.id);
-                            document.getElementById('decline-challenge-btn').setAttribute('data-challenge-id', challenge.id);
-                            
-                            // Show the notification
-                            document.getElementById('challenge-notification').style.display = 'block';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error checking challenges:', error);
-                    });
-            }
-            
-            // Function to accept a challenge
-            function acceptChallenge(challengeId) {
-                fetch('challenge_api.php?action=accept', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        challenge_id: challengeId
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Hide the notification
-                        document.getElementById('challenge-notification').style.display = 'none';
-                        
-                        // Redirect to the game
-                        if (data.game_id) {
-                            alert(`Challenge accepted! Game ID: ${data.game_id}`);
-                            // Here you would redirect to the game page
-                            // window.location.href = `game.php?id=${data.game_id}`;
-                        }
-                    } else {
-                        alert(data.message || 'Failed to accept challenge');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error accepting challenge:', error);
-                    alert('An error occurred while accepting the challenge');
-                });
-            }
-            
-            // Function to decline a challenge
-            function declineChallenge(challengeId) {
-                fetch('challenge_api.php?action=decline', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        challenge_id: challengeId
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Hide the notification
-                        document.getElementById('challenge-notification').style.display = 'none';
-                    } else {
-                        alert(data.message || 'Failed to decline challenge');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error declining challenge:', error);
-                    alert('An error occurred while declining the challenge');
-                });
-            }
-            
-            // Function to load challenges in the modal
-            function loadChallenges(type) {
-                const listElement = document.getElementById(`${type}-challenge-list`);
-                listElement.innerHTML = '<p>Loading challenges...</p>';
-                
-                fetch(`challenge_api.php?action=${type}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            if (data.challenges.length === 0) {
-                                listElement.innerHTML = '<p>No challenges found.</p>';
-                                return;
-                            }
-                            
-                            let html = '';
-                            data.challenges.forEach(challenge => {
-                                if (type === 'pending') {
-                                    html += `
-                                        <div class="challenge-item">
-                                            <div class="challenge-info">
-                                                <strong>${challenge.challenger}</strong> (ELO: ${challenge.elo})<br>
-                                                <small>Sent: ${challenge.challenge_date}</small><br>
-                                                <small>Expires in: ${challenge.expires_in_minutes} minutes</small>
-                                            </div>
-                                            <div class="challenge-actions">
-                                                <button class="accept-btn" onclick="acceptChallenge(${challenge.id})">Accept</button>
-                                                <button class="decline-btn" onclick="declineChallenge(${challenge.id})">Decline</button>
-                                            </div>
-                                        </div>
-                                    `;
-                                } else {
-                                    html += `
-                                        <div class="challenge-item">
-                                            <div class="challenge-info">
-                                                <strong>${challenge.player_being_challenged}</strong> (ELO: ${challenge.elo})<br>
-                                                <small>Sent: ${challenge.challenge_date}</small><br>
-                                                <small>Expires in: ${challenge.expires_in_minutes} minutes</small>
-                                            </div>
-                                            <div class="challenge-actions">
-                                                <button class="decline-btn" onclick="cancelChallenge(${challenge.id})">Cancel</button>
-                                            </div>
-                                        </div>
-                                    `;
-                                }
-                            });
-                            
-                            listElement.innerHTML = html;
-                        } else {
-                            listElement.innerHTML = '<p>Error loading challenges.</p>';
-                        }
-                    })
-                    .catch(error => {
-                        console.error(`Error loading ${type} challenges:`, error);
-                        listElement.innerHTML = '<p>Error loading challenges.</p>';
-                    });
-            }
-            
-            // Function to cancel an outgoing challenge
-            function cancelChallenge(challengeId) {
-                fetch('challenge_api.php?action=cancel', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        challenge_id: challengeId
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Reload the outgoing challenges list
-                        loadChallenges('outgoing');
-                    } else {
-                        alert(data.message || 'Failed to cancel challenge');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error cancelling challenge:', error);
-                    alert('An error occurred while cancelling the challenge');
-                });
-            }
-            
-            // Function to show the challenge modal
-            function showChallengeModal() {
-                document.getElementById('challenge-modal').style.display = 'block';
-                loadChallenges('pending');
-                loadChallenges('outgoing');
-            }
-            
-            // Function to hide the challenge modal
-            function hideChallengeModal() {
-                document.getElementById('challenge-modal').style.display = 'none';
-            }
-            
-            // Set up challenge notification buttons
-            document.getElementById('accept-challenge-btn').addEventListener('click', function() {
-                const challengeId = this.getAttribute('data-challenge-id');
-                acceptChallenge(challengeId);
-            });
-            
-            document.getElementById('decline-challenge-btn').addEventListener('click', function() {
-                const challengeId = this.getAttribute('data-challenge-id');
-                declineChallenge(challengeId);
-            });
-            
-            // Set up challenge modal
-            document.getElementById('close-challenge-modal').addEventListener('click', hideChallengeModal);
-            
-            // Set up tab switching in the challenge modal
-            document.querySelectorAll('.tab-button').forEach(button => {
-                button.addEventListener('click', function() {
-                    // Remove active class from all buttons and content
-                    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-                    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-                    
-                    // Add active class to clicked button and corresponding content
-                    this.classList.add('active');
-                    const tabName = this.getAttribute('data-tab');
-                    document.getElementById(`${tabName}-challenges`).classList.add('active');
-                    
-                    // Load the challenges for this tab
-                    loadChallenges(tabName);
-                });
-            });
-            
-            // Add a "Challenges" button to the navbar
-            const userSection = document.getElementById('user-section');
-            if (userSection) {
-                const challengesLink = document.createElement('a');
-                challengesLink.href = '#';
-                challengesLink.id = 'challenges-link';
-                challengesLink.textContent = 'Challenges';
-                challengesLink.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    showChallengeModal();
-                });
-                
-                // Insert before the logout link
-                const logoutLink = document.getElementById('logout-link');
-                userSection.insertBefore(challengesLink, logoutLink);
-                userSection.insertBefore(document.createTextNode(' | '), logoutLink);
-            }
-            
-            // Check for pending challenges periodically
-            if (window.currentUserId) {
-                checkPendingChallenges();
-                setInterval(checkPendingChallenges, 30000); // Check every 30 seconds
-            }
-        });
-    </script>
+    <script src="js/ui.js"></script>
+    <script src="js/user.js"></script>
+    <script src="js/stats.js"></script>
+    <script src="js/active-users.js"></script>
+    <script src="js/challenges.js"></script>
+    <script src="js/main.js"></script>
 </body>
-</html> 
+</html>

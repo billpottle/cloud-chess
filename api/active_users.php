@@ -42,6 +42,26 @@ function get_active_users($conn, $current_user_id = null) {
     return $active_users;
 }
 
+// Function to load active users
+function loadActiveUsers($conn) {
+    // Query to get active users (users who have been active in the last 15 minutes)
+    $query = "SELECT id as user_id, username, last_active FROM users 
+              WHERE last_active > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+              ORDER BY username";
+    
+    $result = mysqli_query($conn, $query);
+    
+    $activeUsers = array();
+    if ($result) {
+        while ($row = mysqli_fetch_assoc($result)) {
+            $activeUsers[] = $row;
+        }
+        mysqli_free_result($result);
+    }
+    
+    return $activeUsers;
+}
+
 try {
     // Check the request type
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
