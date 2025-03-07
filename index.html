@@ -11,10 +11,14 @@
     <link rel="stylesheet" href="css/tables.css">
     <link rel="stylesheet" href="css/modals.css">
     <link rel="stylesheet" href="css/challenges.css">
+    <link rel="stylesheet" href="styles.css">
     
     <!-- Favicon -->
     <link rel="icon" href="images/favicon.ico" sizes="any">
     <link rel="manifest" href="manifest.webmanifest">
+    
+    <!-- Scripts -->
+    <script src="chess.js" defer></script>
 </head>
 <body>
     <div class="navbar">
@@ -27,7 +31,7 @@
         <span id="user-section" style="display: none;">
             <span id="user-welcome"></span>
             <a href="#" id="challenges-link" onclick="showChallengeModal(); return false;">Challenges</a> | 
-            <a href="#" id="logout-link">Logout</a>
+            <a href="#" id="logout-link" onclick="logout(); return false;">Logout</a>
         </span>
     </div>
     
@@ -70,7 +74,7 @@
                 </ul>
                 
                 <div class="rules-image-container">
-                    <img src="./rules.jpeg" alt="Chess Game Rules" class="rules-image">
+                    <img src="./images/rules.jpeg" alt="Chess Game Rules" class="rules-image">
                 </div>
                 
                 <h2>Game Modes</h2>
@@ -138,7 +142,7 @@
             
             <!-- Add intro image below the buttons -->
             <div class="intro-image-container">
-                <img src="./intro.jpeg" alt="Chess Game Introduction" class="intro-image">
+                <img src="./images/intro.jpeg" alt="Chess Game Introduction" class="intro-image">
             </div>
 
             <!-- Add this section below the intro image -->
@@ -185,6 +189,14 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Add this after the "My Games" section -->
+            <div class="section">
+                <h2>Public Games</h2>
+                <div id="public-games-container">
+                    <p>Loading public games...</p>
+                </div>
+            </div>
         </div>
         <div id="game-board" style="display: none;">
             <div class="game-info">
@@ -195,7 +207,6 @@
     </div>
     
     <!-- JavaScript files -->
-    <script src="chess.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/user.js"></script>
     <script src="js/stats.js"></script>

@@ -464,11 +464,11 @@ body {
 
 /* Use the image files for each color */
 .black-piece.dragon-piece {
-    background-image: url('dragon_icon_black.png');
+    background-image: url('images/dragon_icon_black.png');
 }
 
 .white-piece.dragon-piece {
-    background-image: url('dragon_icon_white.png');
+    background-image: url('images/dragon_icon_white.png');
 }
 
 /* Add styles for the dragon icon in the rules */

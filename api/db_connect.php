@@ -48,4 +48,4 @@ $conn->set_charset("utf8mb4");
 function sanitize_input($conn, $data) {
     return $conn->real_escape_string($data);
 }
-?> 
+// No closing PHP tag 

@@ -81,8 +81,18 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 class ChessGame {
-    constructor() {
-        this.board = null;
+    constructor(boardState = null) {
+        // Initialize the board
+        this.board = [];
+        
+        if (boardState) {
+            // Use the provided board state
+            this.board = boardState;
+        } else {
+            // Create a new board with default positions
+            this.initializeNewBoard();
+        }
+        
         this.currentPlayer = 'white';
         this.selectedPiece = null;
         this.gameBoard = null;
@@ -90,6 +100,48 @@ class ChessGame {
         this.gameMode = null;
         this.isArcherCapture = false;
         this.wrathPath = null;
+    }
+
+    // Method to initialize a new board with default positions
+    initializeNewBoard() {
+        // Create an empty 10x10 board
+        this.board = Array(10).fill().map(() => Array(10).fill(null));
+        
+        // Set up the pieces
+        
+        // Black pieces
+        this.board[0][0] = { type: 'rook', color: 'black' };
+        this.board[0][1] = { type: 'knight', color: 'black' };
+        this.board[0][2] = { type: 'bishop', color: 'black' };
+        this.board[0][3] = { type: 'queen', color: 'black' };
+        this.board[0][4] = { type: 'king', color: 'black' };
+        this.board[0][5] = { type: 'bishop', color: 'black' };
+        this.board[0][6] = { type: 'knight', color: 'black' };
+        this.board[0][7] = { type: 'rook', color: 'black' };
+        this.board[0][8] = { type: 'dragon', color: 'black' };
+        this.board[0][9] = { type: 'archer', color: 'black' };
+        
+        // Black pawns
+        for (let i = 0; i < 10; i++) {
+            this.board[1][i] = { type: 'pawn', color: 'black' };
+        }
+        
+        // White pawns
+        for (let i = 0; i < 10; i++) {
+            this.board[8][i] = { type: 'pawn', color: 'white' };
+        }
+        
+        // White pieces
+        this.board[9][0] = { type: 'rook', color: 'white' };
+        this.board[9][1] = { type: 'knight', color: 'white' };
+        this.board[9][2] = { type: 'bishop', color: 'white' };
+        this.board[9][3] = { type: 'queen', color: 'white' };
+        this.board[9][4] = { type: 'king', color: 'white' };
+        this.board[9][5] = { type: 'bishop', color: 'white' };
+        this.board[9][6] = { type: 'knight', color: 'white' };
+        this.board[9][7] = { type: 'rook', color: 'white' };
+        this.board[9][8] = { type: 'dragon', color: 'white' };
+        this.board[9][9] = { type: 'archer', color: 'white' };
     }
 
     createInitialBoard() {
@@ -227,7 +279,7 @@ class ChessGame {
                 
                 // Check if the opponent's king is in check
                 const opponentColor = this.currentPlayer;
-                console.log(`Checking if ${opponentColor} king is in check`);
+                //console.log(`Checking if ${opponentColor} king is in check`);
                 const inCheck = this.isKingInCheck(opponentColor);
                 console.log(`${opponentColor} king in check: ${inCheck}`);
                 
@@ -341,7 +393,7 @@ class ChessGame {
         } 
         // Queen movement (♛ or ♕)
         else if (pieceType === '♛' || pieceType === '♕') {
-            console.log(`Checking queen move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
+           // console.log(`Checking queen move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
             const rowDiff = Math.abs(fromRow - toRow);
             const colDiff = Math.abs(fromCol - toCol);
             
@@ -373,7 +425,7 @@ class ChessGame {
         }
         // Rook movement (♜ or ♖)
         else if (pieceType === '♜' || pieceType === '♖') {
-            console.log(`Checking rook move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
+           // console.log(`Checking rook move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
             const rowDiff = Math.abs(fromRow - toRow);
             const colDiff = Math.abs(fromCol - toCol);
             
@@ -405,7 +457,7 @@ class ChessGame {
         }
         // Bishop movement (♝ or ♗)
         else if (pieceType === '♝' || pieceType === '♗') {
-            console.log(`Checking bishop move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
+          //  console.log(`Checking bishop move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
             const rowDiff = Math.abs(fromRow - toRow);
             const colDiff = Math.abs(fromCol - toCol);
             
@@ -899,11 +951,11 @@ class ChessGame {
                     this.selectedPiece = square;
                     
                     // Log the piece type and position
-                    console.log(`Checking if ${opponentColor} ${piece.textContent || piece.dataset.type} at ${row},${col} can capture the ${color} king at ${kingRow},${kingCol}`);
+                  //  console.log(`Checking if ${opponentColor} ${piece.textContent || piece.dataset.type} at ${row},${col} can capture the ${color} king at ${kingRow},${kingCol}`);
 
                     // Check if it can capture the king
                     const canCapture = this.isValidMove(kingRow, kingCol);
-                    console.log(`Can capture: ${canCapture}`);
+                   // console.log(`Can capture: ${canCapture}`);
 
                     // Restore original selection
                     this.selectedPiece = originalSelectedPiece;
@@ -1043,6 +1095,30 @@ class ChessGame {
         validMoveSquares.forEach(square => {
             square.classList.remove('valid-move');
         });
+    }
+
+    // Get the current board state
+    getBoard() {
+        return this.board;
+    }
+    
+    // Set the board state
+    setBoard(boardState) {
+        this.board = boardState;
+    }
+    
+    // Make a move
+    move(from, to) {
+        // ... existing move logic ...
+        
+        // Make sure the board state is updated
+        const piece = this.board[from.row][from.col];
+        this.board[from.row][from.col] = null;
+        this.board[to.row][to.col] = piece;
+        
+        // ... rest of move logic ...
+        
+        return { success: true, from, to, piece };
     }
 }
 

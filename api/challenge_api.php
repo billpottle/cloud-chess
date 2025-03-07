@@ -8,9 +8,11 @@ ini_set('error_log', 'php_errors.log');
 // Make sure no output is sent before including files that modify headers
 ob_start();
 
-// Include database connection and session
+// Include database connection
 require_once 'db_connect.php';
-require_once 'session_config.php';
+
+// Include auth token functions
+require_once 'auth_token.php';
 
 // Set header to return JSON
 header('Content-Type: application/json');
@@ -189,15 +191,34 @@ function cancel_challenge($conn, $challenge_id, $username) {
 }
 
 try {
-    // Check if user is logged in
-    if (!isset($_SESSION['user_id'])) {
+    // Get token from request
+    $data = json_decode(file_get_contents('php://input'), true) ?? [];
+    $token = $data['token'] ?? '';
+    
+    // For GET requests, check query string
+    if (empty($token) && isset($_GET['token'])) {
+        $token = $_GET['token'];
+    }
+    
+    // Validate token
+    if (empty($token)) {
         ob_end_clean();
-        echo json_encode(['success' => false, 'message' => 'User not logged in']);
+        echo json_encode(['success' => false, 'message' => 'Authentication token required']);
         exit;
     }
     
-    $user_id = $_SESSION['user_id'];
-    $username = $_SESSION['username'];
+    // Validate token using auth_token.php function
+    $user = validate_token($token);
+    
+    if (!$user) {
+        ob_end_clean();
+        echo json_encode(['success' => false, 'message' => 'Invalid authentication token']);
+        exit;
+    }
+    
+    // Get user info from token validation
+    $user_id = $user['user_id'];
+    $username = $user['username'];
     
     // Handle different API actions
     $action = isset($_GET['action']) ? $_GET['action'] : '';
@@ -209,7 +230,6 @@ try {
                 throw new Exception('Invalid request method');
             }
             
-            $data = json_decode(file_get_contents('php://input'), true);
             $challenged_username = sanitize_input($conn, $data['challenged_username']);
             
             $result = create_challenge($conn, $username, $challenged_username);
@@ -221,7 +241,6 @@ try {
                 throw new Exception('Invalid request method');
             }
             
-            $data = json_decode(file_get_contents('php://input'), true);
             $challenge_id = (int)$data['challenge_id'];
             
             $result = accept_challenge($conn, $challenge_id, $username);
@@ -233,7 +252,6 @@ try {
                 throw new Exception('Invalid request method');
             }
             
-            $data = json_decode(file_get_contents('php://input'), true);
             $challenge_id = (int)$data['challenge_id'];
             
             $result = decline_challenge($conn, $challenge_id, $username);
@@ -245,7 +263,6 @@ try {
                 throw new Exception('Invalid request method');
             }
             
-            $data = json_decode(file_get_contents('php://input'), true);
             $challenge_id = (int)$data['challenge_id'];
             
             $result = cancel_challenge($conn, $challenge_id, $username);

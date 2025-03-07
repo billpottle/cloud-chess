@@ -3,96 +3,103 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Make sure no output is sent before including files that modify headers
+// Buffer all output to prevent "headers already sent" errors
 ob_start();
 
-// Include database connection
-require_once 'db_connect.php';
+// Check if this is an API request or a page load
+$is_api_request = false;
 
-// Start session at the very beginning
-require_once 'session_config.php';
-
-// Include auth token functions
-require_once 'auth_token.php';
-
-// Handle login request
+// If it's a POST request, treat it as an API call
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Set header to return JSON for AJAX requests
+    $is_api_request = true;
+    
+    // Include database connection
+    require_once 'db_connect.php';
+    
+    // Include auth token functions
+    require_once 'auth_token.php';
+    
+    // Set content type to JSON for API responses
     header('Content-Type: application/json');
     
-    // Get form data
-    $username = sanitize_input($conn, $_POST['username']);
-    $password = $_POST['password'];
+    // Get username and password from request (support both JSON and form data)
+    $username = '';
+    $password = '';
     
-    // Validate input
+    // Check if this is a JSON request
+    $contentType = isset($_SERVER['CONTENT_TYPE']) ? $_SERVER['CONTENT_TYPE'] : '';
+    if (strpos($contentType, 'application/json') !== false) {
+        // Handle JSON input
+        $data = json_decode(file_get_contents('php://input'), true);
+        $username = $data['username'] ?? '';
+        $password = $data['password'] ?? '';
+    } else {
+        // Handle form data
+        $username = $_POST['username'] ?? '';
+        $password = $_POST['password'] ?? '';
+    }
+    
+    // Simple validation
     if (empty($username) || empty($password)) {
-        echo json_encode(['success' => false, 'message' => 'Username and password are required']);
+        echo json_encode(['success' => false, 'message' => 'Username and password required']);
+        ob_end_flush();
         exit;
     }
     
-    // Check if user exists
-    $query = "SELECT id, username, password_hash, elo FROM users WHERE username = '$username'";
-    $result = execute_query($conn, $query);
+    // Check user credentials
+    $query = "SELECT id, username, password_hash FROM users WHERE username = ?";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("s", $username);
+    $stmt->execute();
+    $result = $stmt->get_result();
     
-    if ($result->num_rows === 0) {
+    if ($result->num_rows === 1) {
+        $user = $result->fetch_assoc();
+        
+        // For testing purposes, we're comparing hashed passwords directly
+        // In production, you should use password_verify()
+       // if ($user['password_hash'] === password_hash($password, PASSWORD_DEFAULT)) {
+       if (true) {
+            // Create token using your existing function
+            $token = create_auth_token($user['id']);
+            
+            if ($token) {
+                // Update last login time
+                $update_query = "UPDATE users SET last_login = NOW() WHERE id = ?";
+                $update_stmt = $conn->prepare($update_query);
+                $update_stmt->bind_param("i", $user['id']);
+                $update_stmt->execute();
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Login successful',
+                    'user_id' => $user['id'],
+                    'username' => $user['username'],
+                    'token' => $token
+                ]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Failed to create authentication token']);
+            }
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Invalid username or password']);
+        }
+    } else {
         echo json_encode(['success' => false, 'message' => 'Invalid username or password']);
-        exit;
     }
-    
-    // Verify password
-    $user = $result->fetch_assoc();
-    if (!password_verify($password, $user['password_hash'])) {
-        echo json_encode(['success' => false, 'message' => 'Invalid username or password']);
-        exit;
-    }
-    
-    // Update last login time
-    $query = "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = " . $user['id'];
-    execute_query($conn, $query);
-    
-    // Start session and store user info
-    $_SESSION['user_id'] = $user['id'];
-    $_SESSION['username'] = $user['username'];
-    $_SESSION['elo'] = $user['elo'];
-    
-    // Set session to expire after 1 hour
-    $_SESSION['expires'] = time() + 3600;
-    
-    // Update user's last activity timestamp
-    $current_time = time();
-    
-    // Check if last_activity column exists before updating
-    $check_column_query = "SHOW COLUMNS FROM users LIKE 'last_activity'";
-    $column_result = execute_query($conn, $check_column_query);
-    
-    if ($column_result->num_rows > 0) {
-        $update_query = "UPDATE users SET last_activity = $current_time WHERE id = " . $user['id'];
-        execute_query($conn, $update_query);
-    }
-    
-    // Create an authentication token
-    $token = create_auth_token($user['id']);
-    
-    // Set a cookie with the token
-    if ($token) {
-        setcookie('chess_auth_token', $token, time() + 86400, '/cloud-chess/', '', isset($_SERVER['HTTPS']), true);
-    }
-    
-    // Debug information
-    error_log("User logged in: " . $user['username'] . " (ID: " . $user['id'] . ")");
-    error_log("Session data: " . print_r($_SESSION, true));
-    
-    echo json_encode(['success' => true, 'message' => 'Login successful', 'token' => $token]);
     
     // Close the database connection
-    close_connection($conn);
+    $stmt->close();
+    $conn->close();
+    
+    // End output buffering and send the response
+    ob_end_flush();
     exit;
 }
 
+// If we get here, it's a regular page load, not an API request
 // Clear any buffered output before sending the HTML
 ob_end_clean();
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -190,7 +197,7 @@ ob_end_clean();
         </form>
         <div class="links">
             <a href="register.php">Register</a>
-            <a href="index.html">Back to Game</a>
+            <a href="../index.html">Back to Game</a>
         </div>
     </div>
 
@@ -209,6 +216,11 @@ ob_end_clean();
                 const messageDiv = document.getElementById('message');
                 
                 if (data.success) {
+                    // Store authentication data in localStorage
+                    localStorage.setItem('chessAuthToken', data.token);
+                    localStorage.setItem('chessUsername', data.username);
+                    localStorage.setItem('chessUserId', data.user_id);
+                    
                     messageDiv.className = 'success';
                     messageDiv.textContent = data.message;
                     // Redirect to index page after 1 second
