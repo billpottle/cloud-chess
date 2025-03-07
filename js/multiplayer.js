@@ -22,10 +22,14 @@ function convertPiecesToBoard(pieces) {
 
     // Place each piece on the board
     pieces.forEach(piece => {
-        if (piece.type === 'dragon') {
-            board[piece.row][piece.col] = pieceSymbols.dragon[piece.color];
-        } else {
-            board[piece.row][piece.col] = pieceSymbols[piece.type][piece.color];
+        if (piece && piece.row !== undefined && piece.col !== undefined) {
+            if (piece.type === 'dragon') {
+                board[piece.row][piece.col] = pieceSymbols.dragon[piece.color];
+            } else if (pieceSymbols[piece.type] && pieceSymbols[piece.type][piece.color]) {
+                board[piece.row][piece.col] = pieceSymbols[piece.type][piece.color];
+            } else {
+                console.warn('Unknown piece type or color:', piece);
+            }
         }
     });
 
@@ -75,6 +79,11 @@ function initializeMultiplayerGame(gameId, color, currentTurn, boardState, isSpe
 
     // Initialize the board display
     multiplayerGame.initializeBoard();
+    
+    // Apply styling immediately after initialization
+    setTimeout(() => {
+        fixPieceStyling();
+    }, 100);
 
     // Override the handleSquareClick method to add multiplayer functionality
     const originalHandleSquareClick = multiplayerGame.handleSquareClick;
@@ -101,6 +110,11 @@ function initializeMultiplayerGame(gameId, color, currentTurn, boardState, isSpe
 
         // Send the update to the server
         updateGameState(boardState, nextTurn);
+        
+        // Fix styling after move
+        setTimeout(() => {
+            fixPieceStyling();
+        }, 100);
     };
 
     // If not the player's turn or spectating, disable board interaction
@@ -198,12 +212,7 @@ function checkForGameUpdates() {
 }
 
 function updateBoardDisplay(boardState) {
-    // Clear the current board
-    const boardContainer = document.getElementById('board');
-    if (!boardContainer) {
-        console.error('Board container not found');
-        return;
-    }
+    console.log('Updating board display with state:', boardState);
     
     // Convert the board state to the format expected by the game
     multiplayerGame.gameBoard = convertPiecesToBoard(boardState);
@@ -211,8 +220,92 @@ function updateBoardDisplay(boardState) {
     // Re-initialize the board display
     multiplayerGame.initializeBoard();
     
-    // Debug: Log the pieces that were placed
-    console.log('Updated board with pieces:', boardState);
+    // Fix styling after a short delay to ensure DOM is updated
+    setTimeout(() => {
+        fixPieceStyling();
+    }, 100);
+}
+
+function fixPieceStyling() {
+    console.log('Fixing piece styling...');
+    
+    // Get all pieces
+    const pieces = document.querySelectorAll('.piece');
+    console.log(`Found ${pieces.length} pieces to fix`);
+    
+    // Apply CSS directly to each piece
+    pieces.forEach((piece, index) => {
+        // Get piece text content to determine type and color
+        const text = piece.textContent;
+        
+        // Determine color based on Unicode character
+        let color = '';
+        
+        // Handle archer pieces (they have special text)
+        if (text.includes('⇡')) {
+            color = 'white';
+            piece.setAttribute('data-color', 'white');
+            piece.setAttribute('data-type', 'archer');
+            piece.style.color = 'white';
+            piece.style.textShadow = '0 0 3px black, 0 0 3px black, 0 0 3px black';
+            piece.classList.add('white-piece');
+        } else if (text.includes('⇣')) {
+            color = 'black';
+            piece.setAttribute('data-color', 'black');
+            piece.setAttribute('data-type', 'archer');
+            piece.style.color = 'black';
+            piece.style.textShadow = '0 0 3px white, 0 0 3px white, 0 0 3px white';
+            piece.classList.add('black-piece');
+        } else if ('♔♕♖♗♘♙'.includes(text)) {
+            color = 'white';
+            piece.setAttribute('data-color', 'white');
+            piece.style.color = 'white';
+            piece.style.textShadow = '0 0 3px black, 0 0 3px black, 0 0 3px black';
+            piece.classList.add('white-piece');
+        } else if ('♚♛♜♝♞♟'.includes(text)) {
+            color = 'black';
+            piece.setAttribute('data-color', 'black');
+            piece.style.color = 'black';
+            piece.style.textShadow = '0 0 3px white, 0 0 3px white, 0 0 3px white';
+            piece.classList.add('black-piece');
+        }
+        
+        // Handle dragon pieces - check for background image or class
+        if (piece.classList.contains('dragon-piece') || 
+            piece.style.backgroundImage || 
+            !text) {
+            
+            // Check if this is a dragon piece
+            const squareColor = piece.parentElement.classList.contains('white') ? 'light' : 'dark';
+            const row = parseInt(piece.parentElement.dataset.row);
+            
+            // Dragons in the top row (0) are black, dragons in the bottom row (9) are white
+            if (row === 0 || row === 1) {
+                piece.setAttribute('data-type', 'dragon');
+                piece.setAttribute('data-color', 'black');
+                piece.classList.add('dragon-piece', 'black-piece');
+                piece.classList.remove('white-piece');
+                piece.style.backgroundImage = 'url("images/dragon_icon_black.png")';
+                piece.style.backgroundSize = 'contain';
+                piece.style.backgroundRepeat = 'no-repeat';
+                piece.style.backgroundPosition = 'center';
+                piece.textContent = ''; // Clear text content
+            } else if (row === 8 || row === 9) {
+                piece.setAttribute('data-type', 'dragon');
+                piece.setAttribute('data-color', 'white');
+                piece.classList.add('dragon-piece', 'white-piece');
+                piece.classList.remove('black-piece');
+                piece.style.backgroundImage = 'url("images/dragon_icon_white.png")';
+                piece.style.backgroundSize = 'contain';
+                piece.style.backgroundRepeat = 'no-repeat';
+                piece.style.backgroundPosition = 'center';
+                piece.textContent = ''; // Clear text content
+            }
+        }
+        
+        // Always set font weight
+        piece.style.fontWeight = 'bold';
+            });
 }
 
 function resignGame() {
