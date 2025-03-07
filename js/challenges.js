@@ -67,8 +67,15 @@ function checkPendingChallenges() {
         return;
     }
     
-    console.log('Checking for pending challenges...');
-    fetch('api/challenge_api.php?action=pending')
+    // Get the current username
+    const username = window.currentUsername || localStorage.getItem('chessUsername');
+    if (!username) {
+        console.error('Username not found for pending challenges check');
+        return;
+    }
+    
+    console.log('Checking for pending challenges...', username);
+    fetch(`api/challenge_api.php?action=pending&username=${encodeURIComponent(username)}`)
         .then(response => response.json())
         .then(data => {
             console.log('Pending challenges response:', data);
@@ -172,9 +179,16 @@ function loadChallenges(type) {
         return;
     }
     
+    // Get the current username
+    const username = window.currentUsername || localStorage.getItem('chessUsername');
+    if (!username) {
+        listElement.innerHTML = '<p>Please log in to view challenges.</p>';
+        return;
+    }
+    
     listElement.innerHTML = '<p>Loading challenges...</p>';
     
-    fetch(`api/challenge_api.php?action=${type}`)
+    fetch(`api/challenge_api.php?action=${type}&username=${encodeURIComponent(username)}`)
         .then(response => response.json())
         .then(data => {
             console.log(`${type} challenges response:`, data);

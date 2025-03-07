@@ -191,38 +191,53 @@ function cancel_challenge($conn, $challenge_id, $username) {
 }
 
 try {
-    // Get token from request
-    $data = json_decode(file_get_contents('php://input'), true) ?? [];
-    $token = $data['token'] ?? '';
-    
-    // For GET requests, check query string
-    if (empty($token) && isset($_GET['token'])) {
-        $token = $_GET['token'];
-    }
-    
-    // Validate token
-    if (empty($token)) {
-        ob_end_clean();
-        echo json_encode(['success' => false, 'message' => 'Authentication token required']);
-        exit;
-    }
-    
-    // Validate token using auth_token.php function
-    $user = validate_token($token);
-    
-    if (!$user) {
-        ob_end_clean();
-        echo json_encode(['success' => false, 'message' => 'Invalid authentication token']);
-        exit;
-    }
-    
-    // Get user info from token validation
-    $user_id = $user['user_id'];
-    $username = $user['username'];
-    
-    // Handle different API actions
+    // Get action from request
     $action = isset($_GET['action']) ? $_GET['action'] : '';
     
+    // Check if this is a public action (pending or outgoing challenges)
+    $public_actions = ['pending', 'outgoing'];
+    $is_public_action = in_array($action, $public_actions);
+    
+    // Get username from request for public actions
+    $username = '';
+    if ($is_public_action) {
+        if (isset($_GET['username'])) {
+            $username = sanitize_input($conn, $_GET['username']);
+        } else {
+            throw new Exception('Username is required for this action');
+        }
+    } else {
+        // For authenticated actions, get token from request
+        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $token = $data['token'] ?? '';
+        
+        // For GET requests, check query string
+        if (empty($token) && isset($_GET['token'])) {
+            $token = $_GET['token'];
+        }
+        
+        // Validate token
+        if (empty($token)) {
+            ob_end_clean();
+            echo json_encode(['success' => false, 'message' => 'Authentication token required']);
+            exit;
+        }
+        
+        // Validate token using auth_token.php function
+        $user = validate_token($token);
+        
+        if (!$user) {
+            ob_end_clean();
+            echo json_encode(['success' => false, 'message' => 'Invalid authentication token']);
+            exit;
+        }
+        
+        // Get user info from token validation
+        $user_id = $user['user_id'];
+        $username = $user['username'];
+    }
+    
+    // Handle different API actions
     switch ($action) {
         case 'create':
             // Create a new challenge

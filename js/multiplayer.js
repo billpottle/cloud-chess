@@ -98,7 +98,7 @@ function initializeMultiplayerGame(gameId, color, currentTurn, boardState, isSpe
         originalHandleSquareClick.call(this, e);
     };
 
-    // Override the movePiece method to add server update
+    // Override the movePiece method to add server update and checkmate detection
     const originalMovePiece = multiplayerGame.movePiece;
     multiplayerGame.movePiece = function(toRow, toCol) {
         // Call the original move piece method
@@ -108,8 +108,24 @@ function initializeMultiplayerGame(gameId, color, currentTurn, boardState, isSpe
         const boardState = convertBoardToPieces(this);
         const nextTurn = this.currentPlayer === 'white' ? 'black' : 'white';
 
-        // Send the update to the server
-        updateGameState(boardState, nextTurn);
+        // Check if the move resulted in checkmate
+        if (this.isCheckmate(nextTurn)) {
+            console.log(`Checkmate! ${this.currentPlayer} wins!`);
+            
+            // Update the game state with the final move
+            updateGameState(boardState, nextTurn);
+            
+            // Show checkmate animation
+            this.showGameStatusAnimation('checkmate', 'CHECKMATE!');
+            
+            // Finalize the game
+            setTimeout(() => {
+                finalizeGame('checkmate');
+            }, 2000);
+        } else {
+            // Send the update to the server
+            updateGameState(boardState, nextTurn);
+        }
         
         // Fix styling after move
         setTimeout(() => {
@@ -445,5 +461,63 @@ function updateGameState(boardState, nextTurn) {
     })
     .catch(error => {
         console.error('Error updating game state:', error);
+    });
+}
+
+// Add this function to handle game finalization
+function finalizeGame(result) {
+    console.log(`Finalizing game with result: ${result}`);
+    
+    // Get the authentication token
+    const token = localStorage.getItem('chessAuthToken');
+    if (!token) {
+        console.error('No authentication token found');
+        return;
+    }
+    
+    // Create form data for the request
+    const formData = new FormData();
+    formData.append('token', token);
+    formData.append('game_id', currentGameId);
+    formData.append('result', result);
+    
+    // Send the finalization request to the server
+    fetch('api/finalize_game.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Game finalized successfully:', data);
+            
+            // Show ELO changes if available
+            if (data.elo_changes) {
+                const winner = data.elo_changes.winner;
+                const loser = data.elo_changes.loser;
+                
+                let message = `Game over! ${result.charAt(0).toUpperCase() + result.slice(1)}!\n\n`;
+                message += `${winner.username}: ${winner.old_elo} → ${winner.new_elo} (${winner.change >= 0 ? '+' : ''}${winner.change})\n`;
+                message += `${loser.username}: ${loser.old_elo} → ${loser.new_elo} (${loser.change >= 0 ? '+' : ''}${loser.change})`;
+                
+                setTimeout(() => {
+                    alert(message);
+                    window.location.href = 'index.html'; // Redirect to home page
+                }, 1000);
+            } else {
+                // For draws or other results without ELO changes
+                setTimeout(() => {
+                    alert(`Game over! ${result.charAt(0).toUpperCase() + result.slice(1)}!`);
+                    window.location.href = 'index.html'; // Redirect to home page
+                }, 1000);
+            }
+        } else {
+            console.error('Failed to finalize game:', data.message);
+            alert('Failed to finalize game: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error finalizing game:', error);
+        alert('Error finalizing game. Please try again.');
     });
 } 

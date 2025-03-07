@@ -89,9 +89,7 @@ ob_end_flush();
         </div>
         
         <div id="game-board">
-            <div class="game-info">
-                <div>Current Turn: <span id="current-turn-display"><?php echo ucfirst($game['turn']); ?></span></div>
-            </div>
+        
             <div id="board"></div>
         </div>
         
@@ -238,10 +236,10 @@ ob_end_flush();
             });
             
             // Check for game updates periodically if it's not your turn or you're spectating
-            if (!isMyTurn || isSpectator) {
+          
                 checkForGameUpdates();
                 setInterval(checkForGameUpdates, 5000); // Check every 5 seconds
-            }
+            
             
             // Update authentication UI
             updateAuthUI();
