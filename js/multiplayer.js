@@ -58,6 +58,9 @@ function initializeMultiplayerGame(gameId, color, currentTurn, boardState, isSpe
             console.log('Converting provided board state');
             multiplayerGame.gameBoard = convertPiecesToBoard(boardState);
         }
+        
+        // Set the current player to match the game's turn
+        multiplayerGame.currentPlayer = currentTurn;
     }
 
     // Get the board container
@@ -73,12 +76,43 @@ function initializeMultiplayerGame(gameId, color, currentTurn, boardState, isSpe
     // Initialize the board display
     multiplayerGame.initializeBoard();
 
+    // Override the handleSquareClick method to add multiplayer functionality
+    const originalHandleSquareClick = multiplayerGame.handleSquareClick;
+    multiplayerGame.handleSquareClick = function(e) {
+        // Only allow moves if it's the player's turn and they're not spectating
+        if (isSpectatorMode || playerColor !== this.currentPlayer) {
+            console.log('Not your turn or spectating');
+            return;
+        }
+
+        // Call the original method
+        originalHandleSquareClick.call(this, e);
+    };
+
+    // Override the movePiece method to add server update
+    const originalMovePiece = multiplayerGame.movePiece;
+    multiplayerGame.movePiece = function(toRow, toCol) {
+        // Call the original move piece method
+        originalMovePiece.call(this, toRow, toCol);
+
+        // After the move is made, convert the board to the server format
+        const boardState = convertBoardToPieces(this);
+        const nextTurn = this.currentPlayer === 'white' ? 'black' : 'white';
+
+        // Send the update to the server
+        updateGameState(boardState, nextTurn);
+    };
+
     // If not the player's turn or spectating, disable board interaction
     if (isSpectator || color !== currentTurn) {
+        console.log('Disabling board interaction - not your turn or spectating');
         disableBoardInteraction();
+    } else {
+        console.log('Enabling board interaction - it is your turn');
+        enableBoardInteraction();
     }
 
-    console.log('Multiplayer game initialized');
+    console.log('Multiplayer game initialized with current player:', multiplayerGame.currentPlayer);
 }
 
 function disableBoardInteraction() {
@@ -91,21 +125,231 @@ function disableBoardInteraction() {
 }
 
 function enableBoardInteraction() {
-    // Re-add click event listeners to all squares
+    console.log('Enabling board interaction');
+    
+    // First, make sure all existing event listeners are removed
+    disableBoardInteraction();
+    
+    // Then add new event listeners
     const squares = document.querySelectorAll('.square');
     squares.forEach(square => {
-        square.addEventListener('click', (e) => multiplayerGame.handleSquareClick(e));
+        square.addEventListener('click', (e) => {
+            console.log('Square clicked:', e.currentTarget.dataset.row, e.currentTarget.dataset.col);
+            multiplayerGame.handleSquareClick(e);
+        });
     });
 }
 
 function checkForGameUpdates() {
-    // This will be implemented later to poll for game updates
     console.log('Checking for game updates...');
+    
+    // Send the request to get the latest game state using GET
+    fetch(`api/get_game.php?id=${currentGameId}`, {
+        method: 'GET'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            console.log('Received game update:', data.game);
+            
+            // Check if the turn has changed
+            if (data.game.turn !== multiplayerGame.currentPlayer) {
+                console.log('Turn has changed, updating board');
+                
+                // Update the current player
+                multiplayerGame.currentPlayer = data.game.turn;
+                
+                // Update the turn display
+                const turnDisplay = document.getElementById('current-turn');
+                if (turnDisplay) {
+                    turnDisplay.textContent = data.game.turn.charAt(0).toUpperCase() + data.game.turn.slice(1);
+                }
+                
+                // Update the board with the new state
+                const boardState = data.game.board_state;
+                if (typeof boardState === 'string') {
+                    try {
+                        const parsedState = JSON.parse(boardState);
+                        updateBoardDisplay(parsedState);
+                    } catch (e) {
+                        console.error('Error parsing board state:', e);
+                    }
+                } else if (Array.isArray(boardState)) {
+                    updateBoardDisplay(boardState);
+                }
+                
+                // Enable board interaction if it's the player's turn
+                if (playerColor === data.game.turn && !isSpectatorMode) {
+                    enableBoardInteraction();
+                }
+            }
+        } else {
+            console.error('Failed to get game update:', data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error checking for game updates:', error);
+    });
+}
+
+function updateBoardDisplay(boardState) {
+    // Clear the current board
+    const boardContainer = document.getElementById('board');
+    if (!boardContainer) {
+        console.error('Board container not found');
+        return;
+    }
+    
+    // Convert the board state to the format expected by the game
+    multiplayerGame.gameBoard = convertPiecesToBoard(boardState);
+    
+    // Re-initialize the board display
+    multiplayerGame.initializeBoard();
+    
+    // Debug: Log the pieces that were placed
+    console.log('Updated board with pieces:', boardState);
 }
 
 function resignGame() {
     if (confirm('Are you sure you want to resign?')) {
-        // This will be implemented later to handle game resignation
         console.log('Resigning game...');
+        
+        // Get the authentication token
+        const token = localStorage.getItem('chessAuthToken');
+        if (!token) {
+            console.error('No authentication token found');
+            return;
+        }
+        
+        // Create form data for the request
+        const formData = new FormData();
+        formData.append('token', token);
+        formData.append('game_id', currentGameId);
+        formData.append('action', 'resign');
+        
+        // Send the resignation to the server
+        fetch('api/update_game.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('You have resigned the game.');
+                window.location.href = 'index.html'; // Redirect to home page
+            } else {
+                console.error('Failed to resign game:', data.message);
+                alert('Failed to resign: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error resigning game:', error);
+            alert('Error resigning game. Please try again.');
+        });
     }
+}
+
+function convertBoardToPieces(gameInstance) {
+    const pieces = [];
+    const pieceTypes = {
+        '♔': { type: 'king', color: 'white' },
+        '♚': { type: 'king', color: 'black' },
+        '♕': { type: 'queen', color: 'white' },
+        '♛': { type: 'queen', color: 'black' },
+        '♖': { type: 'rook', color: 'white' },
+        '♜': { type: 'rook', color: 'black' },
+        '♗': { type: 'bishop', color: 'white' },
+        '♝': { type: 'bishop', color: 'black' },
+        '♘': { type: 'knight', color: 'white' },
+        '♞': { type: 'knight', color: 'black' },
+        '♙': { type: 'pawn', color: 'white' },
+        '♟': { type: 'pawn', color: 'black' },
+        '♙⇡': { type: 'archer', color: 'white' },
+        '♟⇣': { type: 'archer', color: 'black' },
+        'dragon-white': { type: 'dragon', color: 'white' },
+        'dragon-black': { type: 'dragon', color: 'black' }
+    };
+
+    // Get all squares from the board
+    const squares = gameInstance.board.querySelectorAll('.square');
+    squares.forEach(square => {
+        const piece = square.querySelector('.piece');
+        if (piece) {
+            const row = parseInt(square.dataset.row);
+            const col = parseInt(square.dataset.col);
+            const color = piece.dataset.color;
+            
+            // Handle dragon pieces
+            if (piece.dataset.type === 'dragon') {
+                pieces.push({
+                    row: row,
+                    col: col,
+                    type: 'dragon',
+                    color: color
+                });
+            } else {
+                // Handle regular pieces
+                const pieceText = piece.textContent;
+                if (pieceTypes[pieceText]) {
+                    pieces.push({
+                        row: row,
+                        col: col,
+                        ...pieceTypes[pieceText]
+                    });
+                }
+            }
+        }
+    });
+
+    return pieces;
+}
+
+function updateGameState(boardState, nextTurn) {
+    console.log('Updating game state:', { boardState, nextTurn });
+
+    // Get the authentication token from localStorage with correct key
+    const token = localStorage.getItem('chessAuthToken');
+    if (!token) {
+        console.error('No authentication token found');
+        return;
+    }
+
+    // Create form data for the request
+    const formData = new FormData();
+    formData.append('token', token);
+    formData.append('game_id', currentGameId);
+    formData.append('board_state', JSON.stringify(boardState));
+    formData.append('next_turn', nextTurn);
+
+    // Send the update to the server
+    fetch('api/update_game.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Game state updated successfully');
+            
+            // Disable board interaction since it's now the other player's turn
+            disableBoardInteraction();
+            
+            // Update the turn display
+            const turnDisplay = document.getElementById('current-turn');
+            if (turnDisplay) {
+                turnDisplay.textContent = nextTurn.charAt(0).toUpperCase() + nextTurn.slice(1);
+            }
+        } else {
+            console.error('Failed to update game state:', data.message);
+            // You might want to handle this error, perhaps by rolling back the move
+        }
+    })
+    .catch(error => {
+        console.error('Error updating game state:', error);
+    });
 } 
