@@ -1,7 +1,7 @@
 /* Chess board and game-specific styles */
 #board {
-    width: 500px;
-    height: 500px;
+    width: 600px;
+    height: 600px;
     margin: 0 auto;
     border: 2px solid #333;
 }
@@ -51,13 +51,5 @@
     user-select: none;
 }
 
-/* Update any background images in your CSS */
-.piece-white-pawn {
-    background-image: url('../images/white_pawn.png');
-}
 
-.piece-black-pawn {
-    background-image: url('../images/black_pawn.png');
-}
 
-/* And so on for all chess pieces */ 

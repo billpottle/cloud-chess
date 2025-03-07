@@ -137,64 +137,98 @@ class ChessGame {
     }
 
     initializeBoard() {
-        // Clear the board first
-        this.board.innerHTML = '';
-        
-        // Update CSS grid to 10x10
-        const isMobile = window.innerWidth <= 768;
-        if (isMobile) {
-            this.board.style.gridTemplateColumns = 'repeat(10, 30px)';
-            this.board.style.gridTemplateRows = 'repeat(10, 30px)';
+        // Clear the board container
+        if (this.board) {
+            this.board.innerHTML = '';
         } else {
-            this.board.style.gridTemplateColumns = 'repeat(10, 60px)';
-            this.board.style.gridTemplateRows = 'repeat(10, 60px)';
+            this.board = document.getElementById('board');
         }
         
+        if (!this.board) {
+            console.error('Board container not found');
+            return;
+        }
+        
+        // Ensure the board has the correct CSS grid properties
+        this.board.style.display = 'grid';
+        this.board.style.gridTemplateColumns = 'repeat(10, 60px)';
+        this.board.style.gridTemplateRows = 'repeat(10, 60px)';
+        this.board.style.maxWidth = '600px';
+        this.board.style.boxSizing = 'content-box';
+        this.board.style.border = '2px solid #333';
+        
+        // Create the squares and place the pieces
         for (let row = 0; row < 10; row++) {
             for (let col = 0; col < 10; col++) {
                 const square = document.createElement('div');
-                square.className = `square ${(row + col) % 2 === 0 ? 'white' : 'black'}`;
+                square.className = 'square';
+                square.classList.add((row + col) % 2 === 0 ? 'white' : 'black');
                 square.dataset.row = row;
                 square.dataset.col = col;
                 
-                if (this.gameBoard[row][col]) {
+                // Set the square dimensions explicitly
+                square.style.width = '60px';
+                square.style.height = '60px';
+                
+                // Place the piece if there is one
+                const pieceSymbol = this.gameBoard[row][col];
+                if (pieceSymbol) {
                     const piece = document.createElement('div');
+                    piece.className = 'piece';
                     
-                    // Handle special dragon pieces
-                    if (this.gameBoard[row][col] === 'dragon-black') {
-                        piece.className = 'piece dragon-piece black-piece';
-                        piece.dataset.color = 'black';
+                    // Handle dragon pieces
+                    if (pieceSymbol === 'dragon-white' || pieceSymbol === 'dragon-black') {
+                        const color = pieceSymbol === 'dragon-white' ? 'white' : 'black';
+                        piece.classList.add('dragon-piece', color + '-piece');
                         piece.dataset.type = 'dragon';
-                    } else if (this.gameBoard[row][col] === 'dragon-white') {
-                        piece.className = 'piece dragon-piece white-piece';
-                        piece.dataset.color = 'white';
-                        piece.dataset.type = 'dragon';
+                        piece.dataset.color = color;
                     } else {
                         // Regular pieces
-                        piece.className = 'piece';
-                        piece.textContent = this.gameBoard[row][col];
+                        piece.textContent = pieceSymbol;
                         
-                        // Set color
-                        if (row < 2) {
-                            piece.dataset.color = 'black';
-                            piece.classList.add('black-piece');
-                        } else if (row > 7) {
+                        // Set piece color based on Unicode character
+                        if ('♔♕♖♗♘♙'.includes(pieceSymbol.charAt(0))) {
                             piece.dataset.color = 'white';
                             piece.classList.add('white-piece');
+                        } else if ('♚♛♜♝♞♟'.includes(pieceSymbol.charAt(0))) {
+                            piece.dataset.color = 'black';
+                            piece.classList.add('black-piece');
                         }
-                    }
-                    
-                    if (this.gameBoard[row][col] === '♔' || this.gameBoard[row][col] === '♚') {
-                        piece.dataset.type = 'king';
-                        console.log(`King piece created at ${row},${col}`);
+                        
+                        // Set piece type
+                        if ('♔♚'.includes(pieceSymbol)) piece.dataset.type = 'king';
+                        else if ('♕♛'.includes(pieceSymbol)) piece.dataset.type = 'queen';
+                        else if ('♖♜'.includes(pieceSymbol)) piece.dataset.type = 'rook';
+                        else if ('♗♝'.includes(pieceSymbol)) piece.dataset.type = 'bishop';
+                        else if ('♘♞'.includes(pieceSymbol)) piece.dataset.type = 'knight';
+                        else if ('♙♟'.includes(pieceSymbol) && !pieceSymbol.includes('⇡') && !pieceSymbol.includes('⇣')) {
+                            piece.dataset.type = 'pawn';
+                        } else if (pieceSymbol.includes('⇡')) {
+                            piece.dataset.type = 'archer';
+                            piece.dataset.color = 'white';
+                            piece.classList.add('white-piece');
+                        } else if (pieceSymbol.includes('⇣')) {
+                            piece.dataset.type = 'archer';
+                            piece.dataset.color = 'black';
+                            piece.classList.add('black-piece');
+                        }
                     }
                     
                     square.appendChild(piece);
                 }
-
-                square.addEventListener('click', (e) => this.handleSquareClick(e));
+                
                 this.board.appendChild(square);
             }
+        }
+        
+        // Add event listeners for piece selection
+        this.board.addEventListener('click', this.handleSquareClick.bind(this));
+        
+        // Apply styling to all pieces
+        if (window.fixPieceStyling) {
+            setTimeout(() => {
+                window.fixPieceStyling();
+            }, 100);
         }
     }
 

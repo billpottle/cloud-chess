@@ -226,7 +226,8 @@ function updateBoardDisplay(boardState) {
     }, 100);
 }
 
-function fixPieceStyling() {
+// Add this function to the global scope so it can be called from anywhere
+window.fixPieceStyling = function() {
     console.log('Fixing piece styling...');
     
     // Get all pieces
@@ -234,79 +235,79 @@ function fixPieceStyling() {
     console.log(`Found ${pieces.length} pieces to fix`);
     
     // Apply CSS directly to each piece
-    pieces.forEach((piece, index) => {
+    pieces.forEach((piece) => {
         // Get piece text content to determine type and color
         const text = piece.textContent;
+        const type = piece.dataset.type;
+        const color = piece.dataset.color;
         
-        // Determine color based on Unicode character
-        let color = '';
+        // Clear any existing color classes
+        piece.classList.remove('white-piece', 'black-piece');
         
-        // Handle archer pieces (they have special text)
+        // Apply the appropriate color class
+        if (color === 'white') {
+            piece.classList.add('white-piece');
+        } else if (color === 'black') {
+            piece.classList.add('black-piece');
+        } else {
+            // Determine color based on Unicode character if not set
+            if ('♔♕♖♗♘♙'.includes(text)) {
+                piece.dataset.color = 'white';
+                piece.classList.add('white-piece');
+            } else if ('♚♛♜♝♞♟'.includes(text)) {
+                piece.dataset.color = 'black';
+                piece.classList.add('black-piece');
+            }
+        }
+        
+        // Handle archer pieces
         if (text.includes('⇡')) {
-            color = 'white';
-            piece.setAttribute('data-color', 'white');
-            piece.setAttribute('data-type', 'archer');
-            piece.style.color = 'white';
-            piece.style.textShadow = '0 0 3px black, 0 0 3px black, 0 0 3px black';
+            piece.dataset.type = 'archer';
+            piece.dataset.color = 'white';
             piece.classList.add('white-piece');
         } else if (text.includes('⇣')) {
-            color = 'black';
-            piece.setAttribute('data-color', 'black');
-            piece.setAttribute('data-type', 'archer');
-            piece.style.color = 'black';
-            piece.style.textShadow = '0 0 3px white, 0 0 3px white, 0 0 3px white';
-            piece.classList.add('black-piece');
-        } else if ('♔♕♖♗♘♙'.includes(text)) {
-            color = 'white';
-            piece.setAttribute('data-color', 'white');
-            piece.style.color = 'white';
-            piece.style.textShadow = '0 0 3px black, 0 0 3px black, 0 0 3px black';
-            piece.classList.add('white-piece');
-        } else if ('♚♛♜♝♞♟'.includes(text)) {
-            color = 'black';
-            piece.setAttribute('data-color', 'black');
-            piece.style.color = 'black';
-            piece.style.textShadow = '0 0 3px white, 0 0 3px white, 0 0 3px white';
+            piece.dataset.type = 'archer';
+            piece.dataset.color = 'black';
             piece.classList.add('black-piece');
         }
         
-        // Handle dragon pieces - check for background image or class
-        if (piece.classList.contains('dragon-piece') || 
-            piece.style.backgroundImage || 
-            !text) {
+        // Handle dragon pieces
+        if (type === 'dragon') {
+            piece.classList.add('dragon-piece');
             
-            // Check if this is a dragon piece
-            const squareColor = piece.parentElement.classList.contains('white') ? 'light' : 'dark';
-            const row = parseInt(piece.parentElement.dataset.row);
+            // Ensure dragons in corners have the correct color
+            const row = parseInt(piece.parentElement?.dataset?.row || '0');
+            const col = parseInt(piece.parentElement?.dataset?.col || '0');
             
-            // Dragons in the top row (0) are black, dragons in the bottom row (9) are white
-            if (row === 0 || row === 1) {
-                piece.setAttribute('data-type', 'dragon');
-                piece.setAttribute('data-color', 'black');
-                piece.classList.add('dragon-piece', 'black-piece');
+            if ((row === 0 && (col === 0 || col === 9)) || 
+                (row === 1 && (col === 0 || col === 9))) {
+                piece.dataset.color = 'black';
                 piece.classList.remove('white-piece');
-                piece.style.backgroundImage = 'url("images/dragon_icon_black.png")';
-                piece.style.backgroundSize = 'contain';
-                piece.style.backgroundRepeat = 'no-repeat';
-                piece.style.backgroundPosition = 'center';
-                piece.textContent = ''; // Clear text content
-            } else if (row === 8 || row === 9) {
-                piece.setAttribute('data-type', 'dragon');
-                piece.setAttribute('data-color', 'white');
-                piece.classList.add('dragon-piece', 'white-piece');
+                piece.classList.add('black-piece');
+            } else if ((row === 9 && (col === 0 || col === 9)) || 
+                       (row === 8 && (col === 0 || col === 9))) {
+                piece.dataset.color = 'white';
                 piece.classList.remove('black-piece');
-                piece.style.backgroundImage = 'url("images/dragon_icon_white.png")';
-                piece.style.backgroundSize = 'contain';
-                piece.style.backgroundRepeat = 'no-repeat';
-                piece.style.backgroundPosition = 'center';
-                piece.textContent = ''; // Clear text content
+                piece.classList.add('white-piece');
             }
+            
+            // Clear text content for dragon pieces
+            piece.textContent = '';
+        }
+        
+        // Add text shadow for better visibility - apply to all pieces with text content
+        if (piece.classList.contains('white-piece') || piece.dataset.color === 'white') {
+            piece.style.color = 'white';
+            piece.style.textShadow = '0 0 3px black, 0 0 3px black, 0 0 3px black';
+        } else if (piece.classList.contains('black-piece') || piece.dataset.color === 'black') {
+            piece.style.color = 'black';
+            piece.style.textShadow = '0 0 3px white, 0 0 3px white, 0 0 3px white';
         }
         
         // Always set font weight
         piece.style.fontWeight = 'bold';
-            });
-}
+    });
+};
 
 function resignGame() {
     if (confirm('Are you sure you want to resign?')) {
