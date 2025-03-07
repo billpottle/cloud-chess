@@ -90,7 +90,7 @@ class ChessGame {
             this.board = boardState;
         } else {
             // Create a new board with default positions
-            this.initializeNewBoard();
+            this.createInitialBoard();
         }
         
         this.currentPlayer = 'white';
@@ -102,47 +102,6 @@ class ChessGame {
         this.wrathPath = null;
     }
 
-    // Method to initialize a new board with default positions
-    initializeNewBoard() {
-        // Create an empty 10x10 board
-        this.board = Array(10).fill().map(() => Array(10).fill(null));
-        
-        // Set up the pieces
-        
-        // Black pieces
-        this.board[0][0] = { type: 'rook', color: 'black' };
-        this.board[0][1] = { type: 'knight', color: 'black' };
-        this.board[0][2] = { type: 'bishop', color: 'black' };
-        this.board[0][3] = { type: 'queen', color: 'black' };
-        this.board[0][4] = { type: 'king', color: 'black' };
-        this.board[0][5] = { type: 'bishop', color: 'black' };
-        this.board[0][6] = { type: 'knight', color: 'black' };
-        this.board[0][7] = { type: 'rook', color: 'black' };
-        this.board[0][8] = { type: 'dragon', color: 'black' };
-        this.board[0][9] = { type: 'archer', color: 'black' };
-        
-        // Black pawns
-        for (let i = 0; i < 10; i++) {
-            this.board[1][i] = { type: 'pawn', color: 'black' };
-        }
-        
-        // White pawns
-        for (let i = 0; i < 10; i++) {
-            this.board[8][i] = { type: 'pawn', color: 'white' };
-        }
-        
-        // White pieces
-        this.board[9][0] = { type: 'rook', color: 'white' };
-        this.board[9][1] = { type: 'knight', color: 'white' };
-        this.board[9][2] = { type: 'bishop', color: 'white' };
-        this.board[9][3] = { type: 'queen', color: 'white' };
-        this.board[9][4] = { type: 'king', color: 'white' };
-        this.board[9][5] = { type: 'bishop', color: 'white' };
-        this.board[9][6] = { type: 'knight', color: 'white' };
-        this.board[9][7] = { type: 'rook', color: 'white' };
-        this.board[9][8] = { type: 'dragon', color: 'white' };
-        this.board[9][9] = { type: 'archer', color: 'white' };
-    }
 
     createInitialBoard() {
         // Create a 10x10 board with empty spaces
