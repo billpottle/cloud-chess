@@ -64,10 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $token = create_auth_token($user['id']);
             
             if ($token) {
-                // Update last login time
-                $update_query = "UPDATE users SET last_login = NOW() WHERE id = ?";
+                // Update last login time and last activity as Unix timestamp
+                $current_time = time(); // Get current Unix timestamp
+                $update_query = "UPDATE users SET last_login = NOW(), last_activity = ? WHERE id = ?";
                 $update_stmt = $conn->prepare($update_query);
-                $update_stmt->bind_param("i", $user['id']);
+                $update_stmt->bind_param("ii", $current_time, $user['id']);
                 $update_stmt->execute();
                 
                 echo json_encode([

@@ -93,17 +93,9 @@ try {
         }
     } else {
         // GET request - return active users
-        $current_user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
-        
-        // Check if last_activity column exists before querying
-        $check_column_query = "SHOW COLUMNS FROM users LIKE 'last_activity'";
-        $column_result = execute_query($conn, $check_column_query);
-        
-        if ($column_result->num_rows > 0) {
-            $active_users = get_active_users($conn, $current_user_id);
-        } else {
-            $active_users = [];
-        }
+    
+        $active_users = get_active_users($conn, $current_user_id);
+       
         
         // Clear the output buffer before sending JSON
         ob_end_clean();
