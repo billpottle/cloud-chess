@@ -33,6 +33,7 @@ CREATE TABLE games (
     start_timestamp INT NOT NULL,  -- Game start time (Unix timestamp)
     end_timestamp INT DEFAULT NULL,  -- Game end time (NULL if ongoing)
     last_move_timestamp INT DEFAULT NULL,  -- Last move time (Unix timestamp)
+    special_status VARCHAR(50 DEFAULT NULL, -- check, promotion, etc. 
     
     -- Foreign Key Constraints
     CONSTRAINT fk_white FOREIGN KEY (white_player) REFERENCES users(username) ON DELETE RESTRICT,

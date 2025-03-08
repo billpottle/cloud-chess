@@ -1,99 +1,93 @@
 <?php
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+// Start session
+session_start();
+
 // Include database connection
 require_once 'db_connect.php';
 
-// Set header to return JSON for AJAX requests
-header('Content-Type: application/json');
+// Initialize variables
+$username = '';
+$email = '';
+$error = '';
+$success = '';
 
-// Function to create users table if it doesn't exist
-function initialize_users_table($conn) {
-    $query = "CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        username VARCHAR(50) NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
-        email VARCHAR(255) UNIQUE,
-        last_login TIMESTAMP DEFAULT NULL,
-        wins INT DEFAULT 0 CHECK (wins >= 0),
-        losses INT DEFAULT 0 CHECK (losses >= 0),
-        elo INT DEFAULT 1000 CHECK (elo >= 0),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )";
-    execute_query($conn, $query);
-}
-
-// Initialize users table
-initialize_users_table($conn);
-
-// Handle form submission
+// Process form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Get form data
-    $username = sanitize_input($conn, $_POST['username']);
-    $password = $_POST['password'];
-    $email = sanitize_input($conn, $_POST['email']);
+    $username = trim($_POST['username'] ?? '');
+    $email = trim($_POST['email'] ?? ''); // Email is optional
+    $password = $_POST['password'] ?? '';
     
     // Validate input
-    $errors = [];
-    
-    // Username validation
     if (empty($username)) {
-        $errors[] = "Username is required";
-    } elseif (strlen($username) < 3 || strlen($username) > 50) {
-        $errors[] = "Username must be between 3 and 50 characters";
-    }
-    
-    // Password validation
-    if (empty($password)) {
-        $errors[] = "Password is required";
+        $error = 'Username is required';
+    } elseif (empty($password)) {
+        $error = 'Password is required';
     } elseif (strlen($password) < 8) {
-        $errors[] = "Password must be at least 8 characters";
-    }
-    
-    // Email validation
-    if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $errors[] = "Invalid email format";
-    }
-    
-    // Check if username already exists
-    $query = "SELECT id FROM users WHERE username = '$username'";
-    $result = execute_query($conn, $query);
-    if ($result->num_rows > 0) {
-        $errors[] = "Username already taken";
-    }
-    
-    // Check if email already exists (if provided)
-    if (!empty($email)) {
-        $query = "SELECT id FROM users WHERE email = '$email'";
-        $result = execute_query($conn, $query);
+        $error = 'Password must be at least 8 characters long';
+    } else {
+        // Check if username already exists
+        $query = "SELECT id FROM users WHERE username = ?";
+        $stmt = $conn->prepare($query);
+        $stmt->bind_param('s', $username);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
         if ($result->num_rows > 0) {
-            $errors[] = "Email already registered";
+            $error = 'Username already exists';
+        } else {
+            // Check if email already exists (only if email is provided)
+            if (!empty($email)) {
+                $query = "SELECT id FROM users WHERE email = ?";
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param('s', $email);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                
+                if ($result->num_rows > 0) {
+                    $error = 'Email already exists';
+                }
+            }
+            
+            // If no errors, proceed with registration
+            if (empty($error)) {
+                // Hash password
+                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+                
+                // If email is empty, set it to NULL in the database
+                if (empty($email)) {
+                    // Insert new user with NULL email
+                    $query = "INSERT INTO users (username, email, password_hash, created_at, elo, wins, losses) 
+                              VALUES (?, NULL, ?, NOW(), 1200, 0, 0)";
+                    $stmt = $conn->prepare($query);
+                    $stmt->bind_param('ss', $username, $hashed_password);
+                } else {
+                    // Insert new user with provided email
+                    $query = "INSERT INTO users (username, email, password_hash, created_at, elo, wins, losses) 
+                              VALUES (?, ?, ?, NOW(), 1200, 0, 0)";
+                    $stmt = $conn->prepare($query);
+                    $stmt->bind_param('sss', $username, $email, $hashed_password);
+                }
+                
+                if ($stmt->execute()) {
+                    $success = 'Registration successful! You can now log in.';
+                    // Clear form data
+                    $username = '';
+                    $email = '';
+                } else {
+                    $error = 'Registration failed: ' . $conn->error;
+                }
+            }
         }
     }
-    
-    // If there are errors, return them
-    if (!empty($errors)) {
-        echo json_encode(['success' => false, 'errors' => $errors]);
-        exit;
-    }
-    
-    // Hash the password
-    $password_hash = password_hash($password, PASSWORD_DEFAULT);
-    
-    // Insert new user
-    $email_value = empty($email) ? "NULL" : "'$email'";
-    $query = "INSERT INTO users (username, password_hash, email) 
-              VALUES ('$username', '$password_hash', $email_value)";
-    
-    try {
-        execute_query($conn, $query);
-        echo json_encode(['success' => true, 'message' => 'Registration successful']);
-    } catch (Exception $e) {
-        echo json_encode(['success' => false, 'errors' => ['Registration failed: ' . $e->getMessage()]]);
-    }
-    
-    // Close the database connection
-    close_connection($conn);
-    exit;
 }
+
+// Close the database connection
+close_connection($conn);
 ?>
 
 <!DOCTYPE html>
@@ -101,136 +95,123 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register - Chess Game</title>
+    <title>Register - Cloud Chess</title>
+    <link rel="stylesheet" href="../css/main.css">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        .container {
-            background-color: white;
+        .form-container {
+            max-width: 500px;
+            margin: 50px auto;
             padding: 20px;
-            border-radius: 5px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            width: 100%;
-            max-width: 400px;
         }
-        h1 {
-            text-align: center;
-            color: #333;
-        }
+        
         .form-group {
             margin-bottom: 15px;
         }
+        
         label {
             display: block;
             margin-bottom: 5px;
             font-weight: bold;
         }
+        
         input[type="text"],
-        input[type="password"],
-        input[type="email"] {
+        input[type="email"],
+        input[type="password"] {
             width: 100%;
-            padding: 8px;
+            padding: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            box-sizing: border-box;
+            font-size: 16px;
         }
-        button {
+        
+        .btn-primary {
             background-color: #4CAF50;
             color: white;
             padding: 10px 15px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            width: 100%;
             font-size: 16px;
         }
-        button:hover {
+        
+        .btn-primary:hover {
             background-color: #45a049;
         }
-        .error {
-            color: red;
+        
+        .error-message {
+            color: #f44336;
             margin-bottom: 15px;
         }
-        .success {
-            color: green;
+        
+        .success-message {
+            color: #4CAF50;
             margin-bottom: 15px;
         }
-        .links {
+        
+        .login-link {
             text-align: center;
             margin-top: 15px;
-        }
-        .links a {
-            color: #4CAF50;
-            text-decoration: none;
-        }
-        .links a:hover {
-            text-decoration: underline;
         }
     </style>
 </head>
 <body>
+    <div class="navbar">
+        <a href="../index.html">Home</a>
+        <a href="../api/login.php">Login</a>
+    </div>
+    
     <div class="container">
-        <h1>Register</h1>
-        <div id="message"></div>
-        <form id="registerForm">
-            <div class="form-group">
-                <label for="username">Username:</label>
-                <input type="text" id="username" name="username" required>
+        <div class="form-container">
+            <h1>Register for Cloud Chess</h1>
+            
+            <?php if (!empty($error)): ?>
+                <div class="error-message"><?php echo $error; ?></div>
+            <?php endif; ?>
+            
+            <?php if (!empty($success)): ?>
+                <div class="success-message"><?php echo $success; ?></div>
+            <?php endif; ?>
+            
+            <form method="post" action="register.php">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" value="<?php echo htmlspecialchars($username); ?>" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">Email (optional)</label>
+                    <input type="email" id="email" name="email" value="<?php echo htmlspecialchars($email); ?>">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                    <small>Password must be at least 8 characters long</small>
+                </div>
+                
+                <div class="form-group">
+                    <button type="submit" class="btn-primary">Register</button>
+                </div>
+            </form>
+            
+            <div class="login-link">
+                Already have an account? <a href="login.php">Login here</a>
             </div>
-            <div class="form-group">
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-            <div class="form-group">
-                <label for="email">Email (optional):</label>
-                <input type="email" id="email" name="email">
-            </div>
-            <button type="submit">Register</button>
-        </form>
-        <div class="links">
-            <a href="../index.html">Back to Game</a>
         </div>
     </div>
-
+    
     <script>
-        document.getElementById('registerForm').addEventListener('submit', function(e) {
-            e.preventDefault();
+        // Client-side validation
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const password = document.getElementById('password').value;
             
-            const formData = new FormData(this);
-            
-            fetch('register.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                const messageDiv = document.getElementById('message');
-                
-                if (data.success) {
-                    messageDiv.className = 'success';
-                    messageDiv.textContent = data.message;
-                    // Redirect to index page after 2 seconds
-                    setTimeout(() => {
-                        window.location.href = '../index.html';
-                    }, 2000);
-                } else {
-                    messageDiv.className = 'error';
-                    messageDiv.innerHTML = data.errors.join('<br>');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                document.getElementById('message').className = 'error';
-                document.getElementById('message').textContent = 'An error occurred. Please try again.';
-            });
+            if (password.length < 8) {
+                e.preventDefault();
+                alert('Password must be at least 8 characters long');
+            }
         });
     </script>
 </body>
