@@ -1,18 +1,14 @@
 <?php
 // Enable error reporting for debugging but log to file instead of output
 error_reporting(E_ALL);
-ini_set('display_errors', 0);
-ini_set('log_errors', 1);
-ini_set('error_log', 'php_errors.log');
+ini_set('display_errors', 1);
+
 
 // Make sure no output is sent before including files that modify headers
 ob_start();
 
 // Include database connection
 require_once 'db_connect.php';
-
-// Include auth token functions
-require_once 'auth_token.php';
 
 // Set header to return JSON
 header('Content-Type: application/json');
@@ -34,7 +30,7 @@ function create_challenge($conn, $challenger, $challenged) {
         // Challenge already exists
         return ['success' => false, 'message' => 'You have already challenged this player'];
     }
-    
+ 
     // Create new challenge
     $query = "INSERT INTO challenges (challenger, player_being_challenged, challenge_timestamp, expires) 
               VALUES ('$challenger', '$challenged', $current_time, $expires)";
@@ -44,13 +40,12 @@ function create_challenge($conn, $challenger, $challenged) {
 }
 
 // Function to accept a challenge
-function accept_challenge($conn, $challenge_id, $username) {
+function accept_challenge($conn, $challenge_id) {
     $current_time = time();
     
-    // Get challenge details
+    // Get challenge details - don't filter by player_being_challenged yet
     $query = "SELECT * FROM challenges 
               WHERE id = $challenge_id 
-              AND player_being_challenged = '$username' 
               AND accepted = FALSE 
               AND expires > $current_time";
     $result = execute_query($conn, $query);
@@ -61,6 +56,7 @@ function accept_challenge($conn, $challenge_id, $username) {
     
     $challenge = $result->fetch_assoc();
     $challenger = $challenge['challenger'];
+    $username = $challenge['player_being_challenged'];
     
     // Mark challenge as accepted
     $update_query = "UPDATE challenges SET accepted = TRUE WHERE id = $challenge_id";
@@ -200,53 +196,46 @@ try {
     
     // Get username from request for public actions
     $username = '';
-    if ($is_public_action) {
-        if (isset($_GET['username'])) {
-            $username = sanitize_input($conn, $_GET['username']);
-        } else {
-            throw new Exception('Username is required for this action');
-        }
-    } else {
-        // For authenticated actions, get token from request
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
-        $token = $data['token'] ?? '';
-        
-        // For GET requests, check query string
-        if (empty($token) && isset($_GET['token'])) {
-            $token = $_GET['token'];
-        }
-        
-        // Validate token
-        if (empty($token)) {
-            ob_end_clean();
-            echo json_encode(['success' => false, 'message' => 'Authentication token required']);
-            exit;
-        }
-        
-        // Validate token using auth_token.php function
-        $user = validate_token($token);
-        
-        if (!$user) {
-            ob_end_clean();
-            echo json_encode(['success' => false, 'message' => 'Invalid authentication token']);
-            exit;
-        }
-        
-        // Get user info from token validation
-        $user_id = $user['user_id'];
-        $username = $user['username'];
+  
+    if (isset($_GET['username'])) {
+        $username = sanitize_input($conn, $_GET['username']);
     }
+  
+    if (isset($_POST['username'])) {
+        $username = sanitize_input($conn, $_POST['username']);
+    } 
+
+    if ($username === '' && ($action === 'pending' || $action === 'outgoing' || $action === 'create')) {
+        throw new Exception('Username is required for this action');
+    }
+
+  
     
     // Handle different API actions
     switch ($action) {
         case 'create':
+            
             // Create a new challenge
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 throw new Exception('Invalid request method');
             }
             
-            $challenged_username = sanitize_input($conn, $data['challenged_username']);
+            // Get the JSON data from the request body
+            $json_data = file_get_contents('php://input');
+            $data = json_decode($json_data, true);
             
+            if (!$data) {
+                throw new Exception('Invalid JSON data');
+            }
+            
+            // Get the challenged username from the request
+            $challenged_username = isset($data['challenged_username']) ? sanitize_input($conn, $data['challenged_username']) : '';
+            
+            if (empty($challenged_username)) {
+                throw new Exception('Challenged username is required');
+            }
+            
+            // Create the challenge
             $result = create_challenge($conn, $username, $challenged_username);
             break;
             
@@ -256,9 +245,21 @@ try {
                 throw new Exception('Invalid request method');
             }
             
-            $challenge_id = (int)$data['challenge_id'];
+            // Get the JSON data from the request body
+            $json_data = file_get_contents('php://input');
+            $data = json_decode($json_data, true);
             
-            $result = accept_challenge($conn, $challenge_id, $username);
+            if (!$data) {
+                throw new Exception('Invalid JSON data');
+            }
+            
+            $challenge_id = isset($data['challenge_id']) ? (int)$data['challenge_id'] : 0;
+            
+            if ($challenge_id <= 0) {
+                throw new Exception('Valid challenge ID is required');
+            }
+            
+            $result = accept_challenge($conn, $challenge_id);
             break;
             
         case 'decline':
@@ -267,7 +268,19 @@ try {
                 throw new Exception('Invalid request method');
             }
             
-            $challenge_id = (int)$data['challenge_id'];
+            // Get the JSON data from the request body
+            $json_data = file_get_contents('php://input');
+            $data = json_decode($json_data, true);
+            
+            if (!$data) {
+                throw new Exception('Invalid JSON data');
+            }
+            
+            $challenge_id = isset($data['challenge_id']) ? (int)$data['challenge_id'] : 0;
+            
+            if ($challenge_id <= 0) {
+                throw new Exception('Valid challenge ID is required');
+            }
             
             $result = decline_challenge($conn, $challenge_id, $username);
             break;
@@ -278,7 +291,7 @@ try {
                 throw new Exception('Invalid request method');
             }
             
-            $challenge_id = (int)$data['challenge_id'];
+            $challenge_id = isset($data['challenge_id']) ? (int)$data['challenge_id'] : 0;
             
             $result = cancel_challenge($conn, $challenge_id, $username);
             break;

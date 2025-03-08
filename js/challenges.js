@@ -35,13 +35,13 @@ function challengeUser(userId, username) {
     const confirmChallenge = confirm(`Are you sure you want to challenge ${username}?`);
     if (confirmChallenge) {
         // Send challenge request
-        fetch('api/challenge_api.php?action=create', {
+        fetch('api/challenge_api.php?action=create&username=' + window.currentUsername, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                challenged_user_id: userId
+                challenged_username: username
             })
         })
         .then(response => response.json())
@@ -85,6 +85,24 @@ function checkPendingChallenges() {
                 
                 // Update notification content
                 const notification = document.getElementById('challenge-notification');
+                
+                // Add close button if it doesn't exist
+                if (!notification.querySelector('.close-notification')) {
+                    const closeButton = document.createElement('span');
+                    closeButton.className = 'close-notification';
+                    closeButton.innerHTML = '&times;';
+                    closeButton.style.position = 'absolute';
+                    closeButton.style.top = '10px';
+                    closeButton.style.right = '10px';
+                    closeButton.style.fontSize = '24px';
+                    closeButton.style.fontWeight = 'bold';
+                    closeButton.style.cursor = 'pointer';
+                    closeButton.onclick = hideNotification;
+                    
+                    // Insert as first child of notification
+                    notification.insertBefore(closeButton, notification.firstChild);
+                }
+                
                 notification.querySelector('h4').textContent = `Challenge from ${challenge.challenger}`;
                 notification.querySelector('p').textContent = `Player with ELO ${challenge.elo} has challenged you to a game!`;
                 
@@ -94,11 +112,35 @@ function checkPendingChallenges() {
                 
                 // Show notification
                 notification.style.display = 'block';
+                
+                // Add click outside listener
+                document.addEventListener('click', handleOutsideClick);
             }
         })
         .catch(error => {
             console.error('Error checking for challenges:', error);
         });
+}
+
+// Function to hide the notification
+function hideNotification() {
+    const notification = document.getElementById('challenge-notification');
+    if (notification) {
+        notification.style.display = 'none';
+        
+        // Remove the click outside listener
+        document.removeEventListener('click', handleOutsideClick);
+    }
+}
+
+// Function to handle clicks outside the notification
+function handleOutsideClick(event) {
+    const notification = document.getElementById('challenge-notification');
+    
+    // If the click is outside the notification, hide it
+    if (notification && !notification.contains(event.target)) {
+        hideNotification();
+    }
 }
 
 // Function to accept a challenge
@@ -109,14 +151,14 @@ function acceptChallenge(challengeId) {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            challenge_id: challengeId
+            challenge_id: parseInt(challengeId, 10)
         })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
             // Hide the notification
-            document.getElementById('challenge-notification').style.display = 'none';
+            hideNotification();
             
             // Hide the modal if it's open
             hideChallengeModal();
@@ -141,7 +183,7 @@ function acceptChallenge(challengeId) {
 
 // Function to decline a challenge
 function declineChallenge(challengeId) {
-    fetch('api/challenge_api.php?action=decline', {
+    fetch('api/challenge_api.php?action=decline&username=' + window.currentUsername, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -154,7 +196,7 @@ function declineChallenge(challengeId) {
     .then(data => {
         if (data.success) {
             // Hide the notification
-            document.getElementById('challenge-notification').style.display = 'none';
+            hideNotification();
             
             // Reload challenges if the modal is open
             if (document.getElementById('challenge-modal').style.display === 'block') {
