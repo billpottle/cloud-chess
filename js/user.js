@@ -119,7 +119,8 @@ function loadUserGames() {
     const container = document.getElementById('my-games-container');
     console.log('my-games-container element:', container);
     
-    const url = 'api/get_user_games.php?user_id=' + window.currentUserId;
+    const token = localStorage.getItem('chessAuthToken');
+    const url = `api/get_user_games.php?user_id=${window.currentUserId}&token=${token}`;
     console.log('Fetching games from:', url);
     
     fetch(url)
@@ -141,21 +142,40 @@ function loadUserGames() {
                     return;
                 }
                 
-                // Create table
+                // Create table with updated headers
                 let html = '<table class="stats-table">';
-                html += '<thead><tr><th>Opponent</th><th>Status</th><th>Last Move</th><th>Action</th></tr></thead>';
+                html += '<thead><tr><th>Vs</th><th>Status</th><th>Last Move</th><th>Resume</th></tr></thead>';
                 html += '<tbody>';
                 
                 data.games.forEach(game => {
                     const isUserTurn = game.current_turn_user_id == window.currentUserId;
                     const statusClass = isUserTurn ? 'your-turn' : 'waiting';
-                    const statusText = isUserTurn ? 'Your turn' : 'Waiting for opponent';
+                    const statusText = isUserTurn ? 'Your turn' : 'Waiting';
+                    
+                    // Format the date without year
+                    let formattedDate = 'N/A';
+                    if (game.last_move_date) {
+                        const dateParts = game.last_move_date.split(' ');
+                        if (dateParts.length >= 2) {
+                            // Extract month and day, remove year
+                            const dateOnly = dateParts[0].split('-');
+                            if (dateOnly.length >= 3) {
+                                const month = dateOnly[1];
+                                const day = dateOnly[2];
+                                formattedDate = `${month}/${day} ${dateParts[1]}`;
+                            } else {
+                                formattedDate = game.last_move_date;
+                            }
+                        } else {
+                            formattedDate = game.last_move_date;
+                        }
+                    }
                     
                     html += `<tr>
                         <td>${game.opponent_username}</td>
                         <td class="${statusClass}">${statusText}</td>
-                        <td>${game.last_move_date || 'N/A'}</td>
-                        <td><button class="resume-btn" data-game-id="${game.id}">Resume</button></td>
+                        <td>${formattedDate}</td>
+                        <td><button class="resume-btn" data-game-id="${game.id}">Go</button></td>
                     </tr>`;
                 });
                 
@@ -166,17 +186,6 @@ function loadUserGames() {
                 container.querySelectorAll('.resume-btn').forEach(button => {
                     button.addEventListener('click', function() {
                         const gameId = this.getAttribute('data-game-id');
-                        console.log('Resume button clicked for game ID:', gameId);
-                        console.log('Current session data:', {
-                            userId: window.currentUserId,
-                            username: window.currentUsername
-                        });
-                        
-                        // Store session data in localStorage as a backup
-                        localStorage.setItem('chess_user_id', window.currentUserId);
-                        localStorage.setItem('chess_username', window.currentUsername);
-                        
-                        // Make sure we're using the full path
                         window.location.href = 'game.php?id=' + gameId;
                     });
                 });
@@ -306,86 +315,6 @@ function getUserInfo(userId) {
         });
 }
 
-// Function to load user's active games - now using token auth
-function loadUserGames() {
-    console.log('loadUserGames called, currentUserId:', window.currentUserId);
-    
-    if (!window.currentUserId) {
-        console.log('No user ID, not loading games');
-        return;
-    }
-    
-    // Check if the container exists
-    const container = document.getElementById('my-games-container');
-    console.log('my-games-container element:', container);
-    
-    const token = localStorage.getItem('chessAuthToken');
-    const url = `api/get_user_games.php?user_id=${window.currentUserId}&token=${token}`;
-    console.log('Fetching games from:', url);
-    
-    fetch(url)
-        .then(response => {
-            console.log('Response status:', response.status);
-            return response.json();
-        })
-        .then(data => {
-            console.log('Games data received:', data);
-            
-            if (data.success) {
-                if (!container) {
-                    console.error('my-games-container not found in the DOM');
-                    return;
-                }
-                
-                if (!data.games || data.games.length === 0) {
-                    container.innerHTML = '<p>You have no active games.</p>';
-                    return;
-                }
-                
-                // Create table
-                let html = '<table class="stats-table">';
-                html += '<thead><tr><th>Opponent</th><th>Status</th><th>Last Move</th><th>Action</th></tr></thead>';
-                html += '<tbody>';
-                
-                data.games.forEach(game => {
-                    const isUserTurn = game.current_turn_user_id == window.currentUserId;
-                    const statusClass = isUserTurn ? 'your-turn' : 'waiting';
-                    const statusText = isUserTurn ? 'Your turn' : 'Waiting for opponent';
-                    
-                    html += `<tr>
-                        <td>${game.opponent_username}</td>
-                        <td class="${statusClass}">${statusText}</td>
-                        <td>${game.last_move_date || 'N/A'}</td>
-                        <td><button class="resume-btn" data-game-id="${game.id}">Resume</button></td>
-                    </tr>`;
-                });
-                
-                html += '</tbody></table>';
-                container.innerHTML = html;
-                
-                // Add event listeners to resume buttons
-                container.querySelectorAll('.resume-btn').forEach(button => {
-                    button.addEventListener('click', function() {
-                        const gameId = this.getAttribute('data-game-id');
-                        console.log('Resume button clicked for game ID:', gameId);
-                        
-                        // Make sure we're using the full path
-                        window.location.href = 'game.php?id=' + gameId;
-                    });
-                });
-            } else {
-                document.getElementById('my-games-container').innerHTML = 
-                    '<p>Unable to load your games.</p>';
-            }
-        })
-        .catch(error => {
-            console.error('Error loading user games:', error);
-            if (container) {
-                container.innerHTML = '<p>Error loading your games.</p>';
-            }
-        });
-}
-
 // Function to update user activity - now using token auth
 function updateUserActivity() {
    
@@ -454,10 +383,10 @@ function loadPublicGames() {
             }
             
             // Filter out games where the current user is a participant
-            const publicGames = data.games.filter(game => {
+            const publicGames = currentUsername ? data.games.filter(game => {
                 return currentUsername !== game.white_player && 
                        currentUsername !== game.black_player;
-            });
+            }) : data.games;
             
             if (publicGames.length === 0) {
                 container.innerHTML = '<p>No public games available.</p>';
@@ -466,7 +395,7 @@ function loadPublicGames() {
             
             // Create table
             let html = '<table class="stats-table">';
-            html += '<thead><tr><th>White Player</th><th>Black Player</th><th>Current Turn</th><th>Started</th><th>Action</th></tr></thead>';
+            html += '<thead><tr><th>White Player</th><th>Black Player</th><th>Current Turn</th><th>View</th></tr></thead>';
             html += '<tbody>';
             
             publicGames.forEach(game => {
@@ -474,7 +403,6 @@ function loadPublicGames() {
                     <td>${game.white_player}</td>
                     <td>${game.black_player}</td>
                     <td>${game.turn === 'white' ? 'White' : 'Black'}</td>
-                    <td>${game.start_date || 'N/A'}</td>
                     <td><button class="view-btn" data-game-id="${game.id}">View</button></td>
                 </tr>`;
             });
