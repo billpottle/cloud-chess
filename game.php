@@ -100,13 +100,8 @@ ob_end_flush();
     <div id="rules-modal" class="modal">
         <div class="modal-content">
             <span class="close-modal">&times;</span>
-            <h1>Cloud Chess Rules</h1>
-            
-            <div class="rules-content">
-                <h2>Basic Rules</h2>
-                <p>Cloud Chess follows standard chess rules with the addition of special pieces and a larger 10x10 board.</p>
-                
-                <!-- Rules content here -->
+            <div id="rules-container">
+                <?php include 'rules.html'; ?>
             </div>
         </div>
     </div>
@@ -205,7 +200,7 @@ ob_end_flush();
                 window.location.href = 'index.html';
             });
             
-            // Set up rules modal
+            // Set up rules modal - just show/hide without loading content
             document.getElementById('rules-link').addEventListener('click', function(e) {
                 e.preventDefault();
                 document.getElementById('rules-modal').style.display = 'block';

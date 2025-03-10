@@ -743,4 +743,19 @@ body {
 /* Remove the Back to Home button since it's now in the navbar */
 .game-actions {
     display: none;
+}
+
+/* Ensure the rules modal displays properly */
+#rules-modal {
+    z-index: 1000; /* Make sure it's above other elements */
+}
+
+#rules-modal .modal-content {
+    max-height: 80vh; /* Limit height and enable scrolling */
+    overflow-y: auto;
+}
+
+.rules-image {
+    max-width: 100%; /* Make sure images scale properly */
+    height: auto;
 } 
