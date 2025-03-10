@@ -821,4 +821,66 @@ h1, h2, h3 {
     background-color: #fff3cd;
     border: 1px solid #ffeeba;
     color: #856404;
+}
+
+/* Completed games styles */
+.game-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.game-table th,
+.game-table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.game-table th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+
+.game-table tr:hover {
+    background-color: #f9f9f9;
+}
+
+.win-result {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.loss-result {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.positive-elo {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.negative-elo {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.view-game-link {
+    display: inline-block;
+    padding: 5px 10px;
+    background-color: #4a90e2;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.view-game-link:hover {
+    background-color: #3476c8;
+}
+
+.draw-result {
+    color: #6c757d;
+    font-weight: bold;
 } 

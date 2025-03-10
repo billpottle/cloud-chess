@@ -61,9 +61,17 @@
         
         <!-- My Games section -->
         <div class="stats-section" id="my-games-section">
-            <h3>My Games</h3>
+            <h3>My Active Games</h3>
             <div id="my-games-container">
                 <p>Loading your games...</p>
+            </div>
+        </div>
+        
+        <!-- Add this after the My Games section -->
+        <div class="stats-section" id="completed-games-section">
+            <h3>My Completed Games</h3>
+            <div id="completed-games-container">
+                <p>Loading your completed games...</p>
             </div>
         </div>
     </div>
@@ -176,15 +184,49 @@
             }
             
             // Load the user's games
-            // This assumes loadMyGames is defined in stats.js
             if (typeof loadMyGames === 'function') {
                 loadMyGames();
             } else {
                 console.error('loadMyGames function not found. Make sure stats.js is loaded correctly.');
             }
             
+            // Load completed games
+            loadCompletedGames();
+            
             // Load user stats
             loadUserStats(username);
+            
+            // Add this right after the profile-card div in the loadProfileData function
+            <div class="stats-widgets">
+                <div class="widget-container gauge-container">
+                    <h3>Win Rate</h3>
+                    <div class="gauge-wrapper">
+                        <div class="gauge">
+                            <div class="gauge-half"></div>
+                            <div class="gauge-needle" id="win-gauge-needle"></div>
+                            <div class="gauge-percentage" id="win-percentage">0%</div>
+                        </div>
+                        <div class="gauge-labels">
+                            <span>0%</span>
+                            <span>50%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="widget-container streak-container">
+                    <h3>Current Streak</h3>
+                    <div class="streak-wrapper">
+                        <div class="streak-counter" id="streak-counter">
+                            <span class="streak-number" id="streak-number">0</span>
+                            <span class="streak-type" id="streak-type">-</span>
+                        </div>
+                        <div class="streak-flame" id="streak-flame">
+                            <div class="flame-inner"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         }
         
         // Function to load user stats
@@ -238,6 +280,87 @@
             window.showChallengeModal = function() {
                 document.getElementById('challenges-section').scrollIntoView({ behavior: 'smooth' });
             };
+        }
+        
+        // Function to load completed games
+        function loadCompletedGames() {
+            const userId = localStorage.getItem('chessUserId');
+            if (!userId) {
+                console.error('User ID not found in localStorage');
+                return;
+            }
+
+            fetch('api/get_completed_user_games.php?user_id=' + encodeURIComponent(userId))
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('completed-games-container');
+                    
+                    if (!data.success) {
+                        container.innerHTML = `<div class="alert alert-warning">${data.message}</div>`;
+                        return;
+                    }
+                    
+                    if (data.games.length === 0) {
+                        container.innerHTML = '<p>No completed games found.</p>';
+                        return;
+                    }
+                    
+                    // Create a table to display completed games
+                    let html = `
+                        <table class="game-table">
+                            <thead>
+                                <tr>
+                                    <th>Opponent</th>
+                                    <th>Result</th>
+                                    <th>ELO Change</th>
+                                    <th>Completed On</th>
+                                    <th>Final Board</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    data.games.forEach(game => {
+                        let resultClass, resultText;
+                        
+                        if (game.result === 'win') {
+                            resultClass = 'win-result';
+                            resultText = 'WIN';
+                        } else if (game.result === 'loss') {
+                            resultClass = 'loss-result';
+                            resultText = 'LOSS';
+                        } else {
+                            // Draw case
+                            resultClass = 'draw-result';
+                            resultText = 'DRAW';
+                        }
+                        
+                        const eloChangeClass = parseInt(game.elo_change) >= 0 ? 'positive-elo' : 'negative-elo';
+                        const eloChangePrefix = parseInt(game.elo_change) >= 0 ? '+' : '';
+                        
+                        html += `
+                            <tr>
+                                <td>${game.opponent_username}</td>
+                                <td class="${resultClass}">${resultText}</td>
+                                <td class="${eloChangeClass}">${eloChangePrefix}${game.elo_change}</td>
+                                <td>${game.completion_date}</td>
+                                <td><a href="game.php?id=${game.id}" class="view-game-link">View</a></td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += `
+                            </tbody>
+                        </table>
+                    `;
+                    
+                    container.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error loading completed games:', error);
+                    document.getElementById('completed-games-container').innerHTML = 
+                        '<div class="alert alert-warning">Error loading completed games. Please try again later.</div>';
+                });
         }
     </script>
 </body>
