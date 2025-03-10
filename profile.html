@@ -37,6 +37,14 @@
         <div id="profile-content">
             <p>Loading profile information...</p>
         </div>
+        
+        <!-- My Games section -->
+        <div class="stats-section" id="my-games-section">
+            <h3>My Games</h3>
+            <div id="my-games-container">
+                <p>Loading your games...</p>
+            </div>
+        </div>
     </div>
     
     <!-- Rules Modal -->
@@ -52,6 +60,8 @@
     <!-- Include necessary JavaScript files -->
     <script src="js/ui.js"></script>
     <script src="js/user.js"></script>
+    <script src="js/stats.js"></script>
+    <script src="js/challenges.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Check if user is logged in
@@ -115,18 +125,54 @@
         
         // Function to load profile data
         function loadProfileData(username) {
-            // Placeholder for profile data loading
-            // In a real implementation, you would fetch this data from the server
             const profileContent = document.getElementById('profile-content');
             profileContent.innerHTML = `
                 <div class="profile-card">
                     <h2>${username}'s Profile</h2>
                     <div class="profile-stats">
-                        <p>This is where your profile information will be displayed.</p>
-                        <p>Coming soon: game history, statistics, and more!</p>
+                        <p>Username: ${username}</p>
+                        <p id="user-elo">ELO: Loading...</p>
+                        <p id="user-rank">Rank: Loading...</p>
+                        <p id="user-games-count">Games played: Loading...</p>
                     </div>
                 </div>
             `;
+            
+            // Show the my games section (which may be hidden by default in index.html)
+            const myGamesSection = document.getElementById('my-games-section');
+            if (myGamesSection) {
+                myGamesSection.style.display = 'block';
+            }
+            
+            // Load the user's games
+            // This assumes loadMyGames is defined in stats.js
+            if (typeof loadMyGames === 'function') {
+                loadMyGames();
+            } else {
+                console.error('loadMyGames function not found. Make sure stats.js is loaded correctly.');
+            }
+            
+            // Load user stats
+            loadUserStats(username);
+        }
+        
+        // Function to load user stats
+        function loadUserStats(username) {
+            // Make an AJAX request to get the user's stats
+            fetch('api/user_api.php?action=get_user_stats&username=' + encodeURIComponent(username))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        document.getElementById('user-elo').textContent = 'ELO: ' + data.elo;
+                        document.getElementById('user-rank').textContent = 'Rank: ' + data.rank;
+                        document.getElementById('user-games-count').textContent = 'Games played: ' + data.games_played;
+                    } else {
+                        console.error('Error loading user stats:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading user stats:', error);
+                });
         }
     </script>
 </body>
