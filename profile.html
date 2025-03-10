@@ -27,7 +27,6 @@
         </span>
         <span id="user-section" style="display: none;">
             <span id="user-welcome"></span>
-            <a href="#" id="challenges-link" onclick="showChallengeModal(); return false;">Challenges</a> | 
             <a href="#" id="logout-link" onclick="logout(); return false;">Logout</a>
         </span>
     </div>
@@ -36,6 +35,28 @@
         <h1>User Profile</h1>
         <div id="profile-content">
             <p>Loading profile information...</p>
+        </div>
+        
+        <!-- Challenges Section - now a permanent part of the page instead of a modal -->
+        <div class="profile-section" id="challenges-section">
+            <h2>Challenges</h2>
+            
+            <div class="tab-buttons">
+                <button class="tab-button active" data-tab="pending">Pending Challenges</button>
+                <button class="tab-button" data-tab="outgoing">Outgoing Challenges</button>
+            </div>
+            
+            <div id="pending-challenges" class="tab-content active">
+                <div id="pending-challenge-list" class="challenge-list">
+                    <p>Loading challenges...</p>
+                </div>
+            </div>
+            
+            <div id="outgoing-challenges" class="tab-content">
+                <div id="outgoing-challenge-list" class="challenge-list">
+                    <p>Loading challenges...</p>
+                </div>
+            </div>
         </div>
         
         <!-- My Games section -->
@@ -68,11 +89,21 @@
             if (!isLoggedIn()) {
                 document.getElementById('profile-content').innerHTML = 
                     '<div class="alert alert-warning">Please <a href="api/login.php">login</a> to view your profile.</div>';
+                
+                // Hide the challenges and games sections if not logged in
+                document.getElementById('challenges-section').style.display = 'none';
+                document.getElementById('my-games-section').style.display = 'none';
                 return;
             }
             
             // Update authentication UI
             updateAuthUI();
+            
+            // Set up tab functionality for challenges
+            setupChallengeTabs();
+            
+            // Load challenges immediately instead of waiting for modal click
+            loadChallenges();
             
             // Set up rules modal
             document.getElementById('rules-link').addEventListener('click', function(e) {
@@ -158,14 +189,16 @@
         
         // Function to load user stats
         function loadUserStats(username) {
-            // Make an AJAX request to get the user's stats
-            fetch('api/user_api.php?action=get_user_stats&username=' + encodeURIComponent(username))
+            const userId = localStorage.getItem('chessUserId');
+           
+             fetch('api/get_user_info.php?user_id=' + encodeURIComponent(userId))
                 .then(response => response.json())
                 .then(data => {
-                    if (data.status === 'success') {
+                    if (data.success) {
+                        // Update the profile with the user information
                         document.getElementById('user-elo').textContent = 'ELO: ' + data.elo;
                         document.getElementById('user-rank').textContent = 'Rank: ' + data.rank;
-                        document.getElementById('user-games-count').textContent = 'Games played: ' + data.games_played;
+                    
                     } else {
                         console.error('Error loading user stats:', data.message);
                     }
@@ -173,6 +206,38 @@
                 .catch(error => {
                     console.error('Error loading user stats:', error);
                 });
+        }
+        
+        // Function to set up challenge tabs
+        function setupChallengeTabs() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    // Remove active class from all buttons and contents
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    
+                    // Add active class to clicked button and corresponding content
+                    this.classList.add('active');
+                    const tabName = this.getAttribute('data-tab');
+                    document.getElementById(tabName + '-challenges').classList.add('active');
+                });
+            });
+        }
+        
+        // Function to load challenges
+        function loadChallenges() {
+            // This function should remain the same as it was in challenges.js
+            // Just make sure it's correctly populating the challenge lists
+            
+            // If you need to modify the showChallengeModal function that was previously used
+            // in the navbar, you could just have it scroll to the challenges section:
+            window.showChallengeModal = function() {
+                document.getElementById('challenges-section').scrollIntoView({ behavior: 'smooth' });
+            };
         }
     </script>
 </body>
