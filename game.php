@@ -78,24 +78,23 @@ ob_end_flush();
     </div>
     
     <div class="container">
-        <div class="game-header">
-            <h1>Game #<?php echo $game_id; ?></h1>
-            <div class="game-info">
-                <p>White player: <strong><?php echo $game['white_player']; ?></strong></p>
-                <p>Black player: <strong><?php echo $game['black_player']; ?></strong></p>
-                <p>Current turn: <strong><span id="current-turn"><?php echo ucfirst($game['turn']); ?></span></strong></p>
-                <p id="player-status">Game status: <strong><span id="game-status">Loading...</span></strong></p>
-            </div>
+        <h1 class="game-title">Game #<?php echo $game_id; ?></h1>
+
+        <div class="game-actions">
+            <button class="game-btn danger" id="resign-btn">Resign Game</button>
+            <a href="index.html" class="game-btn">Back to Home</a>
+        </div>
+
+        <div class="game-info-container">
+            <div>White player: <?php echo $game['white_player']; ?></div>
+            <div>Black player: <?php echo $game['black_player']; ?></div>
+            <div>Current turn: <span id="current-turn"><?php echo ucfirst($game['turn']); ?></span></div>
+            <div>You are playing as: <?php echo $game['player_color']; ?></div>
         </div>
         
         <div id="game-board">
         
             <div id="board"></div>
-        </div>
-        
-        <div class="game-controls">
-            <button id="resign-btn" class="danger-button" style="display: none;">Resign Game</button>
-            <button id="back-btn" class="secondary-button">Back to Home</button>
         </div>
     </div>
     

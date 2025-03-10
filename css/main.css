@@ -303,4 +303,61 @@ body {
 #public-games-section .stats-table th:nth-child(4),
 #public-games-section .stats-table td:nth-child(4) {
     width: 20%;  /* Consistent space for button */
+}
+
+/* Game title spacing */
+.game-title {
+    margin-bottom: 30px;
+    font-size: 32px;
+}
+
+/* Game action buttons container */
+.game-actions {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+    position: absolute;
+    top: 180px;
+    right: 30px;
+}
+
+/* Style for game action buttons */
+.game-btn {
+    padding: 8px 16px;
+    background-color: #4b6cb7;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.game-btn:hover {
+    background-color: #3a5ca0;
+}
+
+.game-btn.danger {
+    background-color: #e74c3c;
+}
+
+.game-btn.danger:hover {
+    background-color: #c0392b;
+}
+
+/* Game info container */
+.game-info-container {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    margin-bottom: 20px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.game-info-container > div {
+    padding: 10px;
+    background-color: rgba(255, 255, 255, 0.7);
+    border-radius: 4px;
 } 
