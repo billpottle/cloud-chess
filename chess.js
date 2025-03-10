@@ -392,7 +392,7 @@ class ChessGame {
             
             // Queen can move any number of squares horizontally, vertically, or diagonally
             if (!(rowDiff === 0 || colDiff === 0 || rowDiff === colDiff)) {
-                console.log('Invalid queen move - not horizontal, vertical, or diagonal');
+        //        console.log('Invalid queen move - not horizontal, vertical, or diagonal');
                 return false;
             }
             
@@ -406,7 +406,7 @@ class ChessGame {
             while (currentRow !== toRow || currentCol !== toCol) {
                 const pathSquare = document.querySelector(`[data-row="${currentRow}"][data-col="${currentCol}"]`);
                 if (pathSquare.querySelector('.piece')) {
-                    console.log(`Path blocked at ${currentRow},${currentCol}`);
+             //       console.log(`Path blocked at ${currentRow},${currentCol}`);
                     return false; // Path is blocked
                 }
                 currentRow += rowStep;
@@ -424,7 +424,7 @@ class ChessGame {
             
             // Rook can only move horizontally or vertically
             if (!(rowDiff === 0 || colDiff === 0) || (rowDiff === 0 && colDiff === 0)) {
-                console.log('Invalid rook move - not horizontal or vertical');
+        //        console.log('Invalid rook move - not horizontal or vertical');
                 return false;
             }
             
@@ -456,7 +456,7 @@ class ChessGame {
             
             // Bishop can only move diagonally
             if (rowDiff !== colDiff || rowDiff === 0) {
-                console.log('Invalid bishop move - not diagonal');
+            //    console.log('Invalid bishop move - not diagonal');
                 return false;
             }
             
@@ -470,7 +470,7 @@ class ChessGame {
             while (currentRow !== toRow && currentCol !== toCol) {
                 const pathSquare = document.querySelector(`[data-row="${currentRow}"][data-col="${currentCol}"]`);
                 if (pathSquare.querySelector('.piece')) {
-                    console.log(`Path blocked at ${currentRow},${currentCol}`);
+             //       console.log(`Path blocked at ${currentRow},${currentCol}`);
                     return false; // Path is blocked
                 }
                 currentRow += rowStep;

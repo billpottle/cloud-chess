@@ -3,6 +3,7 @@ let multiplayerGame = null;
 let currentGameId = null;
 let playerColor = null;
 let isSpectatorMode = false;
+let currentSpecialStatus = null;
 
 function convertPiecesToBoard(pieces) {
     // Create empty 10x10 board
@@ -53,6 +54,31 @@ function initializeMultiplayerGame(gameId, color, currentTurn, boardState, isSpe
     // Create a new game instance
     if (!multiplayerGame) {
         multiplayerGame = new ChessGame();
+        
+        // Override the showGameStatusAnimation method
+        multiplayerGame.showGameStatusAnimation = function(type, text) {
+            // Store the special status for the next update
+            currentSpecialStatus = type;
+            console.log('new current special status', currentSpecialStatus);
+            
+            // Create the animation element
+            const animation = document.createElement('div');
+            animation.className = `game-status-animation ${type}-animation`;
+            animation.textContent = text;
+            
+            // Add it to the board
+            const boardContainer = document.getElementById('board');
+            if (boardContainer) {
+                boardContainer.appendChild(animation);
+                
+                // Remove it after the animation completes
+                setTimeout(() => {
+                    if (animation.parentNode === boardContainer) {
+                        boardContainer.removeChild(animation);
+                    }
+                }, type === 'checkmate' ? 3000 : 2000);
+            }
+        };
         
         // Initialize the game board
         if (!boardState || boardState === 'initial_board_state') {
@@ -111,7 +137,7 @@ function initializeMultiplayerGame(gameId, color, currentTurn, boardState, isSpe
         // Check if the move resulted in checkmate
         if (this.isCheckmate(nextTurn)) {
             console.log(`Checkmate! ${this.currentPlayer} wins!`);
-            
+            currentSpecialStatus = 'checkmate';
             // Update the game state with the final move
             updateGameState(boardState, nextTurn);
             
@@ -124,6 +150,12 @@ function initializeMultiplayerGame(gameId, color, currentTurn, boardState, isSpe
             }, 2000);
         } else {
             // Send the update to the server
+            const opponentColor = this.currentPlayer === 'white' ? 'black' : 'white';
+            if (this.isKingInCheck(opponentColor)) {
+                currentSpecialStatus = 'check';
+            } else {
+                currentSpecialStatus = null;
+            }
             updateGameState(boardState, nextTurn);
         }
         
@@ -171,7 +203,6 @@ function enableBoardInteraction() {
 }
 
 function checkForGameUpdates() {
-    console.log('Checking for game updates...');
     
     // Send the request to get the latest game state using GET
     fetch(`api/get_game.php?id=${currentGameId}`, {
@@ -211,6 +242,25 @@ function checkForGameUpdates() {
                     }
                 } else if (Array.isArray(boardState)) {
                     updateBoardDisplay(boardState);
+                }
+
+                // Check for special status and trigger animation if exists
+                if (data.game.special_status) {
+                    let animationText = '';
+                    switch(data.game.special_status) {
+                        case 'check':
+                            animationText = 'CHECK!';
+                            break;
+                        case 'checkmate':
+                            animationText = 'CHECKMATE!';
+                            break;
+                        case 'promotion':
+                            animationText = 'PROMOTION!';
+                            break;
+                    }
+                    if (animationText) {
+                        multiplayerGame.showGameStatusAnimation(data.game.special_status, animationText);
+                    }
                 }
                 
                 // Enable board interaction if it's the player's turn
@@ -420,7 +470,7 @@ function convertBoardToPieces(gameInstance) {
 }
 
 function updateGameState(boardState, nextTurn) {
-    console.log('Updating game state:', { boardState, nextTurn });
+    console.log('Updating game state:', { boardState, nextTurn, specialStatus: currentSpecialStatus });
 
     // Get the authentication token from localStorage with correct key
     const token = localStorage.getItem('chessAuthToken');
@@ -428,13 +478,15 @@ function updateGameState(boardState, nextTurn) {
         console.error('No authentication token found');
         return;
     }
-
+    console.log('currentSpecialStatus', currentSpecialStatus);
+    
     // Create form data for the request
     const formData = new FormData();
     formData.append('token', token);
     formData.append('game_id', currentGameId);
     formData.append('board_state', JSON.stringify(boardState));
     formData.append('next_turn', nextTurn);
+    formData.append('special_status', currentSpecialStatus || ''); // Include the special status
 
     // Send the update to the server
     fetch('api/update_game.php', {
@@ -445,6 +497,9 @@ function updateGameState(boardState, nextTurn) {
     .then(data => {
         if (data.success) {
             console.log('Game state updated successfully');
+            
+            // NOW we can reset the special status
+            currentSpecialStatus = null;
             
             // Disable board interaction since it's now the other player's turn
             disableBoardInteraction();
@@ -461,6 +516,7 @@ function updateGameState(boardState, nextTurn) {
     })
     .catch(error => {
         console.error('Error updating game state:', error);
+        // Don't reset on error, so we can retry with the same status
     });
 }
 
@@ -520,4 +576,7 @@ function finalizeGame(result) {
         console.error('Error finalizing game:', error);
         alert('Error finalizing game. Please try again.');
     });
-} 
+}
+
+
+

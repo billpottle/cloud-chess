@@ -3,9 +3,8 @@
 
 // Enable error reporting for debugging but log to file instead of output
 error_reporting(E_ALL);
-ini_set('display_errors', 0); // Don't display errors to browser
-ini_set('log_errors', 1); // Log errors instead
-ini_set('error_log', 'php_errors.log'); // Set error log file
+ini_set('display_errors', 1); // Don't display errors to browser
+
 
 // Buffer all output
 ob_start();
@@ -101,6 +100,9 @@ try {
         exit;
     }
     
+    // Get the special status from the form data
+    $special_status = isset($_POST['special_status']) ? $_POST['special_status'] : null;
+    
     // Update the game state
     $current_timestamp = time();
     
@@ -108,12 +110,13 @@ try {
     $escaped_board_state = $conn->real_escape_string($board_state);
     
     $update_query = "UPDATE games SET 
-                    board_state = '$escaped_board_state', 
-                    turn = '$next_turn', 
-                    last_move_timestamp = $current_timestamp
-                    WHERE id = $game_id";
-    
-    execute_query($conn, $update_query);
+    board_state = '$escaped_board_state', 
+    turn = '$next_turn', 
+    last_move_timestamp = $current_timestamp,
+    special_status = '$special_status'
+    WHERE id = $game_id";
+
+execute_query($conn, $update_query);
     
     // Clear the output buffer before sending JSON
     ob_end_clean();
