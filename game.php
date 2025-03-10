@@ -66,6 +66,7 @@ ob_end_flush();
     <div class="navbar">
         <a href="index.html">Home</a>
         <a href="#" id="rules-link">Rules</a>
+        <a href="profile.html" id="profile-link">Profile</a>
         <span id="auth-section" style="display: none;">
             <a href="api/login.php" id="login-link">Login</a>
             <a href="api/register.php" id="register-link">Register</a>

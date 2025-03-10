@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cloud Chess - User Profile</title>
+    
+    <!-- CSS files -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/tables.css">
+    <link rel="stylesheet" href="css/modals.css">
+    <link rel="stylesheet" href="css/challenges.css">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="images/favicon.ico" sizes="any">
+    <link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+    <div class="navbar">
+        <a href="index.html">Home</a>
+        <a href="#" id="rules-link">Rules</a>
+        <a href="profile.html" id="profile-link" class="active">Profile</a>
+        <span id="auth-section" style="display: none;">
+            <a href="api/login.php" id="login-link">Login</a>
+            <a href="api/register.php" id="register-link">Register</a>
+        </span>
+        <span id="user-section" style="display: none;">
+            <span id="user-welcome"></span>
+            <a href="#" id="challenges-link" onclick="showChallengeModal(); return false;">Challenges</a> | 
+            <a href="#" id="logout-link" onclick="logout(); return false;">Logout</a>
+        </span>
+    </div>
+    
+    <div class="container">
+        <h1>User Profile</h1>
+        <div id="profile-content">
+            <p>Loading profile information...</p>
+        </div>
+    </div>
+    
+    <!-- Rules Modal -->
+    <div id="rules-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <div id="rules-container">
+                <!-- Rules content will be loaded here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Include necessary JavaScript files -->
+    <script src="js/ui.js"></script>
+    <script src="js/user.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if user is logged in
+            if (!isLoggedIn()) {
+                document.getElementById('profile-content').innerHTML = 
+                    '<div class="alert alert-warning">Please <a href="api/login.php">login</a> to view your profile.</div>';
+                return;
+            }
+            
+            // Update authentication UI
+            updateAuthUI();
+            
+            // Set up rules modal
+            document.getElementById('rules-link').addEventListener('click', function(e) {
+                e.preventDefault();
+                const rulesContainer = document.getElementById('rules-container');
+                
+                // Load rules content if not already loaded
+                if (!rulesContainer.innerHTML.trim()) {
+                    fetch('rules.html')
+                        .then(response => response.text())
+                        .then(html => {
+                            rulesContainer.innerHTML = html;
+                            document.getElementById('rules-modal').style.display = 'block';
+                        })
+                        .catch(error => console.error('Error loading rules:', error));
+                } else {
+                    document.getElementById('rules-modal').style.display = 'block';
+                }
+            });
+            
+            document.querySelector('#rules-modal .close-modal').addEventListener('click', function() {
+                document.getElementById('rules-modal').style.display = 'none';
+            });
+            
+            // Close modals when clicking outside
+            window.addEventListener('click', function(event) {
+                if (event.target.classList.contains('modal')) {
+                    event.target.style.display = 'none';
+                }
+            });
+        });
+        
+        // Function to update authentication UI
+        function updateAuthUI() {
+            if (isLoggedIn()) {
+                document.getElementById('auth-section').style.display = 'none';
+                document.getElementById('user-section').style.display = 'inline';
+                
+                // Update welcome message
+                const username = localStorage.getItem('chessUsername');
+                document.getElementById('user-welcome').textContent = 'Welcome, ' + username;
+                
+                // Load profile data
+                loadProfileData(username);
+            } else {
+                document.getElementById('auth-section').style.display = 'inline';
+                document.getElementById('user-section').style.display = 'none';
+            }
+        }
+        
+        // Function to load profile data
+        function loadProfileData(username) {
+            // Placeholder for profile data loading
+            // In a real implementation, you would fetch this data from the server
+            const profileContent = document.getElementById('profile-content');
+            profileContent.innerHTML = `
+                <div class="profile-card">
+                    <h2>${username}'s Profile</h2>
+                    <div class="profile-stats">
+                        <p>This is where your profile information will be displayed.</p>
+                        <p>Coming soon: game history, statistics, and more!</p>
+                    </div>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html> 

@@ -758,4 +758,30 @@ body {
 .rules-image {
     max-width: 100%; /* Make sure images scale properly */
     height: auto;
+}
+
+/* Profile page styles */
+.profile-card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    margin: 20px 0;
+    max-width: 800px;
+}
+
+.profile-stats {
+    margin-top: 20px;
+}
+
+.alert {
+    padding: 15px;
+    border-radius: 4px;
+    margin: 20px 0;
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    color: #856404;
 } 
