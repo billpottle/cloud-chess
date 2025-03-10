@@ -721,4 +721,26 @@ body {
         opacity: 0;
         transform: translate(-50%, -50%) scale(1.2) rotate(0deg);
     }
+}
+
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-left: 20px;
+    padding-right: 20px;
+    margin-bottom: 20px;
+}
+
+.game-title {
+    margin: 0;
+}
+
+.game-btn.danger {
+    margin: 0;
+}
+
+/* Remove the Back to Home button since it's now in the navbar */
+.game-actions {
+    display: none;
 } 

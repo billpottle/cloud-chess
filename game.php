@@ -78,18 +78,16 @@ ob_end_flush();
     </div>
     
     <div class="container">
-        <h1 class="game-title">Game #<?php echo $game_id; ?></h1>
-
-        <div class="game-actions">
+        <div class="game-header">
+            <h1 class="game-title">Game #<?php echo $game_id; ?></h1>
             <button class="game-btn danger" id="resign-btn">Resign Game</button>
-            <a href="index.html" class="game-btn">Back to Home</a>
         </div>
 
         <div class="game-info-container">
             <div>White player: <?php echo $game['white_player']; ?></div>
             <div>Black player: <?php echo $game['black_player']; ?></div>
             <div>Current turn: <span id="current-turn"><?php echo ucfirst($game['turn']); ?></span></div>
-            <div>You are playing as: <?php echo $game['player_color']; ?></div>
+            <div id="player-status">Loading...</div>
         </div>
         
         <div id="game-board">
@@ -166,43 +164,33 @@ ob_end_flush();
             // Update UI based on user role
             const isMyTurn = playerColor === currentTurn;
             
-            // Update game status
-            const gameStatusElement = document.getElementById('game-status');
+            // Get the player status element
             const playerStatusElement = document.getElementById('player-status');
 
             if (isSpectator) {
-                gameStatusElement.textContent = 'Spectating';
-                gameStatusElement.className = 'spectating';
-                playerStatusElement.innerHTML = 'You are: <strong><span class="spectating">Spectator</span></strong>';
+                playerStatusElement.innerHTML = 'Status: <strong><span class="spectating">Spectator</span></strong>';
                 
                 // Hide the resign button for spectators
                 document.getElementById('resign-btn').style.display = 'none';
             } else if (isMyTurn) {
-                gameStatusElement.textContent = 'Your turn';
-                gameStatusElement.className = 'your-turn';
                 playerStatusElement.innerHTML = 'You are playing as: <strong>' + playerColor + '</strong>';
                 
                 // Show resign button only for players
                 document.getElementById('resign-btn').style.display = 'inline-block';
             } else {
-                gameStatusElement.textContent = 'Waiting for opponent';
-                gameStatusElement.className = 'waiting';
                 playerStatusElement.innerHTML = 'You are playing as: <strong>' + playerColor + '</strong>';
                 
                 // Show resign button only for players
                 document.getElementById('resign-btn').style.display = 'inline-block';
             }
-            
-            console.log('Game data:', {
-                gameId,
+
+            // Debug logging
+            console.log('Player status update:', {
+                currentUsername,
                 whitePlayer,
                 blackPlayer,
-                currentTurn,
-                boardState,
-                currentUsername,
                 playerColor,
-                isSpectator,
-                isMyTurn
+                isSpectator
             });
             
             // Initialize the multiplayer game
