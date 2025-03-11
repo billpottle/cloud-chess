@@ -13,6 +13,7 @@
     margin: 0 auto;
     max-width: 600px;
     box-sizing: content-box;
+    pointer-events: auto !important;
 }
 
 #game-board {
@@ -32,6 +33,7 @@
     align-items: center;
     cursor: pointer;
     position: relative;
+    pointer-events: auto !important;
 }
 
 .white {
@@ -45,6 +47,7 @@
 .piece {
     font-size: 40px;
     user-select: none;
+    pointer-events: none !important;
 }
 
 .selected {
@@ -453,6 +456,7 @@ body {
     background-size: contain;
     background-position: center;
     background-repeat: no-repeat;
+    pointer-events: none !important;
 }
 
 /* Remove the text-based styling */
@@ -1267,4 +1271,15 @@ body {
     background-color: #fff3cd;
     border: 1px solid #ffeeba;
     color: #856404;
+}
+
+/* Only for special pieces that should receive clicks directly */
+#board .piece.special-piece {
+    pointer-events: auto !important;
+}
+
+/* Add a debug class to help see what's happening with clicks */
+.click-debug::after {
+    content: "";
+    display: none;
 } 

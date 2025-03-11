@@ -78,6 +78,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    
+    // Check if the board exists
+    const board = document.getElementById('board');
+    if (!board) {
+        console.error('Chess board element not found!');
+        return;
+    }
+  
+
+    // Check squares
+    const squares = document.querySelectorAll('.square');
+    console.log(`Found ${squares.length} squares`);
+    if (squares.length > 0) {
+        const squareStyle = window.getComputedStyle(squares[0]);
+    
+    }
 });
 
 class ChessGame {
@@ -100,6 +117,9 @@ class ChessGame {
         this.gameMode = null;
         this.isArcherCapture = false;
         this.wrathPath = null;
+        
+        // Bind the handleSquareClick method
+        this.handleSquareClick = this.handleSquareClick.bind(this);
     }
 
 
@@ -222,7 +242,7 @@ class ChessGame {
         }
         
         // Add event listeners for piece selection
-        this.board.addEventListener('click', this.handleSquareClick.bind(this));
+        this.board.addEventListener('click', this.handleSquareClick);
         
         // Apply styling to all pieces
         if (window.fixPieceStyling) {
@@ -232,92 +252,34 @@ class ChessGame {
         }
     }
 
-    handleSquareClick(e) {
-        const square = e.currentTarget;
+    handleSquareClick(event) {
+    
+        // Make sure we're targeting the square, not the piece
+        let square = event.target;
+        if (!square.classList.contains('square')) {
+            // If we clicked on something inside a square (like a piece),
+            // find the parent square
+            square = square.closest('.square');
+            if (!square) {
+                console.log('No square found for click');
+                return;
+            }
+        }
+        
+        // Get row and col from the square data attributes
         const row = parseInt(square.dataset.row);
         const col = parseInt(square.dataset.col);
         
-        // If a piece is already selected
+        
+        // Continue with your existing logic...
+        const piece = square.querySelector('.piece');
+        
         if (this.selectedPiece) {
-            const selectedRow = parseInt(this.selectedPiece.dataset.row);
-            const selectedCol = parseInt(this.selectedPiece.dataset.col);
-            
-            // If clicking on the same square, deselect it
-            if (selectedRow === row && selectedCol === col) {
-                this.selectedPiece.classList.remove('selected');
-                this.clearValidMoves();
-                this.selectedPiece = null;
-                return;
-            }
-            
-            // Check if the move is valid
-            if (this.isValidMove(row, col)) {
-                // Check if the move would leave the king in check
-                if (this.wouldMoveLeaveKingInCheck(selectedRow, selectedCol, row, col)) {
-                    alert("That move would leave your king in check!");
-                    return;
-                }
-                
-                // Move the piece
-                this.movePiece(row, col);
-                
-                // Clear selection and valid moves
-                this.selectedPiece.classList.remove('selected');
-                this.clearValidMoves();
-                this.selectedPiece = null;
-                
-                // Switch turns
-                this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
-                document.getElementById('current-turn').textContent = this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
-                
-                // Check if the opponent's king is in check
-                const opponentColor = this.currentPlayer;
-                //console.log(`Checking if ${opponentColor} king is in check`);
-                const inCheck = this.isKingInCheck(opponentColor);
-                console.log(`${opponentColor} king in check: ${inCheck}`);
-                
-                if (inCheck) {
-                    // Check if it's checkmate
-                    if (this.isCheckmate(opponentColor)) {
-                        const winner = opponentColor === 'white' ? 'Black' : 'White';
-                        this.showGameStatusAnimation('checkmate', 'CHECKMATE!');
-                        setTimeout(() => {
-                            alert(`${winner} wins!`);
-                        }, 2000);
-                    } else {
-                        this.showGameStatusAnimation('check', 'CHECK!');
-                    }
-                }
-                
-                // If playing against AI, make the AI move
-                if (this.aiLevel > 0 && this.currentPlayer === 'black') {
-                    setTimeout(() => {
-                        this.makeAIMove();
-                        this.clearValidMoves();
-                    }, 500);
-                }
-            } else {
-                // If the move is not valid, try to select a different piece
-                const piece = square.querySelector('.piece');
-                if (piece && piece.dataset.color === this.currentPlayer) {
-                    // Clear previous selection
-                    this.selectedPiece.classList.remove('selected');
-                    this.clearValidMoves();
-                    
-                    // Select new piece
-                    this.selectedPiece = square;
-                    square.classList.add('selected');
-                    this.showValidMoves();
-                }
-            }
-        } else {
-            // Try to select a piece
-            const piece = square.querySelector('.piece');
-            if (piece && piece.dataset.color === this.currentPlayer) {
-                this.selectedPiece = square;
-                square.classList.add('selected');
-                this.showValidMoves();
-            }
+            // If a piece is already selected, try to move it
+            this.tryMove(row, col);
+        } else if (piece && this.isPieceOwnedByCurrentPlayer(piece)) {
+            // If no piece is selected and we clicked on our own piece, select it
+            this.selectPiece(square);
         }
     }
 
@@ -913,7 +875,7 @@ class ChessGame {
                         piece.textContent === '♚') {
                         kingRow = row;
                         kingCol = col;
-                        console.log(`Found ${color} king at ${row},${col}`);
+                
                         break;
                     }
                 }
@@ -926,7 +888,7 @@ class ChessGame {
             return false; // King not found
         }
         
-        console.log(`${color} king found at ${kingRow},${kingCol}`);
+    
         
         // Check if any opponent piece can capture the king
         const opponentColor = color === 'white' ? 'black' : 'white';
@@ -1078,6 +1040,16 @@ class ChessGame {
         } else if (mode === 'player') {
             updateGameStats('Player Vs Player (Local)');
         }
+        
+        // Make sure to add the event listener for the board
+        if (this.board) {
+            // Remove any existing event listeners first
+            this.board.removeEventListener('click', this.handleSquareClick);
+            
+            // Add the click event listener
+            this.board.addEventListener('click', this.handleSquareClick);
+          
+        }
     }
 
     clearValidMoves() {
@@ -1112,6 +1084,105 @@ class ChessGame {
         // ... rest of move logic ...
         
         return { success: true, from, to, piece };
+    }
+
+    /**
+     * Checks if a piece belongs to the current player
+     */
+    isPieceOwnedByCurrentPlayer(piece) {
+        return piece && piece.dataset.color === this.currentPlayer;
+    }
+
+    /**
+     * Selects a piece
+     */
+    selectPiece(square) {
+        if (this.selectedPiece) {
+            this.selectedPiece.classList.remove('selected');
+        }
+        
+        this.selectedPiece = square;
+        square.classList.add('selected');
+        this.showValidMoves();
+    }
+
+    /**
+     * Try to move the currently selected piece to the target position
+     */
+    tryMove(row, col) {
+        const selectedRow = parseInt(this.selectedPiece.dataset.row);
+        const selectedCol = parseInt(this.selectedPiece.dataset.col);
+        
+        // If clicking on the same square, deselect it
+        if (selectedRow === row && selectedCol === col) {
+            this.selectedPiece.classList.remove('selected');
+            this.clearValidMoves();
+            this.selectedPiece = null;
+            return;
+        }
+        
+        // Check if the move is valid
+        if (this.isValidMove(row, col)) {
+            // Check if the move would leave the king in check
+            if (this.wouldMoveLeaveKingInCheck(selectedRow, selectedCol, row, col)) {
+                alert("That move would leave your king in check!");
+                return;
+            }
+            
+            // Move the piece
+            this.movePiece(row, col);
+            
+            // Clear selection and valid moves
+            this.selectedPiece.classList.remove('selected');
+            this.clearValidMoves();
+            this.selectedPiece = null;
+            
+            // Switch turns
+            this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
+            const turnDisplay = document.getElementById('current-turn');
+            if (turnDisplay) {
+                turnDisplay.textContent = this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
+            }
+            
+            // Check if the opponent's king is in check
+            const opponentColor = this.currentPlayer;
+            const inCheck = this.isKingInCheck(opponentColor);
+            console.log(`${opponentColor} king in check: ${inCheck}`);
+            
+            if (inCheck) {
+                // Check if it's checkmate
+                if (this.isCheckmate(opponentColor)) {
+                    const winner = opponentColor === 'white' ? 'Black' : 'White';
+                    this.showGameStatusAnimation('checkmate', 'CHECKMATE!');
+                    setTimeout(() => {
+                        alert(`${winner} wins!`);
+                    }, 2000);
+                } else {
+                    this.showGameStatusAnimation('check', 'CHECK!');
+                }
+            }
+            
+            // If playing against AI, make the AI move
+            if (this.aiLevel > 0 && this.currentPlayer === 'black') {
+                setTimeout(() => {
+                    this.makeAIMove();
+                    this.clearValidMoves();
+                }, 500);
+            }
+        } else {
+            // If the move is not valid, try to select a different piece
+            const piece = document.querySelector(`[data-row="${row}"][data-col="${col}"]`).querySelector('.piece');
+            if (piece && piece.dataset.color === this.currentPlayer) {
+                // Clear previous selection
+                this.selectedPiece.classList.remove('selected');
+                this.clearValidMoves();
+                
+                // Select new piece
+                this.selectedPiece = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                this.selectedPiece.classList.add('selected');
+                this.showValidMoves();
+            }
+        }
     }
 }
 
