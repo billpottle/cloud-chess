@@ -30,7 +30,10 @@
     </div>
     
     <div class="container">
-        <h1>User Profile</h1>
+        <div class="profile-header">
+            <h1 id="profile-title">User Profile</h1>
+            <div id="games-played-counter">Games Played: 0</div>
+        </div>
         <div id="profile-content">
             <p>Loading profile information...</p>
         </div>
@@ -162,19 +165,14 @@
         
         // Function to load profile data
         function loadProfileData(username) {
+            // Update the page title
+            document.getElementById('profile-title').textContent = `${username}'s Profile`;
+            
             const profileContent = document.getElementById('profile-content');
             profileContent.innerHTML = `
                 <div class="profile-card">
-                    <h2>${username}'s Profile</h2>
-                    <div class="profile-stats">
-                        <p>Username: ${username}</p>
-                        <p id="user-elo">ELO: Loading...</p>
-                        <p id="user-rank">Rank: Loading...</p>
-                        <p id="user-games-count">Games played: Loading...</p>
-                    </div>
-                    
-                    <!-- Add the new widgets here -->
-                    <div class="stats-widgets">
+                    <!-- Top row with Win Rate and Current Streak side by side -->
+                    <div class="top-widgets-row">
                         <div class="widget-container gauge-container">
                             <h3>Win Rate</h3>
                             <div class="gauge-wrapper">
@@ -204,15 +202,24 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Bottom row with ELO History graph -->
+                    <div class="widget-container elo-history-container">
+                        <h3>ELO History</h3>
+                        <div class="elo-graph-wrapper">
+                            <canvas id="elo-history-graph" width="600" height="250"></canvas>
+                            <div class="graph-loading" id="graph-loading">Loading data...</div>
+                            <div class="graph-tooltip" id="graph-tooltip"></div>
+                        </div>
+                    </div>
                 </div>
             `;
             
-            // Show the my games section (which may be hidden by default in index.html)
+            // Show the my games section
             const myGamesSection = document.getElementById('my-games-section');
             if (myGamesSection) {
                 myGamesSection.style.display = 'block';
             }
-            
             
             // Load completed games
             loadCompletedGames();
@@ -225,17 +232,15 @@
         function loadUserStats(username) {
             const userId = localStorage.getItem('chessUserId');
            
-             fetch('api/get_user_info.php?user_id=' + encodeURIComponent(userId))
+            fetch('api/get_user_info.php?user_id=' + encodeURIComponent(userId))
                 .then(response => response.json())
                 .then(data => {
                     // Log the full response to browser console for debugging
                     console.log('User Info API Response:', data);
                     
                     if (data.success) {
-                        // Update the profile with the user information
-                        document.getElementById('user-elo').textContent = 'ELO: ' + data.elo;
-                        document.getElementById('user-rank').textContent = 'Rank: ' + data.rank + ' of ' + data.total_users;
-                        document.getElementById('user-games-count').textContent = 'Games played: ' + data.totalGames;
+                        // Update the games played counter in the header
+                        document.getElementById('games-played-counter').textContent = 'Games Played: ' + data.totalGames;
                         
                         // Log calculation information
                         if (data.debug) {
@@ -287,6 +292,267 @@
             };
         }
         
+        // Function to create ELO history graph
+        function createEloHistoryGraph(games) {
+            // Hide loading message
+            document.getElementById('graph-loading').style.display = 'none';
+            
+            // Get the canvas element and tooltip
+            const canvas = document.getElementById('elo-history-graph');
+            const tooltip = document.getElementById('graph-tooltip');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas dimensions based on container size for better responsiveness
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth - 20; // Subtract padding
+            canvas.height = 250;
+            
+            // Sort games by date (oldest first)
+            games.sort((a, b) => {
+                const dateA = new Date(a.completion_date.replace(/(\d+)(st|nd|rd|th)/, '$1'));
+                const dateB = new Date(b.completion_date.replace(/(\d+)(st|nd|rd|th)/, '$1'));
+                return dateA - dateB;
+            });
+            
+            // Calculate ELO progression
+            let currentElo = 1000; // Starting ELO
+            const eloHistory = [{ date: 'Start', elo: currentElo, isStart: true }];
+            
+            games.forEach(game => {
+                // Add the ELO change
+                const eloChange = parseInt(game.elo_change);
+                currentElo += eloChange;
+                
+                // Add to history with all needed data for tooltip
+                eloHistory.push({
+                    date: game.completion_date,
+                    elo: currentElo,
+                    result: game.result,
+                    opponent: game.opponent_username,
+                    eloChange: eloChange,
+                    gameId: game.id
+                });
+            });
+            
+            // Set canvas dimensions
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+            
+            // Set padding
+            const padding = {
+                top: 20,
+                right: 20,
+                bottom: 40,
+                left: 50
+            };
+            
+            // Calculate graph dimensions
+            const graphWidth = width - padding.left - padding.right;
+            const graphHeight = height - padding.top - padding.bottom;
+            
+            // Find min and max ELO for scaling
+            const eloValues = eloHistory.map(item => item.elo);
+            let minElo = Math.min(...eloValues);
+            let maxElo = Math.max(...eloValues);
+            
+            // Add some padding to the min/max values
+            const eloPadding = Math.max(50, Math.round((maxElo - minElo) * 0.1));
+            minElo = Math.max(0, minElo - eloPadding);
+            maxElo = maxElo + eloPadding;
+            
+            // Draw axes
+            ctx.beginPath();
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            
+            // Y-axis
+            ctx.moveTo(padding.left, padding.top);
+            ctx.lineTo(padding.left, height - padding.bottom);
+            
+            // X-axis
+            ctx.moveTo(padding.left, height - padding.bottom);
+            ctx.lineTo(width - padding.right, height - padding.bottom);
+            ctx.stroke();
+            
+            // Draw Y-axis labels (ELO)
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#666';
+            ctx.font = '12px Arial';
+            
+            // Draw 5 evenly spaced labels
+            for (let i = 0; i <= 5; i++) {
+                const yPos = padding.top + (graphHeight * (5 - i) / 5);
+                const eloValue = Math.round(minElo + (maxElo - minElo) * i / 5);
+                
+                ctx.fillText(eloValue, padding.left - 10, yPos);
+                
+                // Draw horizontal grid line
+                ctx.beginPath();
+                ctx.strokeStyle = '#eee';
+                ctx.moveTo(padding.left, yPos);
+                ctx.lineTo(width - padding.right, yPos);
+                ctx.stroke();
+            }
+            
+            // Draw X-axis labels (dates)
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            
+            // Only show a subset of dates to avoid overcrowding
+            const numLabels = Math.min(5, eloHistory.length);
+            for (let i = 0; i < numLabels; i++) {
+                const index = Math.floor(i * (eloHistory.length - 1) / (numLabels - 1));
+                const item = eloHistory[index];
+                const xPos = padding.left + (graphWidth * index / (eloHistory.length - 1));
+                
+                // Shorten date format
+                let dateLabel = item.date;
+                if (dateLabel !== 'Start') {
+                    dateLabel = dateLabel.split(' ')[0] + ' ' + dateLabel.split(' ')[1];
+                }
+                
+                ctx.fillText(dateLabel, xPos, height - padding.bottom + 10);
+            }
+            
+            // Draw connecting lines first (before points)
+            ctx.beginPath();
+            ctx.strokeStyle = '#4a90e2';
+            ctx.lineWidth = 2;
+            ctx.lineJoin = 'round';
+            
+            // Store data point positions for interactivity
+            const dataPoints = [];
+            
+            // First pass - calculate positions and draw connecting lines
+            eloHistory.forEach((item, index) => {
+                const xPos = padding.left + (graphWidth * index / (eloHistory.length - 1));
+                const yPos = padding.top + graphHeight - (graphHeight * (item.elo - minElo) / (maxElo - minElo));
+                
+                // Store position for later use
+                dataPoints.push({
+                    x: xPos,
+                    y: yPos,
+                    radius: 6,
+                    data: item
+                });
+                
+                // Draw connecting lines
+                if (index === 0) {
+                    ctx.moveTo(xPos, yPos);
+                } else {
+                    ctx.lineTo(xPos, yPos);
+                }
+            });
+            
+            // Stroke the connecting line
+            ctx.stroke();
+            
+            // Second pass - draw data points on top of the lines
+            dataPoints.forEach((point, index) => {
+                const item = point.data;
+                
+                ctx.beginPath();
+                
+                // Different colors for different results
+                if (item.isStart) {
+                    ctx.fillStyle = '#4a90e2'; // Starting point
+                } else if (item.result === 'win') {
+                    ctx.fillStyle = '#28a745'; // Win
+                } else if (item.result === 'loss') {
+                    ctx.fillStyle = '#dc3545'; // Loss
+                } else {
+                    ctx.fillStyle = '#6c757d'; // Draw
+                }
+                
+                ctx.arc(point.x, point.y, point.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Add white border
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+            
+            // Add interactivity
+            canvas.addEventListener('mousemove', function(e) {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                // Check if mouse is over any data point
+                let hoveredPoint = null;
+                for (const point of dataPoints) {
+                    const distance = Math.sqrt(Math.pow(mouseX - point.x, 2) + Math.pow(mouseY - point.y, 2));
+                    if (distance <= point.radius + 2) { // Slightly larger hit area
+                        hoveredPoint = point;
+                        break;
+                    }
+                }
+                
+                if (hoveredPoint) {
+                    const data = hoveredPoint.data;
+                    
+                    // Show tooltip
+                    tooltip.style.display = 'block';
+                    
+                    // Calculate tooltip width (approximate if not yet visible)
+                    const tooltipWidth = tooltip.offsetWidth || 200;
+                    
+                    // Adjust position based on proximity to right edge
+                    const rightEdgeDistance = width - hoveredPoint.x;
+                    
+                    if (rightEdgeDistance < tooltipWidth + 20) {
+                        // If close to right edge, position tooltip to the left of the point
+                        tooltip.style.left = (hoveredPoint.x - tooltipWidth - 10) + 'px';
+                    } else {
+                        // Otherwise position to the right
+                        tooltip.style.left = (hoveredPoint.x + 10) + 'px';
+                    }
+                    
+                    tooltip.style.top = (hoveredPoint.y - 10) + 'px';
+                    
+                    if (data.isStart) {
+                        tooltip.innerHTML = `
+                            <div class="tooltip-title">Starting ELO</div>
+                            <div class="tooltip-content">
+                                <div>ELO: 1000</div>
+                            </div>
+                        `;
+                    } else {
+                        const eloChangeClass = data.eloChange >= 0 ? 'tooltip-elo-positive' : 'tooltip-elo-negative';
+                        const eloChangePrefix = data.eloChange >= 0 ? '+' : '';
+                        
+                        tooltip.innerHTML = `
+                            <div class="tooltip-title">${data.result.toUpperCase()} vs ${data.opponent}</div>
+                            <div class="tooltip-content">
+                                <div>Date: ${data.date}</div>
+                                <div>Current ELO: ${data.elo}</div>
+                                <div class="tooltip-elo-change ${eloChangeClass}">
+                                    ELO Change: ${eloChangePrefix}${data.eloChange}
+                                </div>
+                            </div>
+                        `;
+                    }
+                } else {
+                    // Hide tooltip if not hovering over a point
+                    tooltip.style.display = 'none';
+                }
+            });
+            
+            // Hide tooltip when mouse leaves canvas
+            canvas.addEventListener('mouseleave', function() {
+                tooltip.style.display = 'none';
+            });
+            
+            // Make sure the tooltip is properly initialized
+            tooltip.style.display = 'none';
+            tooltip.style.position = 'absolute';
+        }
+
         // Function to load completed games
         function loadCompletedGames() {
             const userId = localStorage.getItem('chessUserId');
@@ -312,6 +578,9 @@
                     
                     // Calculate statistics for widgets
                     calculateAndUpdateStats(data.games);
+                    
+                    // Create ELO history graph
+                    createEloHistoryGraph(data.games);
                     
                     // Create a table to display completed games
                     let html = `
@@ -368,6 +637,9 @@
                     console.error('Error loading completed games:', error);
                     document.getElementById('completed-games-container').innerHTML = 
                         '<div class="alert alert-warning">Error loading completed games. Please try again later.</div>';
+                    
+                    // Show error in graph
+                    document.getElementById('graph-loading').textContent = 'Error loading ELO history data.';
                 });
         }
 
@@ -471,4 +743,4 @@
         }
     </script>
 </body>
-</html> 
+</html>
