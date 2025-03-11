@@ -109,6 +109,7 @@ function updateUserActivity() {
 
 // Function to load user's active games
 function loadUserGames() {
+
     console.log('loadUserGames called, currentUserId:', window.currentUserId);
     
     if (!window.currentUserId) {
@@ -126,7 +127,6 @@ function loadUserGames() {
     
     fetch(url)
         .then(response => {
-            console.log('Response status:', response.status);
             return response.json();
         })
         .then(data => {
@@ -134,7 +134,7 @@ function loadUserGames() {
             
             if (data.success) {
                 if (!container) {
-                    console.error('my-games-container not found in the DOM');
+                
                     return;
                 }
                 

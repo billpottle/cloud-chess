@@ -1120,7 +1120,7 @@ function updateGameStats(gameType) {
     const formData = new FormData();
     formData.append('game_type', gameType);
     
-    fetch('update_game_stats.php', {
+    fetch('api/update_game_stats.php', {
         method: 'POST',
         body: formData
     })
