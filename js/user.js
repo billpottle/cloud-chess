@@ -26,12 +26,13 @@ function getUserInfo(userId) {
 // Function to display user welcome message
 function displayUserWelcome(username, userData) {
     // Convert ELO to number and format it
+    console.log('User Data:', userData);
     const elo = parseInt(userData.elo) || 1000;
     let welcomeMsg = 'Welcome, ' + username + ' (ELO: ' + elo;
     
     // Add ranking information if available
-    if (userData.ranking && userData.total_users) {
-        welcomeMsg += ' | Rank: ' + userData.ranking + '/' + userData.total_users;
+    if (userData.rank && userData.total_users) {
+        welcomeMsg += ' | Rank: ' + userData.rank + '/' + userData.total_users;
     }
     
     welcomeMsg += ')';

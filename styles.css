@@ -883,4 +883,244 @@ h1, h2, h3 {
 .draw-result {
     color: #6c757d;
     font-weight: bold;
+}
+
+/* Stats Widget Styles */
+.stats-widgets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    margin-top: 30px;
+}
+
+.widget-container {
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    min-width: 200px;
+    flex: 1;
+}
+
+.widget-container h3 {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+/* Win Percentage Gauge */
+.gauge-wrapper {
+    position: relative;
+    height: 150px;
+}
+
+.gauge {
+    position: relative;
+    width: 180px;
+    height: 90px;
+    margin: 0 auto;
+    border-radius: 180px 180px 0 0;
+    background-color: #e9ecef;
+    overflow: hidden;
+}
+
+.gauge-half {
+    position: absolute;
+    width: 180px;
+    height: 90px;
+    border-radius: 180px 180px 0 0;
+    background: linear-gradient(to right, #dc3545, #ffc107, #28a745);
+    opacity: 0.8;
+}
+
+.gauge-needle {
+    position: absolute;
+    width: 4px;
+    height: 70px;
+    background-color: #343a40;
+    bottom: 0;
+    left: 90px;
+    transform-origin: bottom center;
+    transform: rotate(-90deg);
+    transition: transform 1.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 10;
+}
+
+.gauge-percentage {
+    position: absolute;
+    bottom: 10px;
+    width: 100%;
+    text-align: center;
+    font-size: 24px;
+    font-weight: bold;
+    color: #343a40;
+}
+
+.gauge-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 5px;
+    font-size: 12px;
+    color: #6c757d;
+    padding: 0 10px;
+}
+
+/* Streak Counter */
+.streak-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 150px;
+}
+
+.streak-counter {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.streak-number {
+    font-size: 50px;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.streak-type {
+    font-size: 18px;
+    text-transform: uppercase;
+    font-weight: bold;
+}
+
+.streak-flame {
+    width: 60px;
+    height: 60px;
+    position: relative;
+    transform: translateY(-100%) scale(0);
+    transition: transform 0.5s ease;
+    margin-top: -20px;
+}
+
+.streak-flame.active {
+    transform: translateY(-100%) scale(1);
+}
+
+.flame-inner {
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(ellipse at center, #ff5722 0%, #ff9800 50%, rgba(255,152,0,0) 70%);
+    border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
+    box-shadow: 0 0 20px 10px rgba(255,152,0,0.4);
+    animation: flame 1s infinite alternate;
+}
+
+@keyframes flame {
+    0% {
+        transform: scale(0.9) rotate(-2deg);
+        opacity: 0.9;
+    }
+    100% {
+        transform: scale(1.1) rotate(2deg);
+        opacity: 1;
+    }
+}
+
+.win-streak .streak-number, .win-streak .streak-type {
+    color: #28a745;
+}
+
+.loss-streak .streak-number, .loss-streak .streak-type {
+    color: #dc3545;
+}
+
+.draw-streak .streak-number, .draw-streak .streak-type {
+    color: #6c757d;
+}
+
+/* Updated Stats Widget Layout */
+.profile-card {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    padding: 25px;
+}
+
+.profile-stats {
+    flex: 1;
+    min-width: 250px;
+    padding-right: 30px;
+    border-right: 1px solid #eee;
+}
+
+.stats-widgets {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+    width: 280px;  /* Increased width for better padding */
+    padding: 10px;
+}
+
+.widget-container {
+    margin: 0;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Make the gauge slightly smaller but maintain good spacing */
+.gauge-wrapper {
+    padding: 10px;
+    margin: 0 auto;
+}
+
+.gauge {
+    width: 180px;  /* Slightly larger for better visibility */
+    height: 90px;
+    margin: 0 auto;
+}
+
+.gauge-half {
+    width: 180px;
+    height: 90px;
+}
+
+.gauge-needle {
+    height: 70px;
+    left: 90px;
+}
+
+/* Make the streak counter more compact but well-spaced */
+.streak-wrapper {
+    height: 130px;
+    padding: 15px 0;
+}
+
+/* Adjust responsive behavior */
+@media screen and (max-width: 768px) {
+    .profile-card {
+        flex-direction: column;
+        padding: 20px;
+    }
+    
+    .profile-stats {
+        padding-right: 0;
+        border-right: none;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 20px;
+    }
+    
+    .stats-widgets {
+        width: 100%;
+        flex-direction: row;
+        padding: 20px 0;
+    }
+    
+    .widget-container {
+        flex: 1;
+        margin: 0 10px;
+    }
 } 

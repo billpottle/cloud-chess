@@ -19,8 +19,6 @@
 <body>
     <div class="navbar">
         <a href="index.html">Home</a>
-        <a href="#" id="rules-link">Rules</a>
-        <a href="profile.html" id="profile-link" class="active">Profile</a>
         <span id="auth-section" style="display: none;">
             <a href="api/login.php" id="login-link">Login</a>
             <a href="api/register.php" id="register-link">Register</a>
@@ -174,6 +172,38 @@
                         <p id="user-rank">Rank: Loading...</p>
                         <p id="user-games-count">Games played: Loading...</p>
                     </div>
+                    
+                    <!-- Add the new widgets here -->
+                    <div class="stats-widgets">
+                        <div class="widget-container gauge-container">
+                            <h3>Win Rate</h3>
+                            <div class="gauge-wrapper">
+                                <div class="gauge">
+                                    <div class="gauge-half"></div>
+                                    <div class="gauge-needle" id="win-gauge-needle"></div>
+                                    <div class="gauge-percentage" id="win-percentage">0%</div>
+                                </div>
+                                <div class="gauge-labels">
+                                    <span>0%</span>
+                                    <span>50%</span>
+                                    <span>100%</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="widget-container streak-container">
+                            <h3>Current Streak</h3>
+                            <div class="streak-wrapper">
+                                <div class="streak-counter" id="streak-counter">
+                                    <span class="streak-number" id="streak-number">0</span>
+                                    <span class="streak-type" id="streak-type">-</span>
+                                </div>
+                                <div class="streak-flame" id="streak-flame">
+                                    <div class="flame-inner"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             `;
             
@@ -183,50 +213,12 @@
                 myGamesSection.style.display = 'block';
             }
             
-            // Load the user's games
-            if (typeof loadMyGames === 'function') {
-                loadMyGames();
-            } else {
-                console.error('loadMyGames function not found. Make sure stats.js is loaded correctly.');
-            }
             
             // Load completed games
             loadCompletedGames();
             
             // Load user stats
             loadUserStats(username);
-            
-            // Add this right after the profile-card div in the loadProfileData function
-            <div class="stats-widgets">
-                <div class="widget-container gauge-container">
-                    <h3>Win Rate</h3>
-                    <div class="gauge-wrapper">
-                        <div class="gauge">
-                            <div class="gauge-half"></div>
-                            <div class="gauge-needle" id="win-gauge-needle"></div>
-                            <div class="gauge-percentage" id="win-percentage">0%</div>
-                        </div>
-                        <div class="gauge-labels">
-                            <span>0%</span>
-                            <span>50%</span>
-                            <span>100%</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="widget-container streak-container">
-                    <h3>Current Streak</h3>
-                    <div class="streak-wrapper">
-                        <div class="streak-counter" id="streak-counter">
-                            <span class="streak-number" id="streak-number">0</span>
-                            <span class="streak-type" id="streak-type">-</span>
-                        </div>
-                        <div class="streak-flame" id="streak-flame">
-                            <div class="flame-inner"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         }
         
         // Function to load user stats
@@ -236,13 +228,26 @@
              fetch('api/get_user_info.php?user_id=' + encodeURIComponent(userId))
                 .then(response => response.json())
                 .then(data => {
+                    // Log the full response to browser console for debugging
+                    console.log('User Info API Response:', data);
+                    
                     if (data.success) {
                         // Update the profile with the user information
                         document.getElementById('user-elo').textContent = 'ELO: ' + data.elo;
-                        document.getElementById('user-rank').textContent = 'Rank: ' + data.rank;
-                    
+                        document.getElementById('user-rank').textContent = 'Rank: ' + data.rank + ' of ' + data.total_users;
+                        document.getElementById('user-games-count').textContent = 'Games played: ' + data.totalGames;
+                        
+                        // Log calculation information
+                        if (data.debug) {
+                            console.log('Rank Calculation:', data.debug.calculation);
+                            console.table(data.debug.all_users);
+                        }
                     } else {
                         console.error('Error loading user stats:', data.message);
+                        if (data.error) {
+                            console.error('Server error:', data.error);
+                            console.error('Stack trace:', data.trace);
+                        }
                     }
                 })
                 .catch(error => {
@@ -305,6 +310,9 @@
                         return;
                     }
                     
+                    // Calculate statistics for widgets
+                    calculateAndUpdateStats(data.games);
+                    
                     // Create a table to display completed games
                     let html = `
                         <table class="game-table">
@@ -361,6 +369,105 @@
                     document.getElementById('completed-games-container').innerHTML = 
                         '<div class="alert alert-warning">Error loading completed games. Please try again later.</div>';
                 });
+        }
+
+        // Add this new function to calculate stats and update widgets
+        function calculateAndUpdateStats(games) {
+            // Calculate win percentage
+            let wins = 0;
+            let losses = 0;
+            let draws = 0;
+            
+            games.forEach(game => {
+                if (game.result === 'win') wins++;
+                else if (game.result === 'loss') losses++;
+                else draws++;
+            });
+            
+            const totalGames = wins + losses + draws;
+            const winPercentage = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
+            
+            // Update win percentage gauge
+            updateWinGauge(winPercentage);
+            
+            // Calculate current streak
+            let currentStreak = 0;
+            let streakType = '';
+            
+            // Need to reverse the array to start from most recent
+            const recentGames = [...games].reverse();
+            
+            if (recentGames.length > 0) {
+                streakType = recentGames[0].result;
+                
+                for (let i = 0; i < recentGames.length; i++) {
+                    if (recentGames[i].result === streakType) {
+                        currentStreak++;
+                    } else {
+                        break;
+                    }
+                }
+            }
+            
+            // Update streak counter
+            updateStreakCounter(currentStreak, streakType);
+        }
+
+        // Function to update win percentage gauge
+        function updateWinGauge(percentage) {
+            const needle = document.getElementById('win-gauge-needle');
+            const percentageDisplay = document.getElementById('win-percentage');
+            
+            // Calculate needle rotation (from -90° at 0% to 90° at 100%)
+            const rotation = -90 + (percentage * 1.8); // 180° range / 100 = 1.8° per percentage point
+            
+            // Update the needle position with animation
+            needle.style.transform = `rotate(${rotation}deg)`;
+            
+            // Update percentage text
+            percentageDisplay.textContent = `${percentage}%`;
+        }
+
+        // Function to update streak counter
+        function updateStreakCounter(streak, type) {
+            const streakNumber = document.getElementById('streak-number');
+            const streakType = document.getElementById('streak-type');
+            const streakCounter = document.getElementById('streak-counter');
+            const streakFlame = document.getElementById('streak-flame');
+            
+            // Update the streak number and type
+            streakNumber.textContent = streak;
+            
+            // Remove any existing streak classes
+            streakCounter.classList.remove('win-streak', 'loss-streak', 'draw-streak');
+            streakFlame.classList.remove('active');
+            
+            if (streak > 0) {
+                let displayType;
+                
+                switch(type) {
+                    case 'win':
+                        displayType = 'WINS';
+                        streakCounter.classList.add('win-streak');
+                        break;
+                    case 'loss':
+                        displayType = 'LOSSES';
+                        streakCounter.classList.add('loss-streak');
+                        break;
+                    default:
+                        displayType = 'DRAWS';
+                        streakCounter.classList.add('draw-streak');
+                }
+                
+                streakType.textContent = displayType;
+                
+                // Show flame effect for streaks of 3 or more
+                if (streak >= 3) {
+                    streakFlame.classList.add('active');
+                }
+            } else {
+                streakType.textContent = '-';
+            }
         }
     </script>
 </body>
