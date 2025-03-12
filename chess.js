@@ -138,7 +138,7 @@ class ChessGame {
         board[1][0] = '♟'; board[1][1] = '♟'; board[1][2] = '♟'; board[1][3] = '♟';
         board[1][4] = '♟⇣'; // Black archer (pawn with arrow)
         board[1][5] = '♟⇣'; // Black archer
-        board[1][6] = '♟'; board[1][7] = '♟'; board[1][8] = '♟'; board[1][9] = '♟';
+        board[1][6] = '♟'; board[1][7] = '♟'; board[1][8] = '♟'; board[1][9] = '♟'
         
         // White pawns and archers (ninth row)
         board[8][0] = '♙'; board[8][1] = '♙'; board[8][2] = '♙'; board[8][3] = '♙';
@@ -274,6 +274,7 @@ class ChessGame {
         
         // Continue with your existing logic...
         const piece = square.querySelector('.piece');
+
         if (this.selectedPiece) {
             // If a piece is already selected, try to move it
             this.tryMove(row, col);
@@ -562,6 +563,7 @@ class ChessGame {
         console.log({fromSquare, toRow, toCol})
         const toSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
         const piece = fromSquare.querySelector('.piece');
+        console.log({piece})
         
         // Check if this is an archer capture without moving
         const isArcher = piece.textContent === '♟⇣' || piece.textContent === '♙⇡';
@@ -574,9 +576,11 @@ class ChessGame {
             toSquare.innerHTML = '';
         } else {
             // Handle dragon's wrath ability (capturing through a piece)
+            console.log(this.wrathPath)
             if (this.wrathPath) {
                 const midSquare = document.querySelector(`[data-row="${this.wrathPath.midRow}"][data-col="${this.wrathPath.midCol}"]`);
-                midSquare.innerHTML = '';
+               
+              //  midSquare.innerHTML = '';
                 this.wrathPath = null;
             }
             
@@ -619,6 +623,7 @@ class ChessGame {
          this.selectedPiece.classList.remove('selected');
          this.clearValidMoves();
          this.selectedPiece = null;
+
          
          // Switch turns
          this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
@@ -626,6 +631,7 @@ class ChessGame {
          if (turnDisplay) {
              turnDisplay.textContent = this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
          }
+         
     }
 
     selectPieceAt(fromRow, fromCol) {
@@ -672,6 +678,8 @@ class ChessGame {
             console.log("No valid moves for black");
             return;
         }
+        console.log({captureMoves, normalMoves})
+        console.log({move})
         
         this.executeMove(move);
     }
@@ -819,7 +827,6 @@ class ChessGame {
 
     executeMove(move) {
         const { fromRow, fromCol, toRow, toCol } = move;
-        console.log(this.selectedPiece)
         if (!this.selectedPiece) {
             this.selectPieceAt(fromRow, fromCol);
         }
@@ -1124,19 +1131,6 @@ class ChessGame {
         this.board = boardState;
     }
     
-    // Make a move
-    move(from, to) {
-        // ... existing move logic ...
-        
-        // Make sure the board state is updated
-        const piece = this.board[from.row][from.col];
-        this.board[from.row][from.col] = null;
-        this.board[to.row][to.col] = piece;
-        
-        // ... rest of move logic ...
-        
-        return { success: true, from, to, piece };
-    }
 
     /**
      * Checks if a piece belongs to the current player
