@@ -1,0 +1,27 @@
+{
+  "name": "cloud-chess",
+  "version": "1.0.0",
+  "description": "Web based cloud chess game",
+  "main": "chess.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/billpottle/cloud-chess.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/billpottle/cloud-chess/issues"
+  },
+  "homepage": "https://github.com/billpottle/cloud-chess#readme",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  }
+}

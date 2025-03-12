@@ -265,7 +265,6 @@ class ChessGame {
                 return;
             }
         }
-        console.log(square);
         
         // Get row and col from the square data attributes
         const row = parseInt(square.dataset.row);
