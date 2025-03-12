@@ -265,6 +265,7 @@ class ChessGame {
                 return;
             }
         }
+        console.log(square);
         
         // Get row and col from the square data attributes
         const row = parseInt(square.dataset.row);
@@ -273,7 +274,6 @@ class ChessGame {
         
         // Continue with your existing logic...
         const piece = square.querySelector('.piece');
-        
         if (this.selectedPiece) {
             // If a piece is already selected, try to move it
             this.tryMove(row, col);
@@ -557,9 +557,9 @@ class ChessGame {
     }
 
     movePiece(toRow, toCol) {
-        const fromRow = parseInt(this.selectedPiece.dataset.row);
-        const fromCol = parseInt(this.selectedPiece.dataset.col);
+
         const fromSquare = this.selectedPiece;
+        console.log({fromSquare, toRow, toCol})
         const toSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
         const piece = fromSquare.querySelector('.piece');
         
@@ -615,15 +615,53 @@ class ChessGame {
             this.makeHardAIMove();
         }
         
-        // After making the move, clear any valid move indicators
-        this.clearValidMoves();
+         // Clear selection and valid moves
+         this.selectedPiece.classList.remove('selected');
+         this.clearValidMoves();
+         this.selectedPiece = null;
+         
+         // Switch turns
+         this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
+         const turnDisplay = document.getElementById('current-turn');
+         if (turnDisplay) {
+             turnDisplay.textContent = this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
+         }
+    }
+
+    selectPieceAt(fromRow, fromCol) {
+        // Find the square at the given coordinates
+        const square = document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`);
+        
+        if (!square) {
+            console.error(`No square found at row ${fromRow}, col ${fromCol}`);
+            return;
+        }
+        
+        // Check if there's a piece in the square
+        const piece = square.querySelector('.piece');
+        if (!piece) {
+            console.error(`No piece found at row ${fromRow}, col ${fromCol}`);
+            return;
+        }
+        
+        // Deselect any previously selected piece
+        if (this.selectedPiece) {
+            this.selectedPiece.classList.remove('selected');
+        }
+        
+        // Select the new piece
+        this.selectedPiece = square;
+        square.classList.add('selected');
+        
+        // Show valid moves for the selected piece
+        this.showValidMoves(fromRow, fromCol);
     }
 
     makeEasyAIMove() {
         // This is the existing AI logic - prioritize captures, otherwise random move
         const blackPieces = this.findPieces('black');
         const { captureMoves, normalMoves } = this.findAllMoves(blackPieces);
-        
+      
         // Choose a move, prioritizing captures
         let move;
         if (captureMoves.length > 0) {
@@ -781,6 +819,10 @@ class ChessGame {
 
     executeMove(move) {
         const { fromRow, fromCol, toRow, toCol } = move;
+        console.log(this.selectedPiece)
+        if (!this.selectedPiece) {
+            this.selectPieceAt(fromRow, fromCol);
+        }
         this.movePiece(toRow, toCol);
     }
 
@@ -800,7 +842,14 @@ class ChessGame {
     findAllMoves(pieces) {
         const captureMoves = [];
         const normalMoves = [];
+        
         for (const { row, col } of pieces) {
+            // Set the selected piece for the current iteration
+            const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            if (!square) continue;
+            
+            this.selectedPiece = square; // Set the selected piece
+            
             for (let toRow = 0; toRow < 10; toRow++) {
                 for (let toCol = 0; toCol < 10; toCol++) {
                     if (this.isValidMove(toRow, toCol)) {
@@ -814,6 +863,9 @@ class ChessGame {
                 }
             }
         }
+        
+        // Clear the selected piece after processing
+        this.selectedPiece = null;
         return { captureMoves, normalMoves };
     }
 
