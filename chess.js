@@ -578,14 +578,30 @@ class ChessGame {
             console.log("Archer capturing without moving");
             toSquare.innerHTML = '';
         } else {
-            // Handle dragon's wrath ability (capturing through a piece)
+            // Handle wrath ability (capturing through a piece)
+            const rowDiff = Math.abs(fromSquare.dataset.row - toRow);
+            const colDiff = Math.abs(fromSquare.dataset.col - toCol);
 
-            // if (this.wrathPath) {
-            //     const midSquare = document.querySelector(`[data-row="${this.wrathPath.midRow}"][data-col="${this.wrathPath.midCol}"]`);
+            if (piece.dataset.type === 'dragon' && (rowDiff === 2 || colDiff === 2)) {
+                // Must be a straight-line move (horizontal, vertical, or diagonal)
+                if (rowDiff === 0 || colDiff === 0 || rowDiff === colDiff) {
+                    // Calculate the middle square
+                    const midRow = (parseInt(fromSquare.dataset.row) + toRow) / 2;
+                    const midCol = (parseInt(fromSquare.dataset.col) + toCol) / 2;
+                    const midSquare = document.querySelector(`[data-row="${midRow}"][data-col="${midCol}"]`);
 
-            //     midSquare.innerHTML = '';
-            //     this.wrathPath = null;
-            // }
+                    if (midSquare) {
+                        const midPiece = midSquare.querySelector('.piece');
+
+                        // If the middle square has an opponent, remove it
+                        if (midPiece && midPiece.dataset.color !== piece.dataset.color) {
+                            console.log("Wrath activated: Capturing middle piece");
+                            midSquare.innerHTML = ''; // Remove the captured piece
+                        }
+                    }
+                }
+            }
+
 
             // Move the piece to the new square
             const pieceClone = piece.cloneNode(true);
