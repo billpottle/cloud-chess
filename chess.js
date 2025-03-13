@@ -116,7 +116,6 @@ class ChessGame {
         this.aiLevel = 0;
         this.gameMode = null;
         this.isArcherCapture = false;
-        this.wrathPath = null;
         
         // Bind the handleSquareClick method
         this.handleSquareClick = this.handleSquareClick.bind(this);
@@ -294,6 +293,7 @@ class ChessGame {
         const fromCol = parseInt(this.selectedPiece.dataset.col);
         const piece = this.selectedPiece.querySelector('.piece');
         const pieceType = piece.textContent;
+       
         
         // Basic validation: can't capture your own pieces
         const targetSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
@@ -304,6 +304,7 @@ class ChessGame {
 
         // Check if this is a dragon piece
         if (piece.dataset.type === 'dragon') {
+ 
             // Dragon movement logic
             const rowDiff = Math.abs(fromRow - toRow);
             const colDiff = Math.abs(fromCol - toCol);
@@ -327,19 +328,13 @@ class ChessGame {
                     
                     // For dragon, we allow capturing through a piece
                     if (midPiece) {
-                        // Store the path for later use in movePiece
-                        this.wrathPath = { midRow, midCol };
-                        
+                      
                         // Can only capture enemy pieces
                         if (midPiece.dataset.color === piece.dataset.color) {
                             return false;
                         }
-                    } else {
-                        this.wrathPath = null;
-                    }
-                } else {
-                    this.wrathPath = null;
-                }
+                    } 
+                } 
                 
                 return true;
             }
@@ -348,7 +343,7 @@ class ChessGame {
         } 
         // Queen movement (♛ or ♕)
         else if (pieceType === '♛' || pieceType === '♕') {
-           // console.log(`Checking queen move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
+          //  console.log(`Checking queen move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
             const rowDiff = Math.abs(fromRow - toRow);
             const colDiff = Math.abs(fromCol - toCol);
             
@@ -580,13 +575,13 @@ class ChessGame {
             toSquare.innerHTML = '';
         } else {
             // Handle dragon's wrath ability (capturing through a piece)
-            console.log(this.wrathPath)
-            if (this.wrathPath) {
-                const midSquare = document.querySelector(`[data-row="${this.wrathPath.midRow}"][data-col="${this.wrathPath.midCol}"]`);
+         
+            // if (this.wrathPath) {
+            //     const midSquare = document.querySelector(`[data-row="${this.wrathPath.midRow}"][data-col="${this.wrathPath.midCol}"]`);
                
-              //  midSquare.innerHTML = '';
-                this.wrathPath = null;
-            }
+            //     midSquare.innerHTML = '';
+            //     this.wrathPath = null;
+            // }
             
             // Move the piece to the new square
             const pieceClone = piece.cloneNode(true);
