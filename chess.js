@@ -492,10 +492,15 @@ class ChessGame {
             const rowDiff = toRow - fromRow;
             const colDiff = Math.abs(toCol - fromCol);
             
-            // Archer can either move like a pawn or capture diagonally without moving
+            // Archer can either move like a pawn or capture diagonally or straight without moving
             
             // Capture without moving (archer special ability)
             if (rowDiff === 0 && colDiff === 1 && targetPiece) {
+                this.isArcherCapture = true;
+                return true;
+            }
+
+            if (rowDiff === direction && colDiff === 0 && targetPiece) {
                 this.isArcherCapture = true;
                 return true;
             }
@@ -517,7 +522,7 @@ class ChessGame {
             
             // Pawn capture (diagonal 1 square)
             if (colDiff === 1 && rowDiff === direction && targetPiece) {
-                this.isArcherCapture = false;
+                this.isArcherCapture = true;
                 return true;
             }
             
