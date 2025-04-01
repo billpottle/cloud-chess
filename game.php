@@ -19,8 +19,10 @@ $game_id = (int)$_GET['id'];
 // Include database connection
 require_once 'api/db_connect.php';
 
-// Get game details - now without user filtering
-$query = "SELECT g.* FROM games g WHERE g.id = $game_id";
+// Get game details from the database
+$query = "SELECT g.*, 
+    DATE_FORMAT(FROM_UNIXTIME(g.end_timestamp), '%M %D, %Y at %l:%i %p') as formatted_end_date 
+    FROM games g WHERE g.id = $game_id";
 $result = execute_query($conn, $query);
 
 if ($result->num_rows === 0) {
@@ -84,10 +86,73 @@ ob_end_flush();
         </div>
 
         <div class="game-info-container">
-            <div>White player: <?php echo $game['white_player']; ?></div>
-            <div>Black player: <?php echo $game['black_player']; ?></div>
-            <div>Current turn: <span id="current-turn"><?php echo ucfirst($game['turn']); ?></span></div>
-            <div id="player-status">Loading...</div>
+            <?php if (!$game['is_complete']): ?>
+                <div class="player-info-active">
+                    <span>White: <?php echo $game['white_player']; ?></span>
+                    <span>Black: <?php echo $game['black_player']; ?></span>
+                </div>
+                <div class="game-status-active">
+                    <div id="current-turn-container">Turn: <span id="current-turn"><?php echo ucfirst($game['turn']); ?></span></div>
+                    <div id="player-status">Loading...</div>
+                </div>
+            <?php else: ?>
+                <div class="game-result-info">
+                    <?php
+                    $resultText = '';
+                    $resultClass = '';
+                    $winner = $game['winner'];
+                    $loser = null;
+
+                    if ($game['result'] === 'win' || $game['result'] === 'resignation') {
+                        if ($winner === $game['white_player']) {
+                            $loser = $game['black_player'];
+                            $resultText = ($game['result'] === 'resignation') ? 'Black Resigned' : 'White Won';
+                            $resultClass = 'white-win';
+                        } else {
+                            $loser = $game['white_player'];
+                            $resultText = ($game['result'] === 'resignation') ? 'White Resigned' : 'Black Won';
+                            $resultClass = 'black-win';
+                        }
+                    } elseif ($game['result'] === 'draw') {
+                        $resultText = 'Game Drawn';
+                        $resultClass = 'draw';
+                        $winner = $game['white_player'];
+                        $loser = $game['black_player'];
+                    }
+                    ?>
+                    
+                    <div class="result-player-names">
+                        <span>White: <?php echo $game['white_player']; ?></span>
+                        <span>Black: <?php echo $game['black_player']; ?></span>
+                    </div>
+
+                    <div class="result-header <?php echo $resultClass; ?>">
+                        <h3><?php echo $resultText; ?></h3>
+                    </div>
+                    <div class="result-details">
+                        <p>Ended: <?php echo $game['formatted_end_date']; ?></p>
+                        <div class="elo-changes">
+                            <?php if ($game['result'] !== 'draw'): ?>
+                                <p><strong><?php echo $winner; ?></strong>:
+                                    <span class="positive-elo">+<?php echo $game['winner_elo_change']; ?></span>
+                                </p>
+                                <?php if ($loser !== null): ?>
+                                <p><strong><?php echo $loser; ?></strong>:
+                                    <span class="negative-elo"><?php echo $game['loser_elo_change']; ?></span>
+                                </p>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <p><strong><?php echo $winner; ?></strong>:
+                                    <span><?php echo ($game['winner_elo_change'] >= 0 ? '+' : '') . $game['winner_elo_change']; ?></span>
+                                </p>
+                                <p><strong><?php echo $loser; ?></strong>:
+                                    <span><?php echo ($game['loser_elo_change'] >= 0 ? '+' : '') . $game['loser_elo_change']; ?></span>
+                                </p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
         
         <div id="game-board">
@@ -117,6 +182,7 @@ ob_end_flush();
             const whitePlayer = '<?php echo $game['white_player']; ?>';
             const blackPlayer = '<?php echo $game['black_player']; ?>';
             const currentTurn = '<?php echo $game['turn']; ?>';
+            const isComplete = <?php echo $game['is_complete'] ? 'true' : 'false'; ?>;
             const boardState = <?php echo json_encode($game['board_state']); ?>;
             
             // Parse the board state if it's a string
@@ -156,72 +222,27 @@ ob_end_flush();
                 }
             }
             
-            // Update UI based on user role
-            const isMyTurn = playerColor === currentTurn;
-            
-            // Get the player status element
-            const playerStatusElement = document.getElementById('player-status');
-
-            if (isSpectator) {
-                playerStatusElement.innerHTML = 'Status: <strong><span class="spectating">Spectator</span></strong>';
-                
-                // Hide the resign button for spectators
+            // Hide resign button if game is complete
+            if (isComplete) {
                 document.getElementById('resign-btn').style.display = 'none';
-            } else if (isMyTurn) {
-                playerStatusElement.innerHTML = 'You are playing as: <strong>' + playerColor + '</strong>';
-                
-                // Show resign button only for players
-                document.getElementById('resign-btn').style.display = 'inline-block';
             } else {
-                playerStatusElement.innerHTML = 'You are playing as: <strong>' + playerColor + '</strong>';
-                
-                // Show resign button only for players
-                document.getElementById('resign-btn').style.display = 'inline-block';
+                // Update UI based on user role only for active games
+                if (isSpectator) {
+                    document.getElementById('resign-btn').style.display = 'none';
+                } else {
+                    document.getElementById('resign-btn').style.display = 'inline-block';
+                    document.getElementById('resign-btn').addEventListener('click', resignGame);
+                }
             }
-
-            // Debug logging
-            console.log('Player status update:', {
-                currentUsername,
-                whitePlayer,
-                blackPlayer,
-                playerColor,
-                isSpectator
-            });
             
             // Initialize the multiplayer game
             initializeMultiplayerGame(gameId, playerColor, currentTurn, parsedBoardState, isSpectator);
             
-            // Set up event listeners
-            if (!isSpectator) {
-                document.getElementById('resign-btn').addEventListener('click', resignGame);
-            }
-            
-            document.getElementById('back-btn').addEventListener('click', function() {
-                window.location.href = 'index.html';
-            });
-            
-            // Set up rules modal - just show/hide without loading content
-            document.getElementById('rules-link').addEventListener('click', function(e) {
-                e.preventDefault();
-                document.getElementById('rules-modal').style.display = 'block';
-            });
-            
-            document.querySelector('#rules-modal .close-modal').addEventListener('click', function() {
-                document.getElementById('rules-modal').style.display = 'none';
-            });
-            
-            // Close modals when clicking outside
-            window.addEventListener('click', function(event) {
-                if (event.target.classList.contains('modal')) {
-                    event.target.style.display = 'none';
-                }
-            });
-            
-            // Check for game updates periodically if it's not your turn or you're spectating
-          
+            // Only set up game updates for active games
+            if (!isComplete) {
                 checkForGameUpdates();
-                setInterval(checkForGameUpdates, 5000); // Check every 5 seconds
-            
+                setInterval(checkForGameUpdates, 5000);
+            }
             
             // Update authentication UI
             updateAuthUI();
