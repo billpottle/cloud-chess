@@ -38,13 +38,13 @@
             <p>Loading profile information...</p>
         </div>
         
-        <!-- Challenges Section - now a permanent part of the page instead of a modal -->
+        <!-- Challenges Section -->
         <div class="profile-section" id="challenges-section">
             <h2>Challenges</h2>
             
             <div class="tab-buttons">
-                <button class="tab-button active" data-tab="pending">Pending Challenges</button>
-                <button class="tab-button" data-tab="outgoing">Outgoing Challenges</button>
+                <button class="tab-button active" data-tab="pending-challenges">Pending Challenges</button>
+                <button class="tab-button" data-tab="outgoing-challenges">Outgoing Challenges</button>
             </div>
             
             <div id="pending-challenges" class="tab-content active">
@@ -91,61 +91,60 @@
     <script src="js/ui.js"></script>
     <script src="js/user.js"></script>
     <script src="js/stats.js"></script>
-    <script src="js/challenges.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Check if user is logged in
             if (!isLoggedIn()) {
                 document.getElementById('profile-content').innerHTML = 
                     '<div class="alert alert-warning">Please <a href="api/login.php">login</a> to view your profile.</div>';
-                
-                // Hide the challenges and games sections if not logged in
                 document.getElementById('challenges-section').style.display = 'none';
                 document.getElementById('my-games-section').style.display = 'none';
+                document.getElementById('completed-games-section').style.display = 'none'; // Also hide completed games
                 return;
             }
             
-            // Update authentication UI
-            updateAuthUI();
+            const username = localStorage.getItem('chessUsername'); // Get username early
             
-            // Set up tab functionality for challenges
-            setupChallengeTabs();
-            
-            // Load challenges immediately instead of waiting for modal click
-            loadChallenges();
-            
-            // Set up rules modal
-            document.getElementById('rules-link').addEventListener('click', function(e) {
-                e.preventDefault();
-                const rulesContainer = document.getElementById('rules-container');
-                
-                // Load rules content if not already loaded
-                if (!rulesContainer.innerHTML.trim()) {
-                    fetch('rules.html')
-                        .then(response => response.text())
-                        .then(html => {
-                            rulesContainer.innerHTML = html;
-                            document.getElementById('rules-modal').style.display = 'block';
-                        })
-                        .catch(error => console.error('Error loading rules:', error));
-                } else {
-                    document.getElementById('rules-modal').style.display = 'block';
-                }
-            });
-            
-            document.querySelector('#rules-modal .close-modal').addEventListener('click', function() {
-                document.getElementById('rules-modal').style.display = 'none';
-            });
-            
-            // Close modals when clicking outside
-            window.addEventListener('click', function(event) {
-                if (event.target.classList.contains('modal')) {
-                    event.target.style.display = 'none';
-                }
-            });
+            updateAuthUI(); // Assumes this sets user welcome, etc.
+            loadProfileData(username); // Assumes this loads stats, ELO graph, etc.
+            setupChallengeTabs(); // Sets up the tab switching
+            loadChallenges(username); // Load challenges for the logged-in user
+
+            // --- Event Delegation for Challenge Actions ---
+            const pendingListContainer = document.getElementById('pending-challenge-list');
+            const outgoingListContainer = document.getElementById('outgoing-challenge-list');
+
+            if (pendingListContainer) {
+                pendingListContainer.addEventListener('click', (event) => {
+                    const target = event.target;
+                    if (target.classList.contains('accept-challenge')) {
+                        handleChallengeAction(target.dataset.id, 'accept');
+                    } else if (target.classList.contains('decline-challenge')) {
+                        handleChallengeAction(target.dataset.id, 'decline');
+                    }
+                });
+            } else {
+                console.error("Could not find 'pending-challenge-list' container to attach listener.");
+            }
+
+            if (outgoingListContainer) {
+                outgoingListContainer.addEventListener('click', (event) => {
+                    const target = event.target;
+                    if (target.classList.contains('cancel-challenge')) {
+                        // Note: challenge_api.php uses 'cancel' action, not 'decline' for outgoing
+                        handleChallengeAction(target.dataset.id, 'cancel'); 
+                    }
+                });
+            } else {
+                 console.error("Could not find 'outgoing-challenge-list' container to attach listener.");
+            }
+            // --- End Event Delegation ---
+
+            // Close modals when clicking outside (If you still have modals)
+            // window.addEventListener('click', function(event) { ... }); 
         });
         
-        // Function to update authentication UI
+        // --- Core Profile Functions ---
+        
         function updateAuthUI() {
             if (isLoggedIn()) {
                 document.getElementById('auth-section').style.display = 'none';
@@ -163,7 +162,6 @@
             }
         }
         
-        // Function to load profile data
         function loadProfileData(username) {
             // Update the page title
             document.getElementById('profile-title').textContent = `${username}'s Profile`;
@@ -228,7 +226,6 @@
             loadUserStats(username);
         }
         
-        // Function to load user stats
         function loadUserStats(username) {
             const userId = localStorage.getItem('chessUserId');
            
@@ -260,38 +257,368 @@
                 });
         }
         
-        // Function to set up challenge tabs
+        function loadCompletedGames() {
+            const userId = localStorage.getItem('chessUserId');
+            if (!userId) {
+                console.error('User ID not found in localStorage');
+                return;
+            }
+
+            fetch('api/get_completed_user_games.php?user_id=' + encodeURIComponent(userId))
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('completed-games-container');
+                    
+                    if (!data.success) {
+                        container.innerHTML = `<div class="alert alert-warning">${data.message}</div>`;
+                        return;
+                    }
+                    
+                    if (data.games.length === 0) {
+                        container.innerHTML = '<p>No completed games found.</p>';
+                        return;
+                    }
+                    
+                    // Calculate statistics for widgets
+                    calculateAndUpdateStats(data.games);
+                    
+                    // Create ELO history graph
+                    createEloHistoryGraph(data.games);
+                    
+                    // Create a table to display completed games
+                    let html = `
+                        <table class="game-table">
+                            <thead>
+                                <tr>
+                                    <th>Opponent</th>
+                                    <th>Result</th>
+                                    <th>ELO Change</th>
+                                    <th>Completed On</th>
+                                    <th>Final Board</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    data.games.forEach(game => {
+                        let resultClass, resultText;
+                        
+                        if (game.result === 'win') {
+                            resultClass = 'win-result';
+                            resultText = 'WIN';
+                        } else if (game.result === 'loss') {
+                            resultClass = 'loss-result';
+                            resultText = 'LOSS';
+                        } else {
+                            // Draw case
+                            resultClass = 'draw-result';
+                            resultText = 'DRAW';
+                        }
+                        
+                        const eloChangeClass = parseInt(game.elo_change) >= 0 ? 'positive-elo' : 'negative-elo';
+                        const eloChangePrefix = parseInt(game.elo_change) >= 0 ? '+' : '';
+                        
+                        html += `
+                            <tr>
+                                <td>${game.opponent_username}</td>
+                                <td class="${resultClass}">${resultText}</td>
+                                <td class="${eloChangeClass}">${eloChangePrefix}${game.elo_change}</td>
+                                <td>${game.completion_date}</td>
+                                <td><a href="game.php?id=${game.id}" class="view-game-link">View</a></td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += `
+                            </tbody>
+                        </table>
+                    `;
+                    
+                    container.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error loading completed games:', error);
+                    document.getElementById('completed-games-container').innerHTML = 
+                        '<div class="alert alert-warning">Error loading completed games. Please try again later.</div>';
+                    
+                    // Show error in graph
+                    document.getElementById('graph-loading').textContent = 'Error loading ELO history data.';
+                });
+        }
+
+        function calculateAndUpdateStats(games) {
+            // Calculate win percentage
+            let wins = 0;
+            let losses = 0;
+            let draws = 0;
+            
+            games.forEach(game => {
+                if (game.result === 'win') wins++;
+                else if (game.result === 'loss') losses++;
+                else draws++;
+            });
+            
+            const totalGames = wins + losses + draws;
+            const winPercentage = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
+            
+            // Update win percentage gauge
+            updateWinGauge(winPercentage);
+            
+            // Calculate current streak
+            let currentStreak = 0;
+            let streakType = '';
+            
+            // Need to reverse the array to start from most recent
+            const recentGames = [...games].reverse();
+            
+            if (recentGames.length > 0) {
+                streakType = recentGames[0].result;
+                
+                for (let i = 0; i < recentGames.length; i++) {
+                    if (recentGames[i].result === streakType) {
+                        currentStreak++;
+                    } else {
+                        break;
+                    }
+                }
+            }
+            
+            // Update streak counter
+            updateStreakCounter(currentStreak, streakType);
+        }
+
+        function updateWinGauge(percentage) {
+            const needle = document.getElementById('win-gauge-needle');
+            const percentageDisplay = document.getElementById('win-percentage');
+            
+            // Calculate needle rotation (from -90° at 0% to 90° at 100%)
+            const rotation = -90 + (percentage * 1.8); // 180° range / 100 = 1.8° per percentage point
+            
+            // Update the needle position with animation
+            needle.style.transform = `rotate(${rotation}deg)`;
+            
+            // Update percentage text
+            percentageDisplay.textContent = `${percentage}%`;
+        }
+
+        function updateStreakCounter(streak, type) {
+            const streakNumber = document.getElementById('streak-number');
+            const streakType = document.getElementById('streak-type');
+            const streakCounter = document.getElementById('streak-counter');
+            const streakFlame = document.getElementById('streak-flame');
+            
+            // Update the streak number and type
+            streakNumber.textContent = streak;
+            
+            // Remove any existing streak classes
+            streakCounter.classList.remove('win-streak', 'loss-streak', 'draw-streak');
+            streakFlame.classList.remove('active');
+            
+            if (streak > 0) {
+                let displayType;
+                
+                switch(type) {
+                    case 'win':
+                        displayType = 'WINS';
+                        streakCounter.classList.add('win-streak');
+                        break;
+                    case 'loss':
+                        displayType = 'LOSSES';
+                        streakCounter.classList.add('loss-streak');
+                        break;
+                    default:
+                        displayType = 'DRAWS';
+                        streakCounter.classList.add('draw-streak');
+                }
+                
+                streakType.textContent = displayType;
+                
+                // Show flame effect for streaks of 3 or more
+                if (streak >= 3) {
+                    streakFlame.classList.add('active');
+                }
+            } else {
+                streakType.textContent = '-';
+            }
+        }
+
+        // --- Challenge Specific Functions ---
+
         function setupChallengeTabs() {
             const tabButtons = document.querySelectorAll('.tab-button');
-            
+            const tabContents = document.querySelectorAll('.tab-content'); // Get all content panes
+
             tabButtons.forEach(button => {
+                // Check if button exists before adding listener
+                if (!button) {
+                    console.error("Found a null tab button during setup.");
+                    return; 
+                }
+
                 button.addEventListener('click', function() {
                     // Remove active class from all buttons and contents
                     tabButtons.forEach(btn => btn.classList.remove('active'));
-                    document.querySelectorAll('.tab-content').forEach(content => {
-                        content.classList.remove('active');
-                    });
+                    tabContents.forEach(content => content.classList.remove('active')); // Deactivate all content
                     
-                    // Add active class to clicked button and corresponding content
+                    // Add active class to clicked button
                     this.classList.add('active');
-                    const tabName = this.getAttribute('data-tab');
-                    document.getElementById(tabName + '-challenges').classList.add('active');
+                    
+                    // Get the target content ID from data-tab attribute
+                    const tabContentId = this.getAttribute('data-tab'); 
+                    const targetContent = document.getElementById(tabContentId);
+
+                    // Activate the corresponding content pane
+                    if (targetContent) {
+                        targetContent.classList.add('active');
+                    } else {
+                         console.error(`Tab content with ID '${tabContentId}' not found.`);
+                    }
                 });
             });
+
+            // Optional: Ensure the first tab is active on load if needed
+             const firstTabButton = document.querySelector('.tab-button.active');
+             const firstTabContentId = firstTabButton ? firstTabButton.getAttribute('data-tab') : null;
+             if (firstTabContentId) {
+                 const firstTabContent = document.getElementById(firstTabContentId);
+                 if (firstTabContent) {
+                    // Deactivate others first
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    firstTabContent.classList.add('active');
+                 }
+             }
         }
-        
-        // Function to load challenges
-        function loadChallenges() {
-            // This function should remain the same as it was in challenges.js
-            // Just make sure it's correctly populating the challenge lists
+
+        // Load challenges for the profile page lists
+        async function loadChallenges(username) {
+            if (!username) {
+                console.error("Cannot load challenges without username.");
+                return;
+            }
+            console.log(`Loading challenges for profile page: ${username}`);
             
-            // If you need to modify the showChallengeModal function that was previously used
-            // in the navbar, you could just have it scroll to the challenges section:
-            window.showChallengeModal = function() {
-                document.getElementById('challenges-section').scrollIntoView({ behavior: 'smooth' });
-            };
+            const pendingList = document.getElementById('pending-challenge-list');
+            const outgoingList = document.getElementById('outgoing-challenge-list');
+
+            if (!pendingList || !outgoingList) {
+                console.error("Challenge list elements ('pending-challenge-list' or 'outgoing-challenge-list') not found.");
+                return;
+            }
+
+            pendingList.innerHTML = '<p>Loading pending...</p>';
+            outgoingList.innerHTML = '<p>Loading outgoing...</p>';
+
+            // --- Fetch Pending ---
+            try {
+                const pendingResponse = await fetch(`api/challenge_api.php?action=pending&username=${encodeURIComponent(username)}`);
+                if (!pendingResponse.ok) throw new Error(`Pending fetch failed: ${pendingResponse.status}`);
+                const pendingData = await pendingResponse.json();
+
+                pendingList.innerHTML = ''; // Clear loading
+                if (pendingData.success && pendingData.challenges && pendingData.challenges.length > 0) {
+                    pendingData.challenges.forEach(challenge => {
+                        const div = document.createElement('div');
+                        div.className = 'challenge-item'; // Use class for styling
+                        // Buttons need classes for delegation
+                        div.innerHTML = `
+                            <div class="challenge-info">
+                                <strong>${challenge.challenger}</strong> (ELO: ${challenge.elo || 'N/A'})<br>
+                                <small>Expires in: ${challenge.expires_in_minutes} min</small>
+                            </div>
+                            <div class="challenge-actions">
+                               <button class="accept-challenge challenge-btn accept-btn" data-id="${challenge.id}">Accept</button>
+                               <button class="decline-challenge challenge-btn decline-btn" data-id="${challenge.id}">Decline</button>
+                            </div>
+                        `;
+                        pendingList.appendChild(div);
+                    });
+                } else {
+                    pendingList.innerHTML = `<p>${pendingData.success ? 'No pending challenges.' : ('Error: ' + (pendingData.message || 'Could not load'))}</p>`;
+                }
+            } catch (error) {
+                console.error('Error loading pending challenges:', error);
+                pendingList.innerHTML = '<p>Error loading pending challenges.</p>';
+            }
+
+            // --- Fetch Outgoing ---
+            try {
+                const outgoingResponse = await fetch(`api/challenge_api.php?action=outgoing&username=${encodeURIComponent(username)}`);
+                 if (!outgoingResponse.ok) throw new Error(`Outgoing fetch failed: ${outgoingResponse.status}`);
+                const outgoingData = await outgoingResponse.json();
+                
+                outgoingList.innerHTML = ''; // Clear loading
+                if (outgoingData.success && outgoingData.challenges && outgoingData.challenges.length > 0) {
+                    outgoingData.challenges.forEach(challenge => {
+                        const div = document.createElement('div');
+                        div.className = 'challenge-item'; // Use class for styling
+                         // Button needs class for delegation
+                       div.innerHTML = `
+                            <div class="challenge-info">
+                                <strong>${challenge.player_being_challenged}</strong> (ELO: ${challenge.elo || 'N/A'})<br>
+                                <small>Expires in: ${challenge.expires_in_minutes} min</small>
+                            </div>
+                            <div class="challenge-actions">
+                               <button class="cancel-challenge challenge-btn decline-btn" data-id="${challenge.id}">Cancel</button> 
+                            </div>
+                        `;
+                        outgoingList.appendChild(div);
+                    });
+                } else {
+                    outgoingList.innerHTML = `<p>${outgoingData.success ? 'No outgoing challenges.' : ('Error: ' + (outgoingData.message || 'Could not load'))}</p>`;
+                }
+            } catch (error) {
+                 console.error('Error loading outgoing challenges:', error);
+                outgoingList.innerHTML = '<p>Error loading outgoing challenges.</p>';
+            }
         }
-        
+
+        // Handle challenge actions using challenge_api.php
+        async function handleChallengeAction(challengeId, action) {
+            const username = localStorage.getItem('chessUsername');
+            if (!username) {
+                alert("Error: Not logged in."); return;
+            }
+            if (!challengeId) {
+                 console.error("Missing challenge ID for action:", action); return;
+            }
+
+            console.log(`Handling action '${action}' for challenge ID ${challengeId}`); 
+
+            const payload = { challenge_id: parseInt(challengeId, 10) };
+            let apiUrl = `api/challenge_api.php?action=${action}`;
+            // Add username to URL query params if needed by API for authorization (e.g., decline/cancel)
+             if (action === 'decline' || action === 'cancel') {
+                 apiUrl += `&username=${encodeURIComponent(username)}`;
+             }
+
+            try {
+                const response = await fetch(apiUrl, { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload) 
+                });
+
+                const result = await response.json(); // Try parsing JSON regardless of status
+
+                if (!response.ok) {
+                    throw new Error(result.message || `HTTP error! Status: ${response.status}`);
+                }
+
+                if (result.success) {
+                    console.log(`Challenge action '${action}' successful.`); 
+                    loadChallenges(username); // Reload challenges to show changes
+                    if (action === 'accept' && result.game_id) {
+                         window.location.href = `game.php?id=${result.game_id}`;
+                    }
+                } else {
+                    throw new Error(result.message || 'Action failed for unknown reason.');
+                }
+            } catch (error) {
+                console.error(`Error during challenge action '${action}':`, error); 
+                alert(`Failed to ${action} challenge: ${error.message}`);
+            }
+        }
+
         // Function to create ELO history graph
         function createEloHistoryGraph(games) {
             // Hide loading message
@@ -551,195 +878,6 @@
             // Make sure the tooltip is properly initialized
             tooltip.style.display = 'none';
             tooltip.style.position = 'absolute';
-        }
-
-        // Function to load completed games
-        function loadCompletedGames() {
-            const userId = localStorage.getItem('chessUserId');
-            if (!userId) {
-                console.error('User ID not found in localStorage');
-                return;
-            }
-
-            fetch('api/get_completed_user_games.php?user_id=' + encodeURIComponent(userId))
-                .then(response => response.json())
-                .then(data => {
-                    const container = document.getElementById('completed-games-container');
-                    
-                    if (!data.success) {
-                        container.innerHTML = `<div class="alert alert-warning">${data.message}</div>`;
-                        return;
-                    }
-                    
-                    if (data.games.length === 0) {
-                        container.innerHTML = '<p>No completed games found.</p>';
-                        return;
-                    }
-                    
-                    // Calculate statistics for widgets
-                    calculateAndUpdateStats(data.games);
-                    
-                    // Create ELO history graph
-                    createEloHistoryGraph(data.games);
-                    
-                    // Create a table to display completed games
-                    let html = `
-                        <table class="game-table">
-                            <thead>
-                                <tr>
-                                    <th>Opponent</th>
-                                    <th>Result</th>
-                                    <th>ELO Change</th>
-                                    <th>Completed On</th>
-                                    <th>Final Board</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                    `;
-                    
-                    data.games.forEach(game => {
-                        let resultClass, resultText;
-                        
-                        if (game.result === 'win') {
-                            resultClass = 'win-result';
-                            resultText = 'WIN';
-                        } else if (game.result === 'loss') {
-                            resultClass = 'loss-result';
-                            resultText = 'LOSS';
-                        } else {
-                            // Draw case
-                            resultClass = 'draw-result';
-                            resultText = 'DRAW';
-                        }
-                        
-                        const eloChangeClass = parseInt(game.elo_change) >= 0 ? 'positive-elo' : 'negative-elo';
-                        const eloChangePrefix = parseInt(game.elo_change) >= 0 ? '+' : '';
-                        
-                        html += `
-                            <tr>
-                                <td>${game.opponent_username}</td>
-                                <td class="${resultClass}">${resultText}</td>
-                                <td class="${eloChangeClass}">${eloChangePrefix}${game.elo_change}</td>
-                                <td>${game.completion_date}</td>
-                                <td><a href="game.php?id=${game.id}" class="view-game-link">View</a></td>
-                            </tr>
-                        `;
-                    });
-                    
-                    html += `
-                            </tbody>
-                        </table>
-                    `;
-                    
-                    container.innerHTML = html;
-                })
-                .catch(error => {
-                    console.error('Error loading completed games:', error);
-                    document.getElementById('completed-games-container').innerHTML = 
-                        '<div class="alert alert-warning">Error loading completed games. Please try again later.</div>';
-                    
-                    // Show error in graph
-                    document.getElementById('graph-loading').textContent = 'Error loading ELO history data.';
-                });
-        }
-
-        // Add this new function to calculate stats and update widgets
-        function calculateAndUpdateStats(games) {
-            // Calculate win percentage
-            let wins = 0;
-            let losses = 0;
-            let draws = 0;
-            
-            games.forEach(game => {
-                if (game.result === 'win') wins++;
-                else if (game.result === 'loss') losses++;
-                else draws++;
-            });
-            
-            const totalGames = wins + losses + draws;
-            const winPercentage = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
-            
-            // Update win percentage gauge
-            updateWinGauge(winPercentage);
-            
-            // Calculate current streak
-            let currentStreak = 0;
-            let streakType = '';
-            
-            // Need to reverse the array to start from most recent
-            const recentGames = [...games].reverse();
-            
-            if (recentGames.length > 0) {
-                streakType = recentGames[0].result;
-                
-                for (let i = 0; i < recentGames.length; i++) {
-                    if (recentGames[i].result === streakType) {
-                        currentStreak++;
-                    } else {
-                        break;
-                    }
-                }
-            }
-            
-            // Update streak counter
-            updateStreakCounter(currentStreak, streakType);
-        }
-
-        // Function to update win percentage gauge
-        function updateWinGauge(percentage) {
-            const needle = document.getElementById('win-gauge-needle');
-            const percentageDisplay = document.getElementById('win-percentage');
-            
-            // Calculate needle rotation (from -90° at 0% to 90° at 100%)
-            const rotation = -90 + (percentage * 1.8); // 180° range / 100 = 1.8° per percentage point
-            
-            // Update the needle position with animation
-            needle.style.transform = `rotate(${rotation}deg)`;
-            
-            // Update percentage text
-            percentageDisplay.textContent = `${percentage}%`;
-        }
-
-        // Function to update streak counter
-        function updateStreakCounter(streak, type) {
-            const streakNumber = document.getElementById('streak-number');
-            const streakType = document.getElementById('streak-type');
-            const streakCounter = document.getElementById('streak-counter');
-            const streakFlame = document.getElementById('streak-flame');
-            
-            // Update the streak number and type
-            streakNumber.textContent = streak;
-            
-            // Remove any existing streak classes
-            streakCounter.classList.remove('win-streak', 'loss-streak', 'draw-streak');
-            streakFlame.classList.remove('active');
-            
-            if (streak > 0) {
-                let displayType;
-                
-                switch(type) {
-                    case 'win':
-                        displayType = 'WINS';
-                        streakCounter.classList.add('win-streak');
-                        break;
-                    case 'loss':
-                        displayType = 'LOSSES';
-                        streakCounter.classList.add('loss-streak');
-                        break;
-                    default:
-                        displayType = 'DRAWS';
-                        streakCounter.classList.add('draw-streak');
-                }
-                
-                streakType.textContent = displayType;
-                
-                // Show flame effect for streaks of 3 or more
-                if (streak >= 3) {
-                    streakFlame.classList.add('active');
-                }
-            } else {
-                streakType.textContent = '-';
-            }
         }
     </script>
 </body>
