@@ -106,6 +106,18 @@ function initializeMultiplayerGame(gameId, color, currentTurn, boardState, isSpe
     // Initialize the board display
     multiplayerGame.initializeBoard();
     
+    // --- FIX: Remove the base board listener to prevent double handling ---
+    // The base initializeBoard adds its own listener to the board element.
+    // We need to remove it because enableBoardInteraction will add listeners
+    // to the individual squares, which call the overridden handleSquareClick.
+    if (multiplayerGame.board && multiplayerGame.handleSquareClick) {
+        // Note: At this point, multiplayerGame.handleSquareClick still refers to the
+        // bound original method from the ChessGame class, before the override below.
+        multiplayerGame.board.removeEventListener('click', multiplayerGame.handleSquareClick);
+        console.log("Removed base ChessGame board click listener to avoid conflicts.");
+    }
+    // --- END FIX ---
+    
     // Apply styling immediately after initialization
     setTimeout(() => {
         fixPieceStyling();
@@ -114,6 +126,7 @@ function initializeMultiplayerGame(gameId, color, currentTurn, boardState, isSpe
     // Override the handleSquareClick method to add multiplayer functionality
     const originalHandleSquareClick = multiplayerGame.handleSquareClick;
     multiplayerGame.handleSquareClick = function(e) {
+    
         // Only allow moves if it's the player's turn and they're not spectating
         if (isSpectatorMode || playerColor !== this.currentPlayer) {
             console.log('Not your turn or spectating');
@@ -500,6 +513,11 @@ function updateGameState(boardState, nextTurn) {
             
             // NOW we can reset the special status
             currentSpecialStatus = null;
+            
+            // --- FIX: Update local current player state immediately ---
+            multiplayerGame.currentPlayer = nextTurn;
+            console.log(`Local currentPlayer updated to: ${multiplayerGame.currentPlayer}`);
+            // --- END FIX ---
             
             // Disable board interaction since it's now the other player's turn
             disableBoardInteraction();

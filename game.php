@@ -93,7 +93,6 @@ ob_end_flush();
                 </div>
                 <div class="game-status-active">
                     <div id="current-turn-container">Turn: <span id="current-turn"><?php echo ucfirst($game['turn']); ?></span></div>
-                    <div id="player-status">Loading...</div>
                 </div>
             <?php else: ?>
                 <div class="game-result-info">

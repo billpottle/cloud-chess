@@ -252,6 +252,7 @@ class ChessGame {
     }
 
     handleSquareClick(event) {
+        console.log("--- ChessGame.handleSquareClick ---"); // Base log
 
         // Make sure we're targeting the square, not the piece
         let square = event.target;
@@ -260,7 +261,7 @@ class ChessGame {
             // find the parent square
             square = square.closest('.square');
             if (!square) {
-                console.log('No square found for click');
+                console.log('No square found for click - returning');
                 return;
             }
         }
@@ -268,18 +269,33 @@ class ChessGame {
         // Get row and col from the square data attributes
         const row = parseInt(square.dataset.row);
         const col = parseInt(square.dataset.col);
-
+        console.log(`Clicked square: row=${row}, col=${col}`);
 
         // Continue with your existing logic...
         const piece = square.querySelector('.piece');
+        console.log("Piece found:", piece ? piece.textContent : 'None');
+        console.log("Current player:", this.currentPlayer);
+        console.log("Is piece selected?", !!this.selectedPiece, this.selectedPiece ? `(Row: ${this.selectedPiece.dataset.row}, Col: ${this.selectedPiece.dataset.col})` : '');
+
 
         if (this.selectedPiece) {
             // If a piece is already selected, try to move it
+            console.log("Attempting to call tryMove...");
             this.tryMove(row, col);
-        } else if (piece && this.isPieceOwnedByCurrentPlayer(piece)) {
-            // If no piece is selected and we clicked on our own piece, select it
-            this.selectPiece(square);
+        } else if (piece) {
+            const owned = this.isPieceOwnedByCurrentPlayer(piece);
+            console.log(`Is piece owned by current player (${this.currentPlayer})?`, owned);
+            if (owned) {
+                // If no piece is selected and we clicked on our own piece, select it
+                console.log("Attempting to call selectPiece...");
+                this.selectPiece(square);
+            } else {
+                 console.log("Clicked on opponent's piece, doing nothing.");
+            }
+        } else {
+             console.log("Clicked on empty square with no piece selected, doing nothing.");
         }
+        console.log("--- End ChessGame.handleSquareClick ---");
     }
 
     clearHighlights() {
@@ -1162,48 +1178,74 @@ class ChessGame {
      * Selects a piece
      */
     selectPiece(square) {
+        console.log("--- ChessGame.selectPiece ---"); // Log entry
         if (this.selectedPiece) {
+            console.log("Deselecting previous piece:", this.selectedPiece);
             this.selectedPiece.classList.remove('selected');
         }
 
         this.selectedPiece = square;
         square.classList.add('selected');
-        this.showValidMoves();
+        console.log("Selected new piece:", this.selectedPiece);
+        console.log("Calling showValidMoves...");
+        this.showValidMoves(); // Note: showValidMoves calls isValidMove repeatedly
+        console.log("--- End ChessGame.selectPiece ---");
     }
 
     /**
      * Try to move the currently selected piece to the target position
      */
     tryMove(row, col) {
+        console.log(`--- ChessGame.tryMove to ${row}, ${col} ---`); // Log entry
+        if (!this.selectedPiece) {
+             console.error("tryMove called but no piece selected!");
+             return;
+        }
+
         const selectedRow = parseInt(this.selectedPiece.dataset.row);
         const selectedCol = parseInt(this.selectedPiece.dataset.col);
+        console.log(`Selected piece at: ${selectedRow}, ${selectedCol}`);
 
         // If clicking on the same square, deselect it
         if (selectedRow === row && selectedCol === col) {
+            console.log("Clicked same square, deselecting.");
             this.selectedPiece.classList.remove('selected');
             this.clearValidMoves();
             this.selectedPiece = null;
+             console.log("--- End ChessGame.tryMove (deselected) ---");
             return;
         }
 
         // Check if the move is valid
-        if (this.isValidMove(row, col)) {
+        const valid = this.isValidMove(row, col);
+        console.log(`Is move valid? ${valid}`);
+
+        if (valid) {
             // Check if the move would leave the king in check
-            if (this.wouldMoveLeaveKingInCheck(selectedRow, selectedCol, row, col)) {
+            const leavesKingInCheck = this.wouldMoveLeaveKingInCheck(selectedRow, selectedCol, row, col);
+            console.log(`Would move leave king in check? ${leavesKingInCheck}`);
+
+            if (leavesKingInCheck) {
                 alert("That move would leave your king in check!");
+                console.log("Move aborted - would leave king in check.");
+                console.log("--- End ChessGame.tryMove (check violation) ---");
                 return;
             }
 
             // Move the piece
-            this.movePiece(row, col);
+            console.log("Calling movePiece...");
+            this.movePiece(row, col); // This is the actual move execution
 
             // Clear selection and valid moves
-            this.selectedPiece.classList.remove('selected');
+             console.log("Clearing selection and highlights after move.");
+            this.selectedPiece.classList.remove('selected'); // Should be null after movePiece? No, movePiece doesn't null it.
             this.clearValidMoves();
-            this.selectedPiece = null;
+            this.selectedPiece = null; // Nullify selection AFTER move
 
-            // Switch turns
+            // Switch turns - IMPORTANT: This might be overridden in multiplayer.js!
+            const oldPlayer = this.currentPlayer;
             this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
+            console.log(`Switched player from ${oldPlayer} to ${this.currentPlayer} (in base class)`);
             const turnDisplay = document.getElementById('current-turn');
             if (turnDisplay) {
                 turnDisplay.textContent = this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
@@ -1218,17 +1260,20 @@ class ChessGame {
                 // Check if it's checkmate
                 if (this.isCheckmate(opponentColor)) {
                     const winner = opponentColor === 'white' ? 'Black' : 'White';
+                     console.log("Checkmate detected!");
                     this.showGameStatusAnimation('checkmate', 'CHECKMATE!');
                     setTimeout(() => {
                         alert(`${winner} wins!`);
                     }, 2000);
                 } else {
+                     console.log("Check detected.");
                     this.showGameStatusAnimation('check', 'CHECK!');
                 }
             }
 
             // If playing against AI, make the AI move
             if (this.aiLevel > 0 && this.currentPlayer === 'black') {
+                 console.log("Handing over to AI...");
                 setTimeout(() => {
                     this.makeAIMove();
                     this.clearValidMoves();
@@ -1236,18 +1281,23 @@ class ChessGame {
             }
         } else {
             // If the move is not valid, try to select a different piece
-            const piece = document.querySelector(`[data-row="${row}"][data-col="${col}"]`).querySelector('.piece');
-            if (piece && piece.dataset.color === this.currentPlayer) {
+            const clickedSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            const pieceOnTarget = clickedSquare ? clickedSquare.querySelector('.piece') : null;
+
+            if (pieceOnTarget && this.isPieceOwnedByCurrentPlayer(pieceOnTarget)) {
                 // Clear previous selection
+                 console.log("Invalid move, but clicked on own piece. Selecting new piece.");
                 this.selectedPiece.classList.remove('selected');
                 this.clearValidMoves();
 
                 // Select new piece
-                this.selectedPiece = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-                this.selectedPiece.classList.add('selected');
-                this.showValidMoves();
+                 console.log("Calling selectPiece for the newly clicked piece...");
+                this.selectPiece(clickedSquare); // Calls selectPiece again
+            } else {
+                 console.log("Invalid move and didn't click own piece. Doing nothing.");
             }
         }
+         console.log("--- End ChessGame.tryMove ---");
     }
 }
 
