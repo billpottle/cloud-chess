@@ -14,7 +14,7 @@ function create_auth_token($user_id) {
     try {
         // Generate a new token
         $token = generate_token();
-        $expires = date('Y-m-d H:i:s', strtotime('+1 day'));
+        $expires = date('Y-m-d H:i:s', strtotime('+7 days'));
         
         // Delete any existing tokens for this user
         $query = "DELETE FROM user_tokens WHERE user_id = $user_id";
