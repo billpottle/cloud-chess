@@ -2,11 +2,12 @@
 
 A web-based chess game featuring unique rules and pieces, inspired by Katie Pottle's Cloud Shifters novels. Play against others, challenge the computer, and climb the ELO rankings!
 
+You can find a deployed version at https://pottlebooks.com/cloud-chess You can face against other players and there are occasional tournaments.
+
 ## Overview
 
 Cloud Chess expands on traditional chess with a larger board and custom pieces, bringing the strategic depth described in the Cloud Shifters series to life. This project implements the game with a focus on a playable web experience.
 
-*Note: This is an early 2024 'vibe coding' project using AI assistance. Currently, server-side move validation is limited, so invalid moves might be possible via direct API calls.*
 
 ## ✨ Features
 
