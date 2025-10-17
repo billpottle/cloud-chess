@@ -2,9 +2,18 @@
 window.currentUserId = null;
 window.currentUsername = null;
 
-// Function to get user information
+// Function to get user information (uses auth token when available)
 function getUserInfo(userId) {
-    return fetch('api/get_user_info.php?user_id=' + userId)
+    const buildUrl = (endpoint) => {
+        const params = new URLSearchParams({ user_id: userId });
+        const token = localStorage.getItem('chessAuthToken');
+        if (token) {
+            params.append('token', token);
+        }
+        return `${endpoint}?${params.toString()}`;
+    };
+
+    return fetch(buildUrl('api/get_user_info.php'))
         .then(response => {
             if (!response.ok) {
                 throw new Error('Network response was not ok: ' + response.status);
@@ -17,8 +26,7 @@ function getUserInfo(userId) {
         .catch(error => {
             console.error('Error fetching user data:', error);
             console.log('Trying fallback API endpoint...');
-            // Try the simplified endpoint
-            return fetch('api/get_user_basic.php?user_id=' + userId)
+            return fetch(buildUrl('api/get_user_basic.php'))
                 .then(response => response.json());
         });
 }
@@ -83,8 +91,9 @@ function clearAuthData() {
 
 // Function to update user activity
 function updateUserActivity() {
-    if (!window.currentUserId) {
-        return; // Don't update if user is not logged in
+    const token = localStorage.getItem('chessAuthToken');
+    if (!window.currentUserId || !token) {
+        return; // Don't update if user is not logged in or authenticated
     }
     
     fetch('api/active_users.php', {
@@ -93,7 +102,8 @@ function updateUserActivity() {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            action: 'update'
+            action: 'update',
+            token: token
         })
     })
     .then(response => response.json())
@@ -291,59 +301,6 @@ function initializeUserInterface() {
             myGamesSection.style.display = 'none';
         }
     }
-}
-
-// Function to get user information - now using token auth
-function getUserInfo(userId) {
-    const token = localStorage.getItem('chessAuthToken');
-    
-    return fetch(`api/get_user_info.php?user_id=${userId}&token=${token}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok: ' + response.status);
-            }
-            if (response.headers.get('content-length') === '0') {
-                throw new Error('Empty response received');
-            }
-            return response.json();
-        })
-        .catch(error => {
-            console.error('Error fetching user data:', error);
-            console.log('Trying fallback API endpoint...');
-            // Try the simplified endpoint
-            return fetch(`api/get_user_basic.php?user_id=${userId}&token=${token}`)
-                .then(response => response.json());
-        });
-}
-
-// Function to update user activity - now using token auth
-function updateUserActivity() {
-   
-    const token = localStorage.getItem('chessAuthToken');
-
-    if(!token){
-        return;
-    }
-    
-    fetch('api/active_users.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            action: 'update',
-            token: token
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            console.log('User activity updated');
-        }
-    })
-    .catch(error => {
-        console.error('Error updating user activity:', error);
-    });
 }
 
 // Function to check if user is logged in

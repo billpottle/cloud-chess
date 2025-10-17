@@ -91,6 +91,7 @@
     <script src="js/ui.js"></script>
     <script src="js/user.js"></script>
     <script src="js/stats.js"></script>
+    <script src="js/challenges.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             if (!isLoggedIn()) {
@@ -106,41 +107,8 @@
             
             updateAuthUI(); // Assumes this sets user welcome, etc.
             loadProfileData(username); // Assumes this loads stats, ELO graph, etc.
-            setupChallengeTabs(); // Sets up the tab switching
-            loadChallenges(username); // Load challenges for the logged-in user
-
-            // --- Event Delegation for Challenge Actions ---
-            const pendingListContainer = document.getElementById('pending-challenge-list');
-            const outgoingListContainer = document.getElementById('outgoing-challenge-list');
-
-            if (pendingListContainer) {
-                pendingListContainer.addEventListener('click', (event) => {
-                    const target = event.target;
-                    if (target.classList.contains('accept-challenge')) {
-                        handleChallengeAction(target.dataset.id, 'accept');
-                    } else if (target.classList.contains('decline-challenge')) {
-                        handleChallengeAction(target.dataset.id, 'decline');
-                    }
-                });
-            } else {
-                console.error("Could not find 'pending-challenge-list' container to attach listener.");
-            }
-
-            if (outgoingListContainer) {
-                outgoingListContainer.addEventListener('click', (event) => {
-                    const target = event.target;
-                    if (target.classList.contains('cancel-challenge')) {
-                        // Note: challenge_api.php uses 'cancel' action, not 'decline' for outgoing
-                        handleChallengeAction(target.dataset.id, 'cancel'); 
-                    }
-                });
-            } else {
-                 console.error("Could not find 'outgoing-challenge-list' container to attach listener.");
-            }
-            // --- End Event Delegation ---
-
-            // Close modals when clicking outside (If you still have modals)
-            // window.addEventListener('click', function(event) { ... }); 
+            loadChallenges('pending');
+            loadChallenges('outgoing');
         });
         
         // --- Core Profile Functions ---
@@ -439,183 +407,6 @@
                 }
             } else {
                 streakType.textContent = '-';
-            }
-        }
-
-        // --- Challenge Specific Functions ---
-
-        function setupChallengeTabs() {
-            const tabButtons = document.querySelectorAll('.tab-button');
-            const tabContents = document.querySelectorAll('.tab-content'); // Get all content panes
-
-            tabButtons.forEach(button => {
-                // Check if button exists before adding listener
-                if (!button) {
-                    console.error("Found a null tab button during setup.");
-                    return; 
-                }
-
-                button.addEventListener('click', function() {
-                    // Remove active class from all buttons and contents
-                    tabButtons.forEach(btn => btn.classList.remove('active'));
-                    tabContents.forEach(content => content.classList.remove('active')); // Deactivate all content
-                    
-                    // Add active class to clicked button
-                    this.classList.add('active');
-                    
-                    // Get the target content ID from data-tab attribute
-                    const tabContentId = this.getAttribute('data-tab'); 
-                    const targetContent = document.getElementById(tabContentId);
-
-                    // Activate the corresponding content pane
-                    if (targetContent) {
-                        targetContent.classList.add('active');
-                    } else {
-                         console.error(`Tab content with ID '${tabContentId}' not found.`);
-                    }
-                });
-            });
-
-            // Optional: Ensure the first tab is active on load if needed
-             const firstTabButton = document.querySelector('.tab-button.active');
-             const firstTabContentId = firstTabButton ? firstTabButton.getAttribute('data-tab') : null;
-             if (firstTabContentId) {
-                 const firstTabContent = document.getElementById(firstTabContentId);
-                 if (firstTabContent) {
-                    // Deactivate others first
-                    tabContents.forEach(content => content.classList.remove('active'));
-                    firstTabContent.classList.add('active');
-                 }
-             }
-        }
-
-        // Load challenges for the profile page lists
-        async function loadChallenges(username) {
-            if (!username) {
-                console.error("Cannot load challenges without username.");
-                return;
-            }
-            console.log(`Loading challenges for profile page: ${username}`);
-            
-            const pendingList = document.getElementById('pending-challenge-list');
-            const outgoingList = document.getElementById('outgoing-challenge-list');
-
-            if (!pendingList || !outgoingList) {
-                console.error("Challenge list elements ('pending-challenge-list' or 'outgoing-challenge-list') not found.");
-                return;
-            }
-
-            pendingList.innerHTML = '<p>Loading pending...</p>';
-            outgoingList.innerHTML = '<p>Loading outgoing...</p>';
-
-            // --- Fetch Pending ---
-            try {
-                const pendingResponse = await fetch(`api/challenge_api.php?action=pending&username=${encodeURIComponent(username)}`);
-                if (!pendingResponse.ok) throw new Error(`Pending fetch failed: ${pendingResponse.status}`);
-                const pendingData = await pendingResponse.json();
-
-                pendingList.innerHTML = ''; // Clear loading
-                if (pendingData.success && pendingData.challenges && pendingData.challenges.length > 0) {
-                    pendingData.challenges.forEach(challenge => {
-                        const div = document.createElement('div');
-                        div.className = 'challenge-item'; // Use class for styling
-                        // Buttons need classes for delegation
-                        div.innerHTML = `
-                            <div class="challenge-info">
-                                <strong>${challenge.challenger}</strong> (ELO: ${challenge.elo || 'N/A'})<br>
-                                <small>Expires in: ${challenge.expires_in_minutes} min</small>
-                            </div>
-                            <div class="challenge-actions">
-                               <button class="accept-challenge challenge-btn accept-btn" data-id="${challenge.id}">Accept</button>
-                               <button class="decline-challenge challenge-btn decline-btn" data-id="${challenge.id}">Decline</button>
-                            </div>
-                        `;
-                        pendingList.appendChild(div);
-                    });
-                } else {
-                    pendingList.innerHTML = `<p>${pendingData.success ? 'No pending challenges.' : ('Error: ' + (pendingData.message || 'Could not load'))}</p>`;
-                }
-            } catch (error) {
-                console.error('Error loading pending challenges:', error);
-                pendingList.innerHTML = '<p>Error loading pending challenges.</p>';
-            }
-
-            // --- Fetch Outgoing ---
-            try {
-                const outgoingResponse = await fetch(`api/challenge_api.php?action=outgoing&username=${encodeURIComponent(username)}`);
-                 if (!outgoingResponse.ok) throw new Error(`Outgoing fetch failed: ${outgoingResponse.status}`);
-                const outgoingData = await outgoingResponse.json();
-                
-                outgoingList.innerHTML = ''; // Clear loading
-                if (outgoingData.success && outgoingData.challenges && outgoingData.challenges.length > 0) {
-                    outgoingData.challenges.forEach(challenge => {
-                        const div = document.createElement('div');
-                        div.className = 'challenge-item'; // Use class for styling
-                         // Button needs class for delegation
-                       div.innerHTML = `
-                            <div class="challenge-info">
-                                <strong>${challenge.player_being_challenged}</strong> (ELO: ${challenge.elo || 'N/A'})<br>
-                                <small>Expires in: ${challenge.expires_in_minutes} min</small>
-                            </div>
-                            <div class="challenge-actions">
-                               <button class="cancel-challenge challenge-btn decline-btn" data-id="${challenge.id}">Cancel</button> 
-                            </div>
-                        `;
-                        outgoingList.appendChild(div);
-                    });
-                } else {
-                    outgoingList.innerHTML = `<p>${outgoingData.success ? 'No outgoing challenges.' : ('Error: ' + (outgoingData.message || 'Could not load'))}</p>`;
-                }
-            } catch (error) {
-                 console.error('Error loading outgoing challenges:', error);
-                outgoingList.innerHTML = '<p>Error loading outgoing challenges.</p>';
-            }
-        }
-
-        // Handle challenge actions using challenge_api.php
-        async function handleChallengeAction(challengeId, action) {
-            const username = localStorage.getItem('chessUsername');
-            if (!username) {
-                alert("Error: Not logged in."); return;
-            }
-            if (!challengeId) {
-                 console.error("Missing challenge ID for action:", action); return;
-            }
-
-            console.log(`Handling action '${action}' for challenge ID ${challengeId}`); 
-
-            const payload = { challenge_id: parseInt(challengeId, 10) };
-            let apiUrl = `api/challenge_api.php?action=${action}`;
-            // Add username to URL query params if needed by API for authorization (e.g., decline/cancel)
-             if (action === 'decline' || action === 'cancel') {
-                 apiUrl += `&username=${encodeURIComponent(username)}`;
-             }
-
-            try {
-                const response = await fetch(apiUrl, { 
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload) 
-                });
-
-                const result = await response.json(); // Try parsing JSON regardless of status
-
-                if (!response.ok) {
-                    throw new Error(result.message || `HTTP error! Status: ${response.status}`);
-                }
-
-                if (result.success) {
-                    console.log(`Challenge action '${action}' successful.`); 
-                    loadChallenges(username); // Reload challenges to show changes
-                    if (action === 'accept' && result.game_id) {
-                         window.location.href = `game.php?id=${result.game_id}`;
-                    }
-                } else {
-                    throw new Error(result.message || 'Action failed for unknown reason.');
-                }
-            } catch (error) {
-                console.error(`Error during challenge action '${action}':`, error); 
-                alert(`Failed to ${action} challenge: ${error.message}`);
             }
         }
 

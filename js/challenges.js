@@ -18,6 +18,10 @@ function hideChallengeModal() {
     document.getElementById('challenge-modal').style.display = 'none';
 }
 
+function getActiveUsername() {
+    return window.currentUsername || localStorage.getItem('chessUsername');
+}
+
 // Function to challenge a user
 function challengeUser(userId, username) {
     console.log(`Challenging user: ${username} (ID: ${userId})`);
@@ -34,8 +38,14 @@ function challengeUser(userId, username) {
     
     const confirmChallenge = confirm(`Are you sure you want to challenge ${username}?`);
     if (confirmChallenge) {
+        const challenger = getActiveUsername();
+        if (!challenger) {
+            alert('Unable to determine your username. Please log in again.');
+            return;
+        }
+
         // Send challenge request
-        fetch('api/challenge_api.php?action=create&username=' + window.currentUsername, {
+        fetch(`api/challenge_api.php?action=create&username=${encodeURIComponent(challenger)}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -68,7 +78,7 @@ function checkPendingChallenges() {
     }
     
     // Get the current username
-    const username = window.currentUsername || localStorage.getItem('chessUsername');
+    const username = getActiveUsername();
     if (!username) {
         console.error('Username not found for pending challenges check');
         return;
@@ -170,6 +180,8 @@ function acceptChallenge(challengeId) {
                 alert('Challenge accepted! The game will appear in your active games.');
                 // Reload user games
                 loadUserGames();
+                loadChallenges('pending');
+                loadChallenges('outgoing');
             }
         } else {
             alert(data.message || 'Failed to accept challenge');
@@ -183,7 +195,13 @@ function acceptChallenge(challengeId) {
 
 // Function to decline a challenge
 function declineChallenge(challengeId) {
-    fetch('api/challenge_api.php?action=decline&username=' + window.currentUsername, {
+    const username = getActiveUsername();
+    if (!username) {
+        alert('Unable to determine your username. Please log in again.');
+        return;
+    }
+
+    fetch(`api/challenge_api.php?action=decline&username=${encodeURIComponent(username)}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -199,9 +217,8 @@ function declineChallenge(challengeId) {
             hideNotification();
             
             // Reload challenges if the modal is open
-            if (document.getElementById('challenge-modal').style.display === 'block') {
-                loadChallenges('pending');
-            }
+            loadChallenges('pending');
+            loadChallenges('outgoing');
         } else {
             alert(data.message || 'Failed to decline challenge');
         }
@@ -222,7 +239,7 @@ function loadChallenges(type) {
     }
     
     // Get the current username
-    const username = window.currentUsername || localStorage.getItem('chessUsername');
+    const username = getActiveUsername();
     if (!username) {
         listElement.innerHTML = '<p>Please log in to view challenges.</p>';
         return;
@@ -323,6 +340,7 @@ function cancelChallenge(challengeId) {
         if (data.success) {
             // Reload the outgoing challenges list
             loadChallenges('outgoing');
+            loadChallenges('pending');
         } else {
             alert(data.message || 'Failed to cancel challenge');
         }

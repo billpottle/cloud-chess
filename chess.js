@@ -912,19 +912,70 @@ class ChessGame {
     }
 
     findPiecesInDanger(color) {
-        const pieces = this.findPieces(color);
-        const inDanger = [];
-        for (const { row, col } of pieces) {
-            if (this.isKingInCheck(color)) {
-                inDanger.push({ row, col });
+        const boardState = this.getBoardSnapshot();
+        if (!boardState) {
+            return [];
+        }
+
+        const opponentColor = color === 'white' ? 'black' : 'white';
+        const threatened = [];
+
+        for (let row = 0; row < boardState.length; row++) {
+            for (let col = 0; col < boardState[row].length; col++) {
+                const piece = boardState[row][col];
+                if (piece && piece.color === color) {
+                    if (this.isSquareAttackedBy(row, col, opponentColor, boardState)) {
+                        threatened.push({ row, col });
+                    }
+                }
             }
         }
-        return inDanger;
+
+        return threatened;
     }
 
     wouldPieceBeInDanger(fromRow, fromCol, toRow, toCol) {
-        const move = { fromRow, fromCol, toRow, toCol };
-        return this.wouldMoveLeaveKingInCheck(fromRow, fromCol, toRow, toCol);
+        const boardState = this.getBoardSnapshot();
+        if (!boardState) {
+            return false;
+        }
+
+        const piece = boardState[fromRow]?.[fromCol];
+        if (!piece) {
+            return false;
+        }
+
+        const updatedState = boardState.map(row => row.map(cell => (cell ? { ...cell } : null)));
+        const opponentColor = piece.color === 'white' ? 'black' : 'white';
+        const isArcherSpecial = piece.type === 'archer' && this.isArcherCapture;
+
+        // Remove captured target regardless of movement
+        if (updatedState[toRow]) {
+            updatedState[toRow][toCol] = null;
+        }
+
+        if (!isArcherSpecial) {
+            updatedState[fromRow][fromCol] = null;
+
+            if (piece.type === 'dragon' && (Math.abs(toRow - fromRow) === 2 || Math.abs(toCol - fromCol) === 2)) {
+                const rowStep = Math.sign(toRow - fromRow);
+                const colStep = Math.sign(toCol - fromCol);
+                const midRow = fromRow + rowStep;
+                const midCol = fromCol + colStep;
+                if (midRow >= 0 && midRow < updatedState.length && midCol >= 0 && midCol < updatedState[midRow].length) {
+                    updatedState[midRow][midCol] = null;
+                }
+            }
+
+            updatedState[toRow][toCol] = { ...piece };
+        } else {
+            // Archer stays in place after special capture
+            updatedState[fromRow][fromCol] = { ...piece };
+        }
+
+        const finalRow = isArcherSpecial ? fromRow : toRow;
+        const finalCol = isArcherSpecial ? fromCol : toCol;
+        return this.isSquareAttackedBy(finalRow, finalCol, opponentColor, updatedState);
     }
 
     wouldMoveLeaveKingInCheck(fromRow, fromCol, toRow, toCol) {
@@ -951,73 +1002,253 @@ class ChessGame {
         return inCheck;
     }
 
-    isKingInCheck(color) {
-        // Find the king's position
-        let kingRow = -1;
-        let kingCol = -1;
+    getBoardSnapshot() {
+        const boardElement = this.board || document.getElementById('board');
+        if (!boardElement) {
+            return null;
+        }
+        this.board = boardElement;
 
-        // Look for the king on the board
-        for (let row = 0; row < 10; row++) {
-            for (let col = 0; col < 10; col++) {
-                const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-                const piece = square?.querySelector('.piece');
+        const snapshot = Array.from({ length: 10 }, () => Array(10).fill(null));
+        const squares = boardElement.querySelectorAll('.square');
 
-                if (piece && piece.dataset.color === color) {
-                    // Check for king pieces
-                    if (piece.dataset.type === 'king' ||
-                        piece.textContent === '♔' ||
-                        piece.textContent === '♚') {
-                        kingRow = row;
-                        kingCol = col;
+        squares.forEach(square => {
+            const row = parseInt(square.dataset.row, 10);
+            const col = parseInt(square.dataset.col, 10);
+            const pieceEl = square.querySelector('.piece');
 
-                        break;
-                    }
+            if (pieceEl) {
+                snapshot[row][col] = this.extractPieceInfo(pieceEl);
+            }
+        });
+
+        return snapshot;
+    }
+
+    extractPieceInfo(pieceEl) {
+        const symbol = pieceEl.textContent || '';
+        const type = this.inferPieceType(symbol, pieceEl.dataset.type);
+        const color = this.inferPieceColor(symbol, pieceEl.dataset.color);
+
+        return {
+            type,
+            color,
+            symbol
+        };
+    }
+
+    inferPieceType(symbol, datasetType) {
+        const text = symbol || '';
+
+        if (text.includes('♔') || text.includes('♚')) return 'king';
+        if (text.includes('♕') || text.includes('♛')) return 'queen';
+        if (text.includes('♖') || text.includes('♜')) return 'rook';
+        if (text.includes('♗') || text.includes('♝')) return 'bishop';
+        if (text.includes('♘') || text.includes('♞')) return 'knight';
+        if (text.includes('♙') || text.includes('♟')) {
+            if (text.includes('⇡') || text.includes('⇣')) {
+                return 'archer';
+            }
+            return 'pawn';
+        }
+
+        if (datasetType && datasetType.length > 0) {
+            return datasetType;
+        }
+
+        return '';
+    }
+
+    inferPieceColor(symbol, datasetColor) {
+        const text = symbol || '';
+
+        if (text.length > 0) {
+            const base = text.charAt(0);
+            if ('♔♕♖♗♘♙'.includes(base)) return 'white';
+            if ('♚♛♜♝♞♟'.includes(base)) return 'black';
+        }
+
+        if (datasetColor && datasetColor.length > 0) {
+            return datasetColor;
+        }
+
+        return '';
+    }
+
+    isSquareAttackedBy(row, col, attackerColor, boardState) {
+        if (!boardState) {
+            return false;
+        }
+
+        const size = boardState.length;
+        const inBounds = (r, c) => r >= 0 && r < size && c >= 0 && c < size;
+
+        // Knights
+        const knightOffsets = [
+            [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+            [1, -2], [1, 2], [2, -1], [2, 1]
+        ];
+        for (const [dr, dc] of knightOffsets) {
+            const r = row + dr;
+            const c = col + dc;
+            if (!inBounds(r, c)) continue;
+            const piece = boardState[r][c];
+            if (piece && piece.color === attackerColor && piece.type === 'knight') {
+                return true;
+            }
+        }
+
+        // Pawns and archers (diagonal captures)
+        const forward = attackerColor === 'white' ? 1 : -1;
+        const pawnRow = row + forward;
+        if (inBounds(pawnRow, col - 1)) {
+            const piece = boardState[pawnRow][col - 1];
+            if (piece && piece.color === attackerColor && (piece.type === 'pawn' || piece.type === 'archer')) {
+                return true;
+            }
+        }
+        if (inBounds(pawnRow, col + 1)) {
+            const piece = boardState[pawnRow][col + 1];
+            if (piece && piece.color === attackerColor && (piece.type === 'pawn' || piece.type === 'archer')) {
+                return true;
+            }
+        }
+
+        // Archer forward capture (captures without moving)
+        if (inBounds(pawnRow, col)) {
+            const piece = boardState[pawnRow][col];
+            if (piece && piece.color === attackerColor && piece.type === 'archer') {
+                return true;
+            }
+        }
+
+        // Archer horizontal captures
+        for (const dc of [-1, 1]) {
+            const c = col + dc;
+            if (!inBounds(row, c)) continue;
+            const piece = boardState[row][c];
+            if (piece && piece.color === attackerColor && piece.type === 'archer') {
+                return true;
+            }
+        }
+
+        // King adjacency
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                if (dr === 0 && dc === 0) continue;
+                const r = row + dr;
+                const c = col + dc;
+                if (!inBounds(r, c)) continue;
+                const piece = boardState[r][c];
+                if (piece && piece.color === attackerColor && piece.type === 'king') {
+                    return true;
                 }
             }
-            if (kingRow !== -1) break;
         }
 
-        if (kingRow === -1) {
-            console.log(`King not found for ${color}`);
-            return false; // King not found
+        // Dragon attacks (one square away)
+        const dragonDirections = [
+            [-1, -1], [-1, 0], [-1, 1],
+            [0, -1],           [0, 1],
+            [1, -1],  [1, 0],  [1, 1]
+        ];
+        for (const [dr, dc] of dragonDirections) {
+            const r1 = row + dr;
+            const c1 = col + dc;
+            if (!inBounds(r1, c1)) continue;
+            const piece = boardState[r1][c1];
+            if (piece && piece.color === attackerColor && piece.type === 'dragon') {
+                return true;
+            }
         }
 
+        // Dragon attacks (two squares away with special capture rules)
+        for (const [dr, dc] of dragonDirections) {
+            const r2 = row + 2 * dr;
+            const c2 = col + 2 * dc;
+            if (!inBounds(r2, c2)) continue;
+            const target = boardState[r2][c2];
+            if (target && target.color === attackerColor && target.type === 'dragon') {
+                const mid = boardState[row + dr][col + dc];
+                if (!(mid && mid.color === attackerColor)) {
+                    return true;
+                }
+            }
+        }
 
-
-        // Check if any opponent piece can capture the king
-        const opponentColor = color === 'white' ? 'black' : 'white';
-
-        for (let row = 0; row < 10; row++) {
-            for (let col = 0; col < 10; col++) {
-                const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-                const piece = square?.querySelector('.piece');
-
-                if (piece && piece.dataset.color === opponentColor) {
-                    // Save current selected piece
-                    const originalSelectedPiece = this.selectedPiece;
-
-                    // Temporarily select this opponent piece
-                    this.selectedPiece = square;
-
-                    // Log the piece type and position
-                    //  console.log(`Checking if ${opponentColor} ${piece.textContent || piece.dataset.type} at ${row},${col} can capture the ${color} king at ${kingRow},${kingCol}`);
-
-                    // Check if it can capture the king
-                    const canCapture = this.isValidMove(kingRow, kingCol);
-                    // console.log(`Can capture: ${canCapture}`);
-
-                    // Restore original selection
-                    this.selectedPiece = originalSelectedPiece;
-
-                    if (canCapture) {
-                        console.log(`${opponentColor} piece at ${row},${col} can capture the ${color} king`);
+        // Straight-line attacks (rook / queen)
+        const straightDirs = [
+            [1, 0], [-1, 0], [0, 1], [0, -1]
+        ];
+        for (const [dr, dc] of straightDirs) {
+            let r = row + dr;
+            let c = col + dc;
+            while (inBounds(r, c)) {
+                const piece = boardState[r][c];
+                if (piece) {
+                    if (piece.color === attackerColor && (piece.type === 'rook' || piece.type === 'queen')) {
                         return true;
                     }
+                    break;
                 }
+                r += dr;
+                c += dc;
+            }
+        }
+
+        // Diagonal attacks (bishop / queen)
+        const diagonalDirs = [
+            [1, 1], [1, -1], [-1, 1], [-1, -1]
+        ];
+        for (const [dr, dc] of diagonalDirs) {
+            let r = row + dr;
+            let c = col + dc;
+            while (inBounds(r, c)) {
+                const piece = boardState[r][c];
+                if (piece) {
+                    if (piece.color === attackerColor && (piece.type === 'bishop' || piece.type === 'queen')) {
+                        return true;
+                    }
+                    break;
+                }
+                r += dr;
+                c += dc;
             }
         }
 
         return false;
+    }
+
+    isKingInCheck(color) {
+        const boardState = this.getBoardSnapshot();
+        if (!boardState) {
+            return false;
+        }
+
+        let kingRow = -1;
+        let kingCol = -1;
+
+        for (let row = 0; row < boardState.length; row++) {
+            for (let col = 0; col < boardState[row].length; col++) {
+                const piece = boardState[row][col];
+                if (piece && piece.color === color && piece.type === 'king') {
+                    kingRow = row;
+                    kingCol = col;
+                    break;
+                }
+            }
+            if (kingRow !== -1) {
+                break;
+            }
+        }
+
+        if (kingRow === -1) {
+            console.warn(`King not found for ${color}`);
+            return false;
+        }
+
+        const opponentColor = color === 'white' ? 'black' : 'white';
+        return this.isSquareAttackedBy(kingRow, kingCol, opponentColor, boardState);
     }
 
     isCheckmate(color) {
