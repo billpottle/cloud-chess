@@ -7,24 +7,32 @@ body {
 }
 
 .navbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
     background-color: #4b6cb7;
-    overflow: hidden;
     padding: 10px 20px;
     color: white;
 }
 
 .navbar a {
-    color: white;
+    color: inherit;
     text-decoration: none;
-    margin-right: 15px;
+    padding: 6px 0;
 }
 
 .navbar a:hover {
     text-decoration: underline;
 }
 
-#user-section, #auth-section {
-    float: right;
+#user-section,
+#auth-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-left: auto;
 }
 
 #game-container {
@@ -152,10 +160,8 @@ body {
     padding: 10px;
     text-align: left;
     border-bottom: 1px solid #e0e0e0;
-    word-wrap: break-word;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    word-break: break-word;
+    white-space: normal;
 }
 
 .stats-table th {
@@ -341,6 +347,23 @@ body {
 
 .game-btn.danger {
     background-color: #e74c3c;
+}
+
+@media (max-width: 600px) {
+    .navbar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    #user-section,
+    #auth-section {
+        margin-left: 0;
+    }
+
+    .navbar a {
+        padding: 4px 0;
+    }
 }
 
 .game-btn.danger:hover {

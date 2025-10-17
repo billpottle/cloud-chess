@@ -7,13 +7,15 @@
 
 #board {
     display: grid;
-    grid-template-columns: repeat(10, 60px);
-    grid-template-rows: repeat(10, 60px);
-    border: 2px solid #333;
+    grid-template-columns: repeat(10, 1fr);
+    grid-auto-rows: 1fr;
+    width: min(90vw, 600px);
     margin: 0 auto;
-    max-width: 600px;
-    box-sizing: content-box;
+    border: 2px solid #333;
+    box-sizing: border-box;
+    background-color: #b58863;
     pointer-events: auto !important;
+    aspect-ratio: 1;
 }
 
 #game-board {
@@ -21,19 +23,19 @@
     flex-direction: column;
     align-items: center;
     width: 100%;
-    max-width: 620px;
+    max-width: 600px;
     margin: 0 auto;
 }
 
 .square {
-    width: 60px;
-    height: 60px;
     display: flex;
     justify-content: center;
     align-items: center;
     cursor: pointer;
     position: relative;
     pointer-events: auto !important;
+    aspect-ratio: 1;
+    width: 100%;
 }
 
 .white {
@@ -45,7 +47,7 @@
 }
 
 .piece {
-    font-size: 40px;
+    font-size: clamp(1.8rem, 3vw, 2.5rem);
     user-select: none;
     pointer-events: none !important;
 }
@@ -95,8 +97,7 @@
     background: linear-gradient(to bottom, #e6f0ff, #ffffff);
     border-radius: 15px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-    max-width: 90%;
-    width: 800px;
+    width: min(100%, 720px);
 }
 
 .mode-selection h2 {
@@ -197,6 +198,27 @@ body {
     color: black;
     text-shadow: 0 0 3px white, 0 0 3px white, 0 0 3px white;
     font-weight: bold;
+}
+
+@media (max-width: 768px) {
+    .mode-selection {
+        padding: 24px 18px;
+        margin: 30px auto;
+    }
+
+    .mode-selection h2 {
+        font-size: 26px;
+    }
+}
+
+@media (max-width: 600px) {
+    #game-board {
+        max-width: 90vw;
+    }
+
+    .mode-selection button {
+        width: 100%;
+    }
 }
 
 .white-piece.piece {
