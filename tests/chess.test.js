@@ -6,6 +6,12 @@ describe('ChessGame Basic Tests', () => {
   let game;
   
   beforeEach(() => {
+    document.body.innerHTML = `
+      <div class="navbar"><a href="#"></a></div>
+      <div id="current-turn"></div>
+      <div id="mode-selection"></div>
+      <div id="game-board"><div id="board"></div></div>
+    `;
     // Create a new game instance
     game = new ChessGame();
   });
@@ -54,6 +60,12 @@ describe('Piece Selection and Movement', () => {
   let game;
   
   beforeEach(() => {
+    document.body.innerHTML = `
+      <div class="navbar"><a href="#"></a></div>
+      <div id="current-turn"></div>
+      <div id="mode-selection"></div>
+      <div id="game-board"><div id="board"></div></div>
+    `;
     game = new ChessGame();
     
     // Mock the selectPiece method
@@ -134,6 +146,12 @@ describe('Game State Management', () => {
   let game;
   
   beforeEach(() => {
+    document.body.innerHTML = `
+      <div class="navbar"><a href="#"></a></div>
+      <div id="current-turn"></div>
+      <div id="mode-selection"></div>
+      <div id="game-board"><div id="board"></div></div>
+    `;
     game = new ChessGame();
     
     // Mock methods
@@ -193,6 +211,12 @@ describe('AI Functionality', () => {
   let game;
   
   beforeEach(() => {
+    document.body.innerHTML = `
+      <div class="navbar"><a href="#"></a></div>
+      <div id="current-turn"></div>
+      <div id="mode-selection"></div>
+      <div id="game-board"><div id="board"></div></div>
+    `;
     game = new ChessGame();
     game.aiLevel = 1;
     
@@ -241,6 +265,12 @@ describe('Special Piece Rules', () => {
   let game;
   
   beforeEach(() => {
+    document.body.innerHTML = `
+      <div class="navbar"><a href="#"></a></div>
+      <div id="current-turn"></div>
+      <div id="mode-selection"></div>
+      <div id="game-board"><div id="board"></div></div>
+    `;
     game = new ChessGame();
     
     // Mock methods
@@ -290,6 +320,12 @@ describe('Utility Functions', () => {
   let game;
   
   beforeEach(() => {
+    document.body.innerHTML = `
+      <div class="navbar"><a href="#"></a></div>
+      <div id="current-turn"></div>
+      <div id="mode-selection"></div>
+      <div id="game-board"><div id="board"></div></div>
+    `;
     game = new ChessGame();
     
     // Mock methods
