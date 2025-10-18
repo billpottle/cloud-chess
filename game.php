@@ -165,8 +165,23 @@ ob_end_flush();
         </div>
         
         <div id="game-board">
-        
-            <div id="board"></div>
+            <div class="game-layout">
+                <aside class="graveyard graveyard-white">
+                    <h3>White Captures</h3>
+                    <div class="graveyard-pieces" id="white-graveyard"></div>
+                </aside>
+                <div class="board-wrapper">
+                    <div class="game-scoreboard">
+                        <div class="score-item white-score">White Score: <span id="white-score">0</span></div>
+                        <div class="score-item black-score">Black Score: <span id="black-score">0</span></div>
+                    </div>
+                    <div id="board"></div>
+                </div>
+                <aside class="graveyard graveyard-black">
+                    <h3>Black Captures</h3>
+                    <div class="graveyard-pieces" id="black-graveyard"></div>
+                </aside>
+            </div>
         </div>
     </div>
     

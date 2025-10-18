@@ -116,9 +116,23 @@ class ChessGame {
         this.aiLevel = 0;
         this.gameMode = null;
         this.isArcherCapture = false;
+        this.capturedPieces = { white: [], black: [] };
+        this.scores = { white: 0, black: 0 };
+        this.pieceScoreValues = {
+            pawn: 1,
+            archer: 3,
+            knight: 3,
+            bishop: 3,
+            rook: 5,
+            queen: 9,
+            dragon: 7,
+            king: 0
+        };
 
         // Bind the handleSquareClick method
         this.handleSquareClick = this.handleSquareClick.bind(this);
+
+        this.resetGraveyards();
     }
 
 
@@ -512,40 +526,30 @@ class ChessGame {
             const rowDiff = toRow - fromRow;
             const colDiff = Math.abs(toCol - fromCol);
 
-            // Archer can either move like a pawn or capture diagonally or straight without moving
-
-            // Capture without moving (archer special ability)
-            if (rowDiff === 0 && colDiff === 1 && targetPiece) {
+            // Archer special: capture without moving, diagonally forward only
+            if (targetPiece && colDiff === 1 && rowDiff === direction) {
                 this.isArcherCapture = true;
                 return true;
             }
 
-            if (rowDiff === direction && colDiff === 0 && targetPiece) {
-                this.isArcherCapture = true;
-                return true;
+            // Move like a pawn (only when not capturing)
+            if (!targetPiece) {
+                // One step forward
+                if (colDiff === 0 && rowDiff === direction) {
+                    this.isArcherCapture = false;
+                    return true;
+                }
+
+                // Two steps from start if path clear
+                if (colDiff === 0 && rowDiff === 2 * direction && fromRow === startRow) {
+                    const midRow = fromRow + direction;
+                    const midSquare = document.querySelector(`[data-row="${midRow}"][data-col="${fromCol}"]`);
+                    this.isArcherCapture = false;
+                    return !midSquare.querySelector('.piece');
+                }
             }
 
-            // Regular pawn move (forward 1 square)
-            if (colDiff === 0 && rowDiff === direction && !targetPiece) {
-                this.isArcherCapture = false;
-                return true;
-            }
-
-            // Initial pawn move (forward 2 squares)
-            if (colDiff === 0 && rowDiff === 2 * direction && fromRow === startRow && !targetPiece) {
-                // Check if the path is clear
-                const midRow = fromRow + direction;
-                const midSquare = document.querySelector(`[data-row="${midRow}"][data-col="${fromCol}"]`);
-                this.isArcherCapture = false;
-                return !midSquare.querySelector('.piece');
-            }
-
-            // Pawn capture (diagonal 1 square)
-            if (colDiff === 1 && rowDiff === direction && targetPiece) {
-                this.isArcherCapture = true;
-                return true;
-            }
-
+            // No other movements allowed (e.g., moving diagonally to capture like a pawn or sideways move)
             return false;
         }
 
@@ -623,15 +627,28 @@ class ChessGame {
         const isArcher = piece.textContent === '♟⇣' || piece.textContent === '♙⇡';
         const isPawn = piece.textContent === '♟' || piece.textContent === '♙';
         const isArcherCapture = isArcher && this.isArcherCapture;
+        const movingColor = piece.dataset.color;
+        const targetPiece = toSquare.querySelector('.piece');
+
+        let midCaptureOccurred = false;
+        const fromRowInt = parseInt(fromSquare.dataset.row);
+        const fromColInt = parseInt(fromSquare.dataset.col);
 
         if (isArcherCapture) {
             // For archer capture without moving, just remove the target piece
             console.log("Archer capturing without moving");
+            if (targetPiece && targetPiece.dataset.color !== movingColor) {
+                this.recordCapture(movingColor, targetPiece);
+            }
             toSquare.innerHTML = '';
         } else {
             // Handle wrath ability (capturing through a piece)
             const rowDiff = Math.abs(fromSquare.dataset.row - toRow);
             const colDiff = Math.abs(fromSquare.dataset.col - toCol);
+
+            if (targetPiece && targetPiece.dataset.color !== movingColor) {
+                this.recordCapture(movingColor, targetPiece);
+            }
 
             if (piece.dataset.type === 'dragon' && (rowDiff === 2 || colDiff === 2)) {
                 // Must be a straight-line move (horizontal, vertical, or diagonal)
@@ -644,10 +661,12 @@ class ChessGame {
                     if (midSquare) {
                         const midPiece = midSquare.querySelector('.piece');
 
-                        // If the middle square has an opponent, remove it
+                        // If the middle square has an opponent, remove it and score the capture
                         if (midPiece && midPiece.dataset.color !== piece.dataset.color) {
                             console.log("Wrath activated: Capturing middle piece");
+                            this.recordCapture(movingColor, midPiece);
                             midSquare.innerHTML = ''; // Remove the captured piece
+                            midCaptureOccurred = true;
                         }
                     }
                 }
@@ -678,6 +697,18 @@ class ChessGame {
                 this.showGameStatusAnimation('promotion', 'PROMOTION!');
             }
         }
+
+        // Notify hooks/listeners about the completed move (before turn switches)
+        if (typeof this.onAfterMove === 'function') {
+            const didCapture = !!targetPiece || midCaptureOccurred;
+            try {
+                this.onAfterMove({ fromRow: fromRowInt, fromCol: fromColInt, toRow, toCol, didCapture });
+            } catch (e) {
+                console.error('onAfterMove hook error:', e);
+            }
+        }
+
+        this.isArcherCapture = false;
     }
 
     handleTurn() {
@@ -1061,10 +1092,14 @@ class ChessGame {
 
                         const move = { fromRow: row, fromCol: col, toRow, toCol };
 
-                        if (isCapture) {
-                            captureMoves.push(move);
-                        } else {
-                            normalMoves.push(move);
+                        // Filter out moves that would leave own king in check
+                        const leavesInCheck = this.wouldMoveLeaveKingInCheck(row, col, toRow, toCol, wasArcherCapture);
+                        if (!leavesInCheck) {
+                            if (isCapture) {
+                                captureMoves.push(move);
+                            } else {
+                                normalMoves.push(move);
+                            }
                         }
                     }
                 }
@@ -1087,6 +1122,64 @@ class ChessGame {
         }
         const index = Math.floor(Math.random() * moves.length);
         return moves[index];
+    }
+
+    resetGraveyards() {
+        this.capturedPieces.white = [];
+        this.capturedPieces.black = [];
+        this.scores.white = 0;
+        this.scores.black = 0;
+
+        ['white', 'black'].forEach(color => {
+            const container = document.getElementById(`${color}-graveyard`);
+            if (container) {
+                container.innerHTML = '';
+            }
+        });
+
+        this.updateScoreboard();
+    }
+
+    updateScoreboard() {
+        const whiteScoreEl = document.getElementById('white-score');
+        if (whiteScoreEl) {
+            whiteScoreEl.textContent = this.scores.white;
+        }
+        const blackScoreEl = document.getElementById('black-score');
+        if (blackScoreEl) {
+            blackScoreEl.textContent = this.scores.black;
+        }
+    }
+
+    createCapturedPieceElement(pieceEl) {
+        const clone = pieceEl.cloneNode(true);
+        clone.classList.add('captured-piece');
+        clone.removeAttribute('style');
+        return clone;
+    }
+
+    recordCapture(capturingColor, capturedPieceEl) {
+        if (!capturedPieceEl) {
+            return;
+        }
+
+        const type = capturedPieceEl.dataset.type || this.inferPieceType(capturedPieceEl.dataset.symbol || capturedPieceEl.textContent, capturedPieceEl.dataset.type);
+        const value = this.pieceScoreValues[type] ?? 0;
+        this.scores[capturingColor] += value;
+
+        const displayPiece = this.createCapturedPieceElement(capturedPieceEl);
+        const container = document.getElementById(`${capturingColor}-graveyard`);
+        if (container) {
+            container.appendChild(displayPiece);
+        }
+
+        this.capturedPieces[capturingColor].push({
+            type,
+            symbol: capturedPieceEl.dataset.symbol || capturedPieceEl.textContent,
+            color: capturedPieceEl.dataset.color || this.inferPieceColor(capturedPieceEl.dataset.symbol || capturedPieceEl.textContent, capturedPieceEl.dataset.color)
+        });
+
+        this.updateScoreboard();
     }
 
     isMoveInList(move, moves) {
@@ -1470,23 +1563,7 @@ class ChessGame {
             }
         }
 
-        // Archer forward capture (captures without moving)
-        if (inBounds(pawnRow, col)) {
-            const piece = boardState[pawnRow][col];
-            if (piece && piece.color === attackerColor && piece.type === 'archer') {
-                return true;
-            }
-        }
-
-        // Archer horizontal captures
-        for (const dc of [-1, 1]) {
-            const c = col + dc;
-            if (!inBounds(row, c)) continue;
-            const piece = boardState[row][c];
-            if (piece && piece.color === attackerColor && piece.type === 'archer') {
-                return true;
-            }
-        }
+        // Archer special captures are only diagonal forward without moving (handled by pawnRow +/- 1 above)
 
         // King adjacency
         for (let dr = -1; dr <= 1; dr++) {
@@ -1689,6 +1766,7 @@ class ChessGame {
         this.gameBoard = this.createInitialBoard();
         this.board = boardContainer;
         this.initializeBoard();
+        this.resetGraveyards();
 
         // Reset game state
         this.selectedPiece = null;

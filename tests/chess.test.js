@@ -364,6 +364,63 @@ describe('Move Highlighting', () => {
   });
 });
 
+describe('Graveyard and Scoring', () => {
+  let game;
+
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div class="navbar"><a href="#"></a></div>
+      <div id="current-turn"></div>
+      <div id="mode-selection"></div>
+      <div id="game-board">
+        <div class="game-info"><span id="current-turn"></span></div>
+        <div class="game-layout">
+          <aside class="graveyard graveyard-white">
+            <div class="graveyard-pieces" id="white-graveyard"></div>
+          </aside>
+          <div class="board-wrapper">
+            <div class="game-scoreboard">
+              <div class="score-item white-score">White Score: <span id="white-score">0</span></div>
+              <div class="score-item black-score">Black Score: <span id="black-score">0</span></div>
+            </div>
+            <div id="board"></div>
+          </div>
+          <aside class="graveyard graveyard-black">
+            <div class="graveyard-pieces" id="black-graveyard"></div>
+          </aside>
+        </div>
+      </div>
+    `;
+    game = new ChessGame();
+    game.showGameStatusAnimation = jest.fn();
+  });
+
+  test('records captures in the graveyard and updates the score', () => {
+    game.startGame('pvp');
+
+    const customBoard = Array.from({ length: 10 }, () => Array(10).fill(''));
+    customBoard[9][5] = '♔';
+    customBoard[0][5] = '♚';
+    customBoard[9][3] = '♕';
+    customBoard[5][3] = '♜';
+
+    game.gameBoard = customBoard;
+    game.initializeBoard();
+    game.resetGraveyards();
+
+    game.currentPlayer = 'white';
+    const queenSquare = document.querySelector('[data-row="9"][data-col="3"]');
+    game.selectPiece(queenSquare);
+    game.tryMove(5, 3);
+
+    expect(document.getElementById('white-score').textContent).toBe('5');
+    expect(document.getElementById('black-score').textContent).toBe('0');
+
+    const whiteGraveyard = document.getElementById('white-graveyard');
+    expect(whiteGraveyard.children.length).toBe(1);
+  });
+});
+
 describe('Special Piece Rules', () => {
   let game;
   

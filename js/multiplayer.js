@@ -137,45 +137,25 @@ function initializeMultiplayerGame(gameId, color, currentTurn, boardState, isSpe
         originalHandleSquareClick.call(this, e);
     };
 
-    // Override the movePiece method to add server update and checkmate detection
-    const originalMovePiece = multiplayerGame.movePiece;
-    multiplayerGame.movePiece = function(toRow, toCol) {
-        // Call the original move piece method
-        originalMovePiece.call(this, toRow, toCol);
-
-        // After the move is made, convert the board to the server format
+    // Use the engine's after-move hook instead of overriding logic
+    multiplayerGame.onAfterMove = function() {
+        // Convert the board to the server format
         const boardState = convertBoardToPieces(this);
         const nextTurn = this.currentPlayer === 'white' ? 'black' : 'white';
 
-        // Check if the move resulted in checkmate
         if (this.isCheckmate(nextTurn)) {
             console.log(`Checkmate! ${this.currentPlayer} wins!`);
             currentSpecialStatus = 'checkmate';
-            // Update the game state with the final move
             updateGameState(boardState, nextTurn);
-            
-            // Show checkmate animation
             this.showGameStatusAnimation('checkmate', 'CHECKMATE!');
-            
-            // Finalize the game
-            setTimeout(() => {
-                finalizeGame('checkmate');
-            }, 2000);
+            setTimeout(() => finalizeGame('checkmate'), 2000);
         } else {
-            // Send the update to the server
             const opponentColor = this.currentPlayer === 'white' ? 'black' : 'white';
-            if (this.isKingInCheck(opponentColor)) {
-                currentSpecialStatus = 'check';
-            } else {
-                currentSpecialStatus = null;
-            }
+            currentSpecialStatus = this.isKingInCheck(opponentColor) ? 'check' : null;
             updateGameState(boardState, nextTurn);
         }
-        
-        // Fix styling after move
-        setTimeout(() => {
-            fixPieceStyling();
-        }, 100);
+
+        setTimeout(() => fixPieceStyling(), 100);
     };
 
     // If not the player's turn or spectating, disable board interaction
@@ -606,4 +586,3 @@ function finalizeGame(result) {
         alert('Error finalizing game. Please try again.');
     });
 }
-
