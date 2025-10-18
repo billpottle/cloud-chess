@@ -264,7 +264,7 @@ function initializeUserInterface() {
         
         // Update UI for logged-in state
         document.getElementById('auth-section').style.display = 'none';
-        document.getElementById('user-section').style.display = 'inline';
+        document.getElementById('user-section').style.display = 'flex';
         
         // Show the my games section
         const myGamesSection = document.getElementById('my-games-section');
@@ -292,7 +292,7 @@ function initializeUserInterface() {
             });
     } else {
         // User is not logged in
-        document.getElementById('auth-section').style.display = 'inline';
+        document.getElementById('auth-section').style.display = 'flex';
         document.getElementById('user-section').style.display = 'none';
         
         // Hide the my games section

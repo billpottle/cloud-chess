@@ -319,6 +319,8 @@ window.fixPieceStyling = function() {
         const text = piece.textContent;
         const type = piece.dataset.type;
         const color = piece.dataset.color;
+        const fullSymbol = piece.dataset.symbol || text;
+        piece.dataset.symbol = fullSymbol;
         
         // Clear any existing color classes
         piece.classList.remove('white-piece', 'black-piece');
@@ -330,25 +332,34 @@ window.fixPieceStyling = function() {
             piece.classList.add('black-piece');
         } else {
             // Determine color based on Unicode character if not set
-            if ('♔♕♖♗♘♙'.includes(text)) {
+            if ('♔♕♖♗♘♙'.includes(fullSymbol.charAt(0))) {
                 piece.dataset.color = 'white';
                 piece.classList.add('white-piece');
-            } else if ('♚♛♜♝♞♟'.includes(text)) {
+            } else if ('♚♛♜♝♞♟'.includes(fullSymbol.charAt(0))) {
                 piece.dataset.color = 'black';
                 piece.classList.add('black-piece');
             }
         }
         
         // Handle archer pieces
-        if (text.includes('⇡')) {
+        if (fullSymbol.includes('⇡')) {
             piece.dataset.type = 'archer';
             piece.dataset.color = 'white';
-            piece.classList.add('white-piece');
-        } else if (text.includes('⇣')) {
+            piece.dataset.base = fullSymbol.charAt(0);
+            piece.dataset.arrow = '↑';
+            piece.classList.add('white-piece', 'archer-piece', 'archer-up');
+        } else if (fullSymbol.includes('⇣')) {
             piece.dataset.type = 'archer';
             piece.dataset.color = 'black';
-            piece.classList.add('black-piece');
+            piece.dataset.base = fullSymbol.charAt(0);
+            piece.dataset.arrow = '↓';
+            piece.classList.add('black-piece', 'archer-piece', 'archer-down');
+        } else {
+            piece.classList.remove('archer-piece', 'archer-up', 'archer-down');
+            piece.removeAttribute('data-base');
+            piece.removeAttribute('data-arrow');
         }
+        piece.textContent = fullSymbol;
         
         // Handle dragon pieces
         if (type === 'dragon') {
@@ -595,6 +606,4 @@ function finalizeGame(result) {
         alert('Error finalizing game. Please try again.');
     });
 }
-
-
 

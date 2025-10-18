@@ -261,6 +261,109 @@ describe('AI Functionality', () => {
   });
 });
 
+describe('AI Checkmate Strategy', () => {
+  let game;
+
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div class="navbar"><a href="#"></a></div>
+      <div id="current-turn"></div>
+      <div id="mode-selection"></div>
+      <div id="game-board"><div id="board"></div></div>
+    `;
+    game = new ChessGame();
+    game.showGameStatusAnimation = jest.fn();
+  });
+
+  const setupMateScenario = () => {
+    const emptyBoard = Array.from({ length: 10 }, () => Array(10).fill(''));
+    emptyBoard[9][9] = '♔'; // White king in the corner
+    emptyBoard[6][6] = '♚'; // Black king safely supporting from a distance
+    emptyBoard[6][9] = '♛'; // Black queen poised to deliver mate
+    emptyBoard[8][7] = '♜'; // Black rook covering the escape squares
+    game.gameBoard = emptyBoard;
+    game.board = document.getElementById('board');
+    game.initializeBoard();
+    game.currentPlayer = 'black';
+  };
+
+  test('easy AI executes available mate in one', () => {
+    game.startGame('pvc', 1);
+    setupMateScenario();
+
+    const moved = game.makeEasyAIMove();
+    expect(moved).toBe(true);
+    expect(game.isCheckmate('white')).toBe(true);
+
+    const queenSquare = document.querySelector('[data-row="8"][data-col="9"] .piece');
+    expect(queenSquare).not.toBeNull();
+    expect(queenSquare.textContent).toBe('♛');
+  });
+
+  test('medium AI prefers mate in one', () => {
+    game.startGame('pvc', 2);
+    setupMateScenario();
+
+    const moved = game.makeMediumAIMove();
+    expect(moved).toBe(true);
+    expect(game.isCheckmate('white')).toBe(true);
+
+    const queenSquare = document.querySelector('[data-row="8"][data-col="9"] .piece');
+    expect(queenSquare).not.toBeNull();
+    expect(queenSquare.textContent).toBe('♛');
+  });
+
+  test('hard AI finishes mate in one and avoids counterplay', () => {
+    game.startGame('pvc', 3);
+    setupMateScenario();
+
+    const moved = game.makeHardAIMove();
+    expect(moved).toBe(true);
+    expect(game.isCheckmate('white')).toBe(true);
+
+    const queenSquare = document.querySelector('[data-row="8"][data-col="9"] .piece');
+    expect(queenSquare).not.toBeNull();
+    expect(queenSquare.textContent).toBe('♛');
+  });
+});
+
+describe('Move Highlighting', () => {
+  let game;
+
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div class="navbar"><a href="#"></a></div>
+      <div id="current-turn"></div>
+      <div id="mode-selection"></div>
+      <div id="game-board"><div id="board"></div></div>
+    `;
+    game = new ChessGame();
+    game.showGameStatusAnimation = jest.fn();
+  });
+
+  test('flags moves leaving the king in check as illegal', () => {
+    game.startGame('pvp');
+
+    const customBoard = Array.from({ length: 10 }, () => Array(10).fill(''));
+    customBoard[9][9] = '♔'; // White king
+    customBoard[8][9] = '♖'; // White rook shielding the king
+    customBoard[0][9] = '♜'; // Black rook along the same file
+
+    game.gameBoard = customBoard;
+    game.initializeBoard();
+    game.currentPlayer = 'white';
+
+    const rookSquare = document.querySelector('[data-row="8"][data-col="9"]');
+    game.selectPiece(rookSquare);
+
+    const illegalSquare = document.querySelector('[data-row="8"][data-col="8"]');
+    expect(illegalSquare.classList.contains('illegal-move')).toBe(true);
+
+    const captureSquare = document.querySelector('[data-row="0"][data-col="9"]');
+    expect(captureSquare.classList.contains('valid-move')).toBe(true);
+  });
+});
+
 describe('Special Piece Rules', () => {
   let game;
   

@@ -170,10 +170,11 @@ class ChessGame {
 
         // Ensure the board has the correct CSS grid properties
         this.board.style.display = 'grid';
-        this.board.style.gridTemplateColumns = 'repeat(10, 60px)';
-        this.board.style.gridTemplateRows = 'repeat(10, 60px)';
+        this.board.style.gridTemplateColumns = 'repeat(10, 1fr)';
+        this.board.style.gridTemplateRows = 'repeat(10, 1fr)';
         this.board.style.maxWidth = '600px';
-        this.board.style.boxSizing = 'content-box';
+        this.board.style.width = '100%';
+        this.board.style.boxSizing = 'border-box';
         this.board.style.border = '2px solid #333';
 
         // Create the squares and place the pieces
@@ -185,9 +186,8 @@ class ChessGame {
                 square.dataset.row = row;
                 square.dataset.col = col;
 
-                // Set the square dimensions explicitly
-                square.style.width = '60px';
-                square.style.height = '60px';
+                square.style.width = '100%';
+                square.style.height = '100%';
 
                 // Place the piece if there is one
                 const pieceSymbol = this.gameBoard[row][col];
@@ -204,6 +204,7 @@ class ChessGame {
                     } else {
                         // Regular pieces
                         piece.textContent = pieceSymbol;
+                        piece.dataset.symbol = pieceSymbol;
 
                         // Set piece color based on Unicode character
                         if ('♔♕♖♗♘♙'.includes(pieceSymbol.charAt(0))) {
@@ -225,11 +226,15 @@ class ChessGame {
                         } else if (pieceSymbol.includes('⇡')) {
                             piece.dataset.type = 'archer';
                             piece.dataset.color = 'white';
-                            piece.classList.add('white-piece');
+                            piece.dataset.base = pieceSymbol.charAt(0);
+                            piece.dataset.arrow = '↑';
+                            piece.classList.add('white-piece', 'archer-piece', 'archer-up');
                         } else if (pieceSymbol.includes('⇣')) {
                             piece.dataset.type = 'archer';
                             piece.dataset.color = 'black';
-                            piece.classList.add('black-piece');
+                            piece.dataset.base = pieceSymbol.charAt(0);
+                            piece.dataset.arrow = '↓';
+                            piece.classList.add('black-piece', 'archer-piece', 'archer-down');
                         }
                     }
 
@@ -565,15 +570,45 @@ class ChessGame {
         return true;
     }
 
-    showValidMoves(row, col) {
+    showValidMoves() {
+        if (!this.selectedPiece) {
+            return;
+        }
+
+        this.clearValidMoves();
+
+        const fromRow = parseInt(this.selectedPiece.dataset.row, 10);
+        const fromCol = parseInt(this.selectedPiece.dataset.col, 10);
+        const originalArcherCapture = this.isArcherCapture;
+
         for (let i = 0; i < 10; i++) {
             for (let j = 0; j < 10; j++) {
-                if (this.isValidMove(i, j)) {
-                    document.querySelector(`[data-row="${i}"][data-col="${j}"]`)
-                        .classList.add('valid-move');
+                if (i === fromRow && j === fromCol) {
+                    continue;
                 }
+
+                const square = document.querySelector(`[data-row="${i}"][data-col="${j}"]`);
+                if (!square) {
+                    continue;
+                }
+
+                const moveIsValid = this.isValidMove(i, j);
+                const isArcherCaptureMove = this.isArcherCapture;
+
+                if (moveIsValid) {
+                    const leavesInCheck = this.wouldMoveLeaveKingInCheck(fromRow, fromCol, i, j, isArcherCaptureMove);
+                    if (leavesInCheck) {
+                        square.classList.add('illegal-move');
+                    } else {
+                        square.classList.add('valid-move');
+                    }
+                }
+
+                this.isArcherCapture = false;
             }
         }
+
+        this.isArcherCapture = originalArcherCapture;
     }
 
     movePiece(toRow, toCol) {
@@ -632,6 +667,12 @@ class ChessGame {
                 // Promote to queen
                 const promotedPiece = toSquare.querySelector('.piece');
                 promotedPiece.textContent = piece.dataset.color === 'white' ? '♕' : '♛';
+                promotedPiece.classList.remove('archer-piece', 'archer-up', 'archer-down');
+                promotedPiece.removeAttribute('data-type');
+                promotedPiece.removeAttribute('data-base');
+                promotedPiece.removeAttribute('data-arrow');
+                promotedPiece.dataset.symbol = promotedPiece.textContent;
+                promotedPiece.dataset.type = 'queen';
 
                 // Show promotion animation
                 this.showGameStatusAnimation('promotion', 'PROMOTION!');
@@ -646,27 +687,56 @@ class ChessGame {
     }
 
     makeAIMove() {
+        const opponentColor = this.currentPlayer === 'white' ? 'black' : 'white';
+        let moveMade = false;
+
         if (this.aiLevel === 1) {
-            this.makeEasyAIMove();
+            moveMade = this.makeEasyAIMove();
         } else if (this.aiLevel === 2) {
-            this.makeMediumAIMove();
+            moveMade = this.makeMediumAIMove();
         } else if (this.aiLevel === 3) {
-            this.makeHardAIMove();
+            moveMade = this.makeHardAIMove();
         }
 
-        // Clear selection and valid moves
-        this.selectedPiece.classList.remove('selected');
+        if (!moveMade) {
+            console.warn('AI could not find a valid move.');
+            return;
+        }
+
+        if (this.selectedPiece) {
+            this.selectedPiece.classList.remove('selected');
+        }
         this.clearValidMoves();
         this.selectedPiece = null;
 
+        let isDraw = false;
+        if (this.isKingInCheck(opponentColor)) {
+            if (this.isCheckmate(opponentColor)) {
+                const winner = this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
+                this.showGameStatusAnimation('checkmate', 'CHECKMATE!');
+                setTimeout(() => {
+                    alert(`${winner} wins!`);
+                }, 2000);
+            } else {
+                this.showGameStatusAnimation('check', 'CHECK!');
+            }
+        } else if (this.isStalemate(opponentColor)) {
+            this.showGameStatusAnimation('stalemate', 'STALEMATE');
+            setTimeout(() => {
+                alert('Stalemate! The game is a draw.');
+            }, 1500);
+            isDraw = true;
+        }
 
-        // Switch turns
-        this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
+        this.currentPlayer = opponentColor;
         const turnDisplay = document.getElementById('current-turn');
         if (turnDisplay) {
             turnDisplay.textContent = this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
         }
 
+        if (isDraw) {
+            return;
+        }
     }
 
     selectPieceAt(fromRow, fromCol) {
@@ -699,35 +769,73 @@ class ChessGame {
     }
 
     makeEasyAIMove() {
-        // This is the existing AI logic - prioritize captures, otherwise random move
-        const blackPieces = this.findPieces('black');
-        const { captureMoves, normalMoves } = this.findAllMoves(blackPieces);
+        // Prioritize immediate checkmates, then captures, otherwise random move
+        const { captureMoves, normalMoves } = this.getAllMovesForColor('black');
+        const allMoves = [...captureMoves, ...normalMoves];
+
+        const checkmateMoves = allMoves.filter(move => this.doesMoveDeliverCheckmate(move, 'white'));
+        if (checkmateMoves.length > 0) {
+            const winningMove = this.pickRandomMove(checkmateMoves);
+            if (winningMove) {
+                this.executeMove(winningMove);
+                return true;
+            }
+        }
 
         // Choose a move, prioritizing captures
         let move;
         if (captureMoves.length > 0) {
-            move = captureMoves[Math.floor(Math.random() * captureMoves.length)];
+            move = this.pickRandomMove(captureMoves);
         } else if (normalMoves.length > 0) {
-            move = normalMoves[Math.floor(Math.random() * normalMoves.length)];
+            move = this.pickRandomMove(normalMoves);
         } else {
             console.log("No valid moves for black");
-            return;
+            return false;
         }
         console.log({ captureMoves, normalMoves })
         console.log({ move })
 
         this.executeMove(move);
+        return true;
     }
 
     makeMediumAIMove() {
-        const blackPieces = this.findPieces('black');
-        const { captureMoves, normalMoves } = this.findAllMoves(blackPieces);
+        const { captureMoves, normalMoves } = this.getAllMovesForColor('black');
+        const allMoves = [...captureMoves, ...normalMoves];
+
+        const checkmateMoves = allMoves.filter(move => this.doesMoveDeliverCheckmate(move, 'white'));
+        if (checkmateMoves.length > 0) {
+            const winningCapture = checkmateMoves.filter(move => this.isMoveInList(move, captureMoves));
+            const move = winningCapture.length > 0
+                ? this.chooseHighestValueCapture(winningCapture)
+                : this.pickRandomMove(checkmateMoves);
+            if (move) {
+                this.executeMove(move);
+                return true;
+            }
+        }
+
+        const checkingCaptureMoves = captureMoves.filter(move => this.doesMoveDeliverCheck(move, 'white'));
+        if (checkingCaptureMoves.length > 0) {
+            const move = this.chooseHighestValueCapture(checkingCaptureMoves);
+            this.executeMove(move);
+            return true;
+        }
+
+        const checkingNormalMoves = normalMoves.filter(move => this.doesMoveDeliverCheck(move, 'white'));
+        if (checkingNormalMoves.length > 0) {
+            const move = this.pickRandomMove(checkingNormalMoves);
+            if (move) {
+                this.executeMove(move);
+                return true;
+            }
+        }
 
         // First priority: capture moves
         if (captureMoves.length > 0) {
-            const move = captureMoves[Math.floor(Math.random() * captureMoves.length)];
+            const move = this.chooseHighestValueCapture(captureMoves);
             this.executeMove(move);
-            return;
+            return true;
         }
 
         // Second priority: avoid pieces that are in danger
@@ -756,108 +864,154 @@ class ChessGame {
 
             if (safeMoves.length > 0) {
                 // Choose a random safe move
-                const move = safeMoves[Math.floor(Math.random() * safeMoves.length)];
+                const move = this.pickRandomMove(safeMoves);
                 this.executeMove(move);
-                return;
+                return true;
             }
         }
 
         // Third priority: just make a random move
         if (normalMoves.length > 0) {
-            const move = normalMoves[Math.floor(Math.random() * normalMoves.length)];
+            const move = this.pickRandomMove(normalMoves);
             this.executeMove(move);
-        } else {
-            console.log("No valid moves for black");
+            return true;
         }
+
+        console.log("No valid moves for black");
+        return false;
     }
 
     makeHardAIMove() {
-        const blackPieces = this.findPieces('black');
-        const { captureMoves, normalMoves } = this.findAllMoves(blackPieces);
+        const { captureMoves, normalMoves } = this.getAllMovesForColor('black');
+        const allMoves = [...captureMoves, ...normalMoves];
 
-        // First priority: capture moves that don't put the piece in danger
-        if (captureMoves.length > 0) {
-            const safeCapturesMoves = captureMoves.filter(move =>
-                !this.wouldPieceBeInDanger(move.fromRow, move.fromCol, move.toRow, move.toCol)
-            );
+        if (allMoves.length === 0) {
+            console.log("No valid moves for black");
+            return false;
+        }
 
-            if (safeCapturesMoves.length > 0) {
-                const move = safeCapturesMoves[Math.floor(Math.random() * safeCapturesMoves.length)];
+        const checkmateMoves = allMoves.filter(move => this.doesMoveDeliverCheckmate(move, 'white'));
+        if (checkmateMoves.length > 0) {
+            const captureFinishes = checkmateMoves.filter(move => this.isMoveInList(move, captureMoves));
+            const move = captureFinishes.length > 0
+                ? this.chooseHighestValueCapture(captureFinishes)
+                : this.pickRandomMove(checkmateMoves);
+            if (move) {
                 this.executeMove(move);
-                return;
+                return true;
             }
         }
 
-        // Second priority: save pieces that are in danger
-        const piecesInDanger = this.findPiecesInDanger('black');
+        const movesThatPreventMate = allMoves.filter(move => !this.opponentHasMateAfterMove(move, 'black'));
+        const candidateMoves = movesThatPreventMate.length > 0 ? movesThatPreventMate : allMoves;
 
+        const safeCaptureMoves = captureMoves.filter(move =>
+            this.isMoveInList(move, candidateMoves) &&
+            !this.wouldPieceBeInDanger(move.fromRow, move.fromCol, move.toRow, move.toCol)
+        );
+
+        const checkingSafeCaptures = safeCaptureMoves.filter(move => this.doesMoveDeliverCheck(move, 'white'));
+        if (checkingSafeCaptures.length > 0) {
+            const move = this.chooseHighestValueCapture(checkingSafeCaptures);
+            this.executeMove(move);
+            return true;
+        }
+
+        if (safeCaptureMoves.length > 0) {
+            const move = this.chooseHighestValueCapture(safeCaptureMoves);
+            this.executeMove(move);
+            return true;
+        }
+
+        const piecesInDanger = this.findPiecesInDanger('black');
         if (piecesInDanger.length > 0) {
-            // Find safe moves for pieces in danger
-            const safeMoves = [];
+            const safeReliefMoves = [];
 
             for (const { row, col } of piecesInDanger) {
-                const piece = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-                this.selectedPiece = piece;
+                const pieceSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                this.selectedPiece = pieceSquare;
 
-                // Find all possible moves for this piece
                 for (let toRow = 0; toRow < 10; toRow++) {
                     for (let toCol = 0; toCol < 10; toCol++) {
                         if (this.isValidMove(toRow, toCol)) {
-                            // Check if this move would make the piece safe
-                            if (!this.wouldPieceBeInDanger(row, col, toRow, toCol)) {
-                                safeMoves.push({ fromRow: row, fromCol: col, toRow, toCol });
+                            const candidateMove = { fromRow: row, fromCol: col, toRow, toCol };
+                            if (
+                                this.isMoveInList(candidateMove, candidateMoves) &&
+                                !this.wouldPieceBeInDanger(row, col, toRow, toCol)
+                            ) {
+                                safeReliefMoves.push(candidateMove);
                             }
                         }
                     }
                 }
             }
 
-            if (safeMoves.length > 0) {
-                // Choose a random safe move
-                const move = safeMoves[Math.floor(Math.random() * safeMoves.length)];
-                this.executeMove(move);
-                return;
+            if (safeReliefMoves.length > 0) {
+                const checkingRelief = safeReliefMoves.filter(move => this.doesMoveDeliverCheck(move, 'white'));
+                const move = checkingRelief.length > 0
+                    ? this.pickRandomMove(checkingRelief)
+                    : this.pickRandomMove(safeReliefMoves);
+                if (move) {
+                    this.executeMove(move);
+                    return true;
+                }
             }
         }
 
-        // Third priority: make a move that doesn't put a piece in danger
-        const safeMoves = normalMoves.filter(move =>
+        const checkingSafeNormals = candidateMoves
+            .filter(move => !this.isMoveInList(move, captureMoves))
+            .filter(move => this.doesMoveDeliverCheck(move, 'white') &&
+                !this.wouldPieceBeInDanger(move.fromRow, move.fromCol, move.toRow, move.toCol));
+
+        if (checkingSafeNormals.length > 0) {
+            const move = this.pickRandomMove(checkingSafeNormals);
+            if (move) {
+                this.executeMove(move);
+                return true;
+            }
+        }
+
+        const quietSafeMoves = candidateMoves.filter(move =>
+            !this.isMoveInList(move, captureMoves) &&
             !this.wouldPieceBeInDanger(move.fromRow, move.fromCol, move.toRow, move.toCol)
         );
 
-        if (safeMoves.length > 0) {
-            const move = safeMoves[Math.floor(Math.random() * safeMoves.length)];
-            this.executeMove(move);
-            return;
+        if (quietSafeMoves.length > 0) {
+            const move = this.pickRandomMove(quietSafeMoves);
+            if (move) {
+                this.executeMove(move);
+                return true;
+            }
         }
 
-        // Fourth priority: if all moves would put pieces in danger, sacrifice the least valuable piece
-        if (normalMoves.length > 0 || captureMoves.length > 0) {
-            const allMoves = [...normalMoves, ...captureMoves];
+        // Fallback: choose the least costly move if everything is risky
+        const pieceValues = {
+            '♟': 1, '♙': 1,
+            '♟⇣': 2, '♙⇡': 2,
+            '♞': 3, '♘': 3,
+            '♝': 3, '♗': 3,
+            '♜': 5, '♖': 5,
+            '🐲': 7, '🐉': 7,
+            '♛': 9, '♕': 9,
+            '♚': 100, '♔': 100
+        };
 
-            // Assign piece values
-            const pieceValues = {
-                '♟': 1, '♙': 1,  // Pawns
-                '♟⇣': 2, '♙⇡': 2, // Archers
-                '♞': 3, '♘': 3,   // Knights
-                '♝': 3, '♗': 3,   // Bishops
-                '♜': 5, '♖': 5,   // Rooks
-                '🐲': 7, '🐉': 7,  // Wraths (Dragons)
-                '♛': 9, '♕': 9,   // Queens
-                '♚': 100, '♔': 100 // Kings (extremely high value to avoid sacrificing)
-            };
+        const allFallbackMoves = [...normalMoves, ...captureMoves];
+        allFallbackMoves.sort((a, b) => {
+            const pieceA = document.querySelector(`[data-row="${a.fromRow}"][data-col="${a.fromCol}"]`);
+            const pieceB = document.querySelector(`[data-row="${b.fromRow}"][data-col="${b.fromCol}"]`);
+            const valueA = pieceA ? (pieceValues[pieceA.textContent] || 10) : 10;
+            const valueB = pieceB ? (pieceValues[pieceB.textContent] || 10) : 10;
+            return valueA - valueB;
+        });
 
-            // Sort moves by piece value (ascending)
-            allMoves.sort((a, b) => {
-                const pieceA = document.querySelector(`[data-row="${a.fromRow}"][data-col="${a.fromCol}"]`);
-                const pieceB = document.querySelector(`[data-row="${b.fromRow}"][data-col="${b.fromCol}"]`);
-                return pieceValues[pieceA.textContent] - pieceValues[pieceB.textContent];
-            });
-
-            // Choose the first move in the sorted list
-            const move = allMoves[0];
-            this.executeMove(move);
+        if (allFallbackMoves.length > 0) {
+            this.executeMove(allFallbackMoves[0]);
+            return true;
         }
+
+        console.log("No valid moves for black");
+        return false;
     }
 
     executeMove(move) {
@@ -891,12 +1045,23 @@ class ChessGame {
             if (!square) continue;
 
             this.selectedPiece = square; // Set the selected piece
+            const pieceEl = square.querySelector('.piece');
+            const pieceColor = pieceEl ? pieceEl.dataset.color : null;
 
             for (let toRow = 0; toRow < 10; toRow++) {
                 for (let toCol = 0; toCol < 10; toCol++) {
-                    if (this.isValidMove(toRow, toCol)) {
+                    const moveIsValid = this.isValidMove(toRow, toCol);
+                    const wasArcherCapture = this.isArcherCapture;
+                    this.isArcherCapture = false;
+
+                    if (moveIsValid) {
+                        const targetSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
+                        const targetPiece = targetSquare ? targetSquare.querySelector('.piece') : null;
+                        const isCapture = wasArcherCapture || (targetPiece && pieceColor && targetPiece.dataset.color !== pieceColor);
+
                         const move = { fromRow: row, fromCol: col, toRow, toCol };
-                        if (this.isArcherCapture) {
+
+                        if (isCapture) {
                             captureMoves.push(move);
                         } else {
                             normalMoves.push(move);
@@ -909,6 +1074,187 @@ class ChessGame {
         // Clear the selected piece after processing
         this.selectedPiece = null;
         return { captureMoves, normalMoves };
+    }
+
+    getAllMovesForColor(color) {
+        const pieces = this.findPieces(color);
+        return this.findAllMoves(pieces);
+    }
+
+    pickRandomMove(moves) {
+        if (!moves || moves.length === 0) {
+            return null;
+        }
+        const index = Math.floor(Math.random() * moves.length);
+        return moves[index];
+    }
+
+    isMoveInList(move, moves) {
+        return moves.some(candidate =>
+            candidate.fromRow === move.fromRow &&
+            candidate.fromCol === move.fromCol &&
+            candidate.toRow === move.toRow &&
+            candidate.toCol === move.toCol
+        );
+    }
+
+    simulateMoveOnBoard(move, evaluator) {
+        const fromSquare = document.querySelector(`[data-row="${move.fromRow}"][data-col="${move.fromCol}"]`);
+        const toSquare = document.querySelector(`[data-row="${move.toRow}"][data-col="${move.toCol}"]`);
+
+        if (!fromSquare || !toSquare) {
+            return false;
+        }
+
+        const piece = fromSquare.querySelector('.piece');
+        if (!piece) {
+            return false;
+        }
+
+        const originalFromHTML = fromSquare.innerHTML;
+        const originalToHTML = toSquare.innerHTML;
+        const originalSelected = this.selectedPiece;
+        const originalIsArcherCapture = this.isArcherCapture;
+
+        let midSquare = null;
+        let originalMidHTML = null;
+        let result = false;
+
+        try {
+            const pieceClone = piece.cloneNode(true);
+            const pieceColor = piece.dataset.color || this.inferPieceColor(piece.textContent, piece.dataset.color);
+            const pieceType = piece.dataset.type || this.inferPieceType(piece.textContent, piece.dataset.type);
+            const rowDiff = move.toRow - move.fromRow;
+            const colDiff = move.toCol - move.fromCol;
+            const targetPiece = toSquare.querySelector('.piece');
+            const direction = pieceColor === 'white' ? -1 : 1;
+
+            const isArcherCapture =
+                pieceType === 'archer' &&
+                targetPiece &&
+                (
+                    (rowDiff === 0 && Math.abs(colDiff) === 1) ||
+                    (colDiff === 0 && rowDiff === direction) ||
+                    (Math.abs(colDiff) === 1 && rowDiff === direction)
+                );
+
+            if (isArcherCapture) {
+                toSquare.innerHTML = '';
+            } else {
+                if (pieceType === 'dragon') {
+                    const rowDiffAbs = Math.abs(rowDiff);
+                    const colDiffAbs = Math.abs(colDiff);
+                    if (rowDiffAbs === 2 || colDiffAbs === 2) {
+                        if (rowDiff === 0 || colDiff === 0 || rowDiffAbs === colDiffAbs) {
+                            const midRow = (move.fromRow + move.toRow) / 2;
+                            const midCol = (move.fromCol + move.toCol) / 2;
+                            midSquare = document.querySelector(`[data-row="${midRow}"][data-col="${midCol}"]`);
+                            if (midSquare) {
+                                originalMidHTML = midSquare.innerHTML;
+                                const midPiece = midSquare.querySelector('.piece');
+                                if (midPiece && midPiece.dataset.color !== pieceColor) {
+                                    midSquare.innerHTML = '';
+                                }
+                            }
+                        }
+                    }
+                }
+
+                fromSquare.innerHTML = '';
+                toSquare.innerHTML = '';
+                toSquare.appendChild(pieceClone);
+
+                const isPawn = pieceType === 'pawn';
+                const isArcher = pieceType === 'archer';
+
+                if ((isPawn || isArcher) &&
+                    ((pieceColor === 'white' && move.toRow === 0) ||
+                        (pieceColor === 'black' && move.toRow === 9))) {
+                    pieceClone.textContent = pieceColor === 'white' ? '♕' : '♛';
+                    pieceClone.classList.remove('archer-piece', 'archer-up', 'archer-down');
+                    pieceClone.removeAttribute('data-base');
+                    pieceClone.removeAttribute('data-arrow');
+                    pieceClone.dataset.type = 'queen';
+                    pieceClone.dataset.symbol = pieceClone.textContent;
+                    pieceClone.dataset.color = pieceColor;
+                }
+            }
+
+            result = evaluator();
+        } finally {
+            fromSquare.innerHTML = originalFromHTML;
+            toSquare.innerHTML = originalToHTML;
+            if (midSquare) {
+                midSquare.innerHTML = originalMidHTML;
+            }
+            this.selectedPiece = originalSelected;
+            this.isArcherCapture = originalIsArcherCapture;
+        }
+
+        return result;
+    }
+
+    doesMoveDeliverCheckmate(move, opponentColor) {
+        return this.simulateMoveOnBoard(move, () => this.isCheckmate(opponentColor));
+    }
+
+    doesMoveDeliverCheck(move, opponentColor) {
+        return this.simulateMoveOnBoard(move, () => this.isKingInCheck(opponentColor));
+    }
+
+    opponentHasMateAfterMove(move, playerColor) {
+        const opponentColor = playerColor === 'white' ? 'black' : 'white';
+        return this.simulateMoveOnBoard(move, () => {
+            const { captureMoves, normalMoves } = this.getAllMovesForColor(opponentColor);
+            const opponentMoves = [...captureMoves, ...normalMoves];
+            return opponentMoves.some(oppMove =>
+                this.simulateMoveOnBoard(oppMove, () => this.isCheckmate(playerColor))
+            );
+        });
+    }
+
+    getPieceValue(row, col) {
+        const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+        const piece = square ? square.querySelector('.piece') : null;
+        if (!piece) {
+            return 0;
+        }
+
+        const symbol = piece.textContent || '';
+        const type = piece.dataset.type || '';
+
+        if (type === 'dragon') return 7;
+
+        if (symbol.includes('♛') || symbol.includes('♕')) return 9;
+        if (symbol.includes('♜') || symbol.includes('♖')) return 5;
+        if (symbol.includes('♝') || symbol.includes('♗')) return 3;
+        if (symbol.includes('♞') || symbol.includes('♘')) return 3;
+        if (symbol.includes('♟⇣') || symbol.includes('♙⇡')) return 2;
+        if (symbol.includes('♟') || symbol.includes('♙')) return 1;
+        if (symbol.includes('♚') || symbol.includes('♔')) return 100;
+
+        return 0;
+    }
+
+    chooseHighestValueCapture(captureMoves) {
+        let bestValue = -Infinity;
+        let bestMoves = [];
+
+        captureMoves.forEach(move => {
+            const value = this.getPieceValue(move.toRow, move.toCol);
+            if (value > bestValue) {
+                bestValue = value;
+                bestMoves = [move];
+            } else if (value === bestValue) {
+                bestMoves.push(move);
+            }
+        });
+
+        if (bestMoves.length === 0) {
+            return captureMoves[Math.floor(Math.random() * captureMoves.length)];
+        }
+
+        return bestMoves[Math.floor(Math.random() * bestMoves.length)];
     }
 
     findPiecesInDanger(color) {
@@ -978,19 +1324,29 @@ class ChessGame {
         return this.isSquareAttackedBy(finalRow, finalCol, opponentColor, updatedState);
     }
 
-    wouldMoveLeaveKingInCheck(fromRow, fromCol, toRow, toCol) {
+    wouldMoveLeaveKingInCheck(fromRow, fromCol, toRow, toCol, isArcherCaptureMove = this.isArcherCapture) {
         const fromSquare = document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`);
         const toSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
+        if (!fromSquare || !toSquare) {
+            return false;
+        }
         const piece = fromSquare.querySelector('.piece');
+        if (!piece) {
+            return false;
+        }
         const color = piece.dataset.color;
 
         // Temporarily make the move
         const originalToContent = toSquare.innerHTML;
         const originalFromContent = fromSquare.innerHTML;
 
-        toSquare.innerHTML = '';
-        toSquare.appendChild(piece.cloneNode(true));
-        fromSquare.innerHTML = '';
+        if (isArcherCaptureMove && (piece.dataset.type === 'archer' || (piece.dataset.symbol || '').includes('⇡') || (piece.dataset.symbol || '').includes('⇣'))) {
+            toSquare.innerHTML = '';
+        } else {
+            toSquare.innerHTML = '';
+            toSquare.appendChild(piece.cloneNode(true));
+            fromSquare.innerHTML = '';
+        }
 
         // Check if the king is in check after the move
         const inCheck = this.isKingInCheck(color);
@@ -1252,47 +1608,49 @@ class ChessGame {
     }
 
     isCheckmate(color) {
-        // If the king is not in check, it's not checkmate
         if (!this.isKingInCheck(color)) {
             return false;
         }
+        return !this.hasLegalMove(color);
+    }
 
-        // Check if any move can get the king out of check
+    isStalemate(color) {
+        if (this.isKingInCheck(color)) {
+            return false;
+        }
+        return !this.hasLegalMove(color);
+    }
+
+    hasLegalMove(color) {
         for (let fromRow = 0; fromRow < 10; fromRow++) {
             for (let fromCol = 0; fromCol < 10; fromCol++) {
                 const fromSquare = document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`);
                 const piece = fromSquare?.querySelector('.piece');
 
                 if (piece && piece.dataset.color === color) {
-                    // Try all possible moves for this piece
                     for (let toRow = 0; toRow < 10; toRow++) {
                         for (let toCol = 0; toCol < 10; toCol++) {
-                            // Save current selected piece
                             const originalSelectedPiece = this.selectedPiece;
-
-                            // Temporarily select this piece
                             this.selectedPiece = fromSquare;
-
-                            // Check if the move is valid
-                            if (this.isValidMove(toRow, toCol)) {
-                                // Check if this move would get the king out of check
-                                if (!this.wouldMoveLeaveKingInCheck(fromRow, fromCol, toRow, toCol)) {
-                                    // Restore original selection
-                                    this.selectedPiece = originalSelectedPiece;
-                                    return false; // Found a legal move, not checkmate
+                            const moveValid = this.isValidMove(toRow, toCol);
+                            const potentialArcherCapture = this.isArcherCapture;
+                            this.isArcherCapture = false;
+                            if (moveValid) {
+                                const leavesInCheck = this.wouldMoveLeaveKingInCheck(fromRow, fromCol, toRow, toCol, potentialArcherCapture);
+                                this.selectedPiece = originalSelectedPiece;
+                                if (!leavesInCheck) {
+                                    return true;
                                 }
+                            } else {
+                                this.selectedPiece = originalSelectedPiece;
                             }
-
-                            // Restore original selection
-                            this.selectedPiece = originalSelectedPiece;
                         }
                     }
                 }
             }
         }
 
-        // No legal moves found, it's checkmate
-        return true;
+        return false;
     }
 
     showGameStatusAnimation(type, text) {
@@ -1378,12 +1736,12 @@ class ChessGame {
     }
 
     clearValidMoves() {
-        // Get all squares with the valid-move class
-        const validMoveSquares = document.querySelectorAll('.valid-move');
+        // Get all squares with highlighting classes
+        const highlightedSquares = document.querySelectorAll('.valid-move, .illegal-move');
 
-        // Remove the class from each square
-        validMoveSquares.forEach(square => {
-            square.classList.remove('valid-move');
+        // Remove the highlight classes from each square
+        highlightedSquares.forEach(square => {
+            square.classList.remove('valid-move', 'illegal-move');
         });
     }
 
@@ -1452,16 +1810,17 @@ class ChessGame {
         console.log(`Is move valid? ${valid}`);
 
         if (valid) {
+            const isArcherCaptureMove = this.isArcherCapture;
             // Check if the move would leave the king in check
-            const leavesKingInCheck = this.wouldMoveLeaveKingInCheck(selectedRow, selectedCol, row, col);
+            const leavesKingInCheck = this.wouldMoveLeaveKingInCheck(selectedRow, selectedCol, row, col, isArcherCaptureMove);
             console.log(`Would move leave king in check? ${leavesKingInCheck}`);
 
             if (leavesKingInCheck) {
-                alert("That move would leave your king in check!");
                 console.log("Move aborted - would leave king in check.");
                 console.log("--- End ChessGame.tryMove (check violation) ---");
                 return;
             }
+            this.isArcherCapture = isArcherCaptureMove;
 
             // Move the piece
             console.log("Calling movePiece...");
@@ -1486,6 +1845,7 @@ class ChessGame {
             const opponentColor = this.currentPlayer;
             const inCheck = this.isKingInCheck(opponentColor);
             console.log(`${opponentColor} king in check: ${inCheck}`);
+            let isDraw = false;
 
             if (inCheck) {
                 // Check if it's checkmate
@@ -1500,10 +1860,17 @@ class ChessGame {
                      console.log("Check detected.");
                     this.showGameStatusAnimation('check', 'CHECK!');
                 }
+            } else if (this.isStalemate(opponentColor)) {
+                 console.log("Stalemate detected.");
+                this.showGameStatusAnimation('stalemate', 'STALEMATE');
+                setTimeout(() => {
+                    alert('Stalemate! The game is a draw.');
+                }, 1500);
+                isDraw = true;
             }
 
             // If playing against AI, make the AI move
-            if (this.aiLevel > 0 && this.currentPlayer === 'black') {
+            if (!isDraw && this.aiLevel > 0 && this.currentPlayer === 'black') {
                  console.log("Handing over to AI...");
                 setTimeout(() => {
                     this.makeAIMove();

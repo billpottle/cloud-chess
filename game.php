@@ -66,17 +66,27 @@ ob_end_flush();
 </head>
 <body>
     <div class="navbar">
-        <a href="index.html">Home</a>
-        <a href="#" id="rules-link">Rules</a>
-        <a href="profile.html" id="profile-link">Profile</a>
-        <span id="auth-section" style="display: none;">
-            <a href="api/login.php" id="login-link">Login</a>
-            <a href="api/register.php" id="register-link">Register</a>
-        </span>
-        <span id="user-section" style="display: none;">
-            <span id="user-welcome"></span>
-            <a href="#" id="logout-link" onclick="logout(); return false;">Logout</a>
-        </span>
+        <div class="nav-brand">
+            <a href="index.html">Cloud Chess</a>
+        </div>
+        <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-links" aria-label="Toggle navigation">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        <div class="nav-links" id="nav-links">
+            <a href="index.html">Home</a>
+            <a href="#" id="rules-link">Rules</a>
+            <a href="profile.html" id="profile-link">Profile</a>
+            <span id="auth-section" style="display: none;">
+                <a href="api/login.php" id="login-link">Login</a>
+                <a href="api/register.php" id="register-link">Register</a>
+            </span>
+            <span id="user-section" style="display: none;">
+                <span id="user-welcome"></span>
+                <a href="#" id="logout-link" onclick="logout(); return false;">Logout</a>
+            </span>
+        </div>
     </div>
     
     <div class="container">
@@ -251,13 +261,13 @@ ob_end_flush();
         function updateAuthUI() {
             if (isLoggedIn()) {
                 document.getElementById('auth-section').style.display = 'none';
-                document.getElementById('user-section').style.display = 'inline';
+                document.getElementById('user-section').style.display = 'flex';
                 
                 // Update welcome message
                 const username = localStorage.getItem('chessUsername');
                 document.getElementById('user-welcome').textContent = 'Welcome, ' + username;
             } else {
-                document.getElementById('auth-section').style.display = 'inline';
+                document.getElementById('auth-section').style.display = 'flex';
                 document.getElementById('user-section').style.display = 'none';
             }
         }

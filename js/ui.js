@@ -53,4 +53,33 @@ function showNotification(title, message, duration = 5000) {
     notification.appendChild(closeBtn);
     
     return notification;
-} 
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const navToggle = document.getElementById('nav-toggle');
+    const navLinks = document.getElementById('nav-links');
+
+    if (navToggle && navLinks) {
+        const closeMenu = () => {
+            navLinks.classList.remove('open');
+            navToggle.setAttribute('aria-expanded', 'false');
+        };
+
+        navToggle.addEventListener('click', () => {
+            const expanded = navToggle.getAttribute('aria-expanded') === 'true';
+            const nextState = !expanded;
+            navToggle.setAttribute('aria-expanded', String(nextState));
+            navLinks.classList.toggle('open', nextState);
+        });
+
+        navLinks.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', closeMenu);
+        });
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 720) {
+                closeMenu();
+            }
+        });
+    }
+});

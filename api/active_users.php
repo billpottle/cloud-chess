@@ -8,6 +8,11 @@ ini_set('error_log', 'php_errors.log');
 // Make sure no output is sent before including files that modify headers
 ob_start();
 
+// Start the session so we can read the logged-in user
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 // Include database connection
 require_once 'db_connect.php';
 
@@ -27,6 +32,9 @@ function get_active_users($conn, $current_user_id = null) {
     
     // Get users who were active in the last hour (including current user)
     $exclude_condition = "";
+    if ($current_user_id !== null) {
+        $exclude_condition = "AND id != " . (int)$current_user_id;
+    }
     $query = "SELECT id, username, elo FROM users WHERE last_activity > $one_hour_ago $exclude_condition ORDER BY username";
     $result = execute_query($conn, $query);
     
@@ -45,21 +53,11 @@ function get_active_users($conn, $current_user_id = null) {
 // Function to load active users
 function loadActiveUsers($conn) {
     // Query to get active users (users who have been active in the last 15 minutes)
-    $query = "SELECT id as user_id, username, last_active FROM users 
-              WHERE last_active > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+    $threshold = time() - 900;
+    $query = "SELECT id AS user_id, username, last_activity FROM users 
+              WHERE last_activity > $threshold
               ORDER BY username";
-    
-    $result = mysqli_query($conn, $query);
-    
-    $activeUsers = array();
-    if ($result) {
-        while ($row = mysqli_fetch_assoc($result)) {
-            $activeUsers[] = $row;
-        }
-        mysqli_free_result($result);
-    }
-    
-    return $activeUsers;
+    return execute_query($conn, $query)->fetch_all(MYSQLI_ASSOC);
 }
 
 try {
@@ -94,6 +92,7 @@ try {
     } else {
         // GET request - return active users
     
+        $current_user_id = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
         $active_users = get_active_users($conn, $current_user_id);
        
         

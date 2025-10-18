@@ -290,9 +290,20 @@ try {
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 throw new Exception('Invalid request method');
             }
-            
+
+            $json_data = file_get_contents('php://input');
+            $data = json_decode($json_data, true);
+
+            if (!$data) {
+                throw new Exception('Invalid JSON data');
+            }
+
             $challenge_id = isset($data['challenge_id']) ? (int)$data['challenge_id'] : 0;
-            
+
+            if ($challenge_id <= 0) {
+                throw new Exception('Valid challenge ID is required');
+            }
+
             $result = cancel_challenge($conn, $challenge_id, $username);
             break;
             
