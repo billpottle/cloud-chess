@@ -167,6 +167,7 @@ ob_end_flush();
         <div id="game-board">
             <div class="game-layout">
                 <aside class="graveyard graveyard-white">
+                    <div class="last-move-inline" id="last-move-inline-white" title="Hover to highlight the last move"></div>
                     <h3>White Captures</h3>
                     <div class="graveyard-pieces" id="white-graveyard"></div>
                 </aside>
@@ -178,6 +179,7 @@ ob_end_flush();
                     <div id="board"></div>
                 </div>
                 <aside class="graveyard graveyard-black">
+                    <div class="last-move-inline" id="last-move-inline-black" title="Hover to highlight the last move"></div>
                     <h3>Black Captures</h3>
                     <div class="graveyard-pieces" id="black-graveyard"></div>
                 </aside>

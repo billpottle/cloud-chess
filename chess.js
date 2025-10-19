@@ -129,6 +129,11 @@ class ChessGame {
             king: 0
         };
 
+        // Game end flags
+        this.gameOver = false;
+        this.kingCaptured = null; // 'white' or 'black' when a king is removed
+        this.lastMoves = { white: null, black: null }; // per-color last move
+
         // Bind the handleSquareClick method
         this.handleSquareClick = this.handleSquareClick.bind(this);
 
@@ -190,6 +195,10 @@ class ChessGame {
         this.board.style.width = '100%';
         this.board.style.boxSizing = 'border-box';
         this.board.style.border = '2px solid #333';
+
+        // Remove any lingering last-move overlays
+        const oldArrow = document.getElementById('last-move-arrow');
+        if (oldArrow && oldArrow.parentNode) oldArrow.parentNode.removeChild(oldArrow);
 
         // Create the squares and place the pieces
         for (let row = 0; row < 10; row++) {
@@ -268,9 +277,11 @@ class ChessGame {
                 window.fixPieceStyling();
             }, 100);
         }
+        this.updateLastMoveUI();
     }
 
     handleSquareClick(event) {
+        if (this.gameOver) return; // do nothing if game finished
         console.log("--- ChessGame.handleSquareClick ---"); // Base log
 
         // Make sure we're targeting the square, not the piece
@@ -526,8 +537,12 @@ class ChessGame {
             const rowDiff = toRow - fromRow;
             const colDiff = Math.abs(toCol - fromCol);
 
-            // Archer special: capture without moving, diagonally forward only
-            if (targetPiece && colDiff === 1 && rowDiff === direction) {
+            // Archer special: capture without moving
+            // Can capture diagonally forward OR straight forward by one square
+            if (targetPiece && (
+                (colDiff === 1 && rowDiff === direction) ||
+                (colDiff === 0 && rowDiff === direction)
+            )) {
                 this.isArcherCapture = true;
                 return true;
             }
@@ -638,15 +653,30 @@ class ChessGame {
             // For archer capture without moving, just remove the target piece
             console.log("Archer capturing without moving");
             if (targetPiece && targetPiece.dataset.color !== movingColor) {
+                if (targetPiece.dataset.type === 'king') {
+                    this.kingCaptured = targetPiece.dataset.color;
+                }
                 this.recordCapture(movingColor, targetPiece);
             }
             toSquare.innerHTML = '';
+            this.recordLastMove({
+                color: movingColor,
+                type: piece.dataset.type || this.inferPieceType(piece.textContent, piece.dataset.type),
+                fromRow: fromRowInt,
+                fromCol: fromColInt,
+                toRow: toRow,
+                toCol: toCol,
+                archerShot: true
+            });
         } else {
             // Handle wrath ability (capturing through a piece)
             const rowDiff = Math.abs(fromSquare.dataset.row - toRow);
             const colDiff = Math.abs(fromSquare.dataset.col - toCol);
 
             if (targetPiece && targetPiece.dataset.color !== movingColor) {
+                if (targetPiece.dataset.type === 'king') {
+                    this.kingCaptured = targetPiece.dataset.color;
+                }
                 this.recordCapture(movingColor, targetPiece);
             }
 
@@ -664,6 +694,9 @@ class ChessGame {
                         // If the middle square has an opponent, remove it and score the capture
                         if (midPiece && midPiece.dataset.color !== piece.dataset.color) {
                             console.log("Wrath activated: Capturing middle piece");
+                            if (midPiece.dataset.type === 'king') {
+                                this.kingCaptured = midPiece.dataset.color;
+                            }
                             this.recordCapture(movingColor, midPiece);
                             midSquare.innerHTML = ''; // Remove the captured piece
                             midCaptureOccurred = true;
@@ -678,6 +711,15 @@ class ChessGame {
             toSquare.innerHTML = '';
             toSquare.appendChild(pieceClone);
             fromSquare.innerHTML = '';
+            this.recordLastMove({
+                color: movingColor,
+                type: piece.dataset.type || this.inferPieceType(piece.textContent, piece.dataset.type),
+                fromRow: fromRowInt,
+                fromCol: fromColInt,
+                toRow: toRow,
+                toCol: toCol,
+                archerShot: false
+            });
 
             // Check for pawn/archer promotion
             if ((isPawn || isArcher) &&
@@ -698,6 +740,17 @@ class ChessGame {
             }
         }
 
+        // If king was captured, mark game over and finish locally (single-player).
+        if (this.kingCaptured) {
+            this.gameOver = true;
+            const defeated = this.kingCaptured;
+            const winner = defeated === 'white' ? 'black' : 'white';
+            this.showGameStatusAnimation('checkmate', 'CHECKMATE!');
+            try {
+                setTimeout(() => { alert(`${winner.charAt(0).toUpperCase() + winner.slice(1)} wins by king capture!`); }, 1200);
+            } catch (e) {}
+        }
+
         // Notify hooks/listeners about the completed move (before turn switches)
         if (typeof this.onAfterMove === 'function') {
             const didCapture = !!targetPiece || midCaptureOccurred;
@@ -708,7 +761,133 @@ class ChessGame {
             }
         }
 
+        // Update last-move display
+        this.updateLastMoveUI();
+
         this.isArcherCapture = false;
+    }
+
+    squareName(row, col) {
+        const files = 'ABCDEFGHIJ';
+        const file = files[col] || '?';
+        const rank = 10 - row;
+        return `${file}${rank}`;
+    }
+
+    updateLastMoveUI() {
+        const elWhite = document.getElementById('last-move-inline-white');
+        const elBlack = document.getElementById('last-move-inline-black');
+        const legacy = document.getElementById('last-move-bar');
+
+        const render = (el, move) => {
+            if (!el) return;
+            if (!move) {
+                el.textContent = '—';
+                this.attachLastMoveHover(el, null);
+                return;
+            }
+            const { type, fromRow, fromCol, toRow, toCol, archerShot } = move;
+            const typeName = (type || '').charAt(0).toUpperCase() + (type || '').slice(1);
+            const arrow = '→';
+            const verb = archerShot ? 'shot' : '';
+            const text = `${typeName} ${verb} ${this.squareName(fromRow, fromCol)} ${arrow} ${this.squareName(toRow, toCol)}`.replace(/\s+/g,' ').trim();
+            el.textContent = text;
+            this.attachLastMoveHover(el, move);
+        };
+
+        render(elWhite, this.lastMoves.white);
+        render(elBlack, this.lastMoves.black);
+        // legacy fallback shows the most recent move if present
+        if (legacy) {
+            const last = this.lastMoves.white && this.lastMoves.black
+                ? (this.lastMoves.white.time && this.lastMoves.black.time
+                    ? (this.lastMoves.white.time > this.lastMoves.black.time ? this.lastMoves.white : this.lastMoves.black)
+                    : this.lastMoves.white || this.lastMoves.black)
+                : (this.lastMoves.white || this.lastMoves.black);
+            render(legacy, last);
+        }
+    }
+
+    recordLastMove(move) {
+        const timed = { ...move, time: Date.now() };
+        if (timed.color === 'white') this.lastMoves.white = timed; else this.lastMoves.black = timed;
+    }
+
+    attachLastMoveHover(el, move) {
+        const parent = el.parentNode;
+        if (!parent) return;
+        const clone = el.cloneNode(true);
+        parent.replaceChild(clone, el);
+        if (!move) return;
+        const show = () => this.showLastMoveOverlay(move);
+        const hide = () => this.hideLastMoveOverlay();
+        clone.addEventListener('mouseenter', show);
+        clone.addEventListener('mouseleave', hide);
+    }
+
+    showLastMoveOverlay(move) {
+        const board = document.getElementById('board');
+        if (!board) return;
+        const fromSq = document.querySelector(`[data-row="${move.fromRow}"][data-col="${move.fromCol}"]`);
+        const toSq = document.querySelector(`[data-row="${move.toRow}"][data-col="${move.toCol}"]`);
+        if (fromSq) fromSq.classList.add('last-move-origin');
+        if (toSq) toSq.classList.add('last-move-dest');
+
+        const prev = document.getElementById('last-move-arrow');
+        if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('id', 'last-move-arrow');
+        svg.classList.add('last-move-arrow-overlay');
+        svg.setAttribute('width', board.clientWidth);
+        svg.setAttribute('height', board.clientHeight);
+        svg.setAttribute('viewBox', `0 0 ${board.clientWidth} ${board.clientHeight}`);
+        svg.style.position = 'absolute';
+        svg.style.left = '0';
+        svg.style.top = '0';
+
+        const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+        marker.setAttribute('id', 'arrowhead');
+        marker.setAttribute('markerWidth', '8');
+        marker.setAttribute('markerHeight', '8');
+        marker.setAttribute('refX', '0');
+        marker.setAttribute('refY', '3');
+        marker.setAttribute('orient', 'auto');
+        const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        arrowPath.setAttribute('d', 'M0,0 L0,6 L6,3 z');
+        arrowPath.setAttribute('fill', '#3c82ff');
+        marker.appendChild(arrowPath);
+        defs.appendChild(marker);
+        svg.appendChild(defs);
+
+        if (fromSq && toSq) {
+            const fromRect = fromSq.getBoundingClientRect();
+            const toRect = toSq.getBoundingClientRect();
+            const bRect = board.getBoundingClientRect();
+            const x1 = fromRect.left - bRect.left + fromRect.width / 2;
+            const y1 = fromRect.top - bRect.top + fromRect.height / 2;
+            const x2 = toRect.left - bRect.left + toRect.width / 2;
+            const y2 = toRect.top - bRect.top + toRect.height / 2;
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', x1);
+            line.setAttribute('y1', y1);
+            line.setAttribute('x2', x2);
+            line.setAttribute('y2', y2);
+            line.setAttribute('stroke', '#3c82ff');
+            line.setAttribute('stroke-width', '4');
+            line.setAttribute('marker-end', 'url(#arrowhead)');
+            line.setAttribute('opacity', '0.9');
+            svg.appendChild(line);
+        }
+        board.appendChild(svg);
+    }
+
+    hideLastMoveOverlay() {
+        document.querySelectorAll('.last-move-origin').forEach(el => el.classList.remove('last-move-origin'));
+        document.querySelectorAll('.last-move-dest').forEach(el => el.classList.remove('last-move-dest'));
+        const prev = document.getElementById('last-move-arrow');
+        if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
     }
 
     handleTurn() {
@@ -1046,10 +1225,12 @@ class ChessGame {
     }
 
     executeMove(move) {
-        const { fromRow, fromCol, toRow, toCol } = move;
+        const { fromRow, fromCol, toRow, toCol, archerShot } = move;
         if (!this.selectedPiece) {
             this.selectPieceAt(fromRow, fromCol);
         }
+        // Ensure archerShot behavior is honored for engine-controlled moves
+        this.isArcherCapture = !!archerShot;
         this.movePiece(toRow, toCol);
     }
 
@@ -1090,7 +1271,7 @@ class ChessGame {
                         const targetPiece = targetSquare ? targetSquare.querySelector('.piece') : null;
                         const isCapture = wasArcherCapture || (targetPiece && pieceColor && targetPiece.dataset.color !== pieceColor);
 
-                        const move = { fromRow: row, fromCol: col, toRow, toCol };
+                        const move = { fromRow: row, fromCol: col, toRow, toCol, archerShot: wasArcherCapture };
 
                         // Filter out moves that would leave own king in check
                         const leavesInCheck = this.wouldMoveLeaveKingInCheck(row, col, toRow, toCol, wasArcherCapture);
@@ -1563,7 +1744,15 @@ class ChessGame {
             }
         }
 
-        // Archer special captures are only diagonal forward without moving (handled by pawnRow +/- 1 above)
+        // Archer forward capture (captures without moving)
+        if (inBounds(pawnRow, col)) {
+            const piece = boardState[pawnRow][col];
+            if (piece && piece.color === attackerColor && piece.type === 'archer') {
+                return true;
+            }
+        }
+
+        // Archer diagonal forward captures (already covered by pawn logic above when piece.type==='archer')
 
         // King adjacency
         for (let dr = -1; dr <= 1; dr++) {
@@ -1863,6 +2052,7 @@ class ChessGame {
      * Try to move the currently selected piece to the target position
      */
     tryMove(row, col) {
+        if (this.gameOver) return;
         console.log(`--- ChessGame.tryMove to ${row}, ${col} ---`); // Log entry
         if (!this.selectedPiece) {
              console.error("tryMove called but no piece selected!");

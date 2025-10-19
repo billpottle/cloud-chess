@@ -143,6 +143,17 @@ function initializeMultiplayerGame(gameId, color, currentTurn, boardState, isSpe
         const boardState = convertBoardToPieces(this);
         const nextTurn = this.currentPlayer === 'white' ? 'black' : 'white';
 
+        // If a king was captured, declare checkmate immediately
+        if (this.kingCaptured) {
+            console.log(`King captured: ${this.kingCaptured}. Declaring checkmate.`);
+            currentSpecialStatus = 'checkmate';
+            updateGameState(boardState, nextTurn);
+            this.showGameStatusAnimation('checkmate', 'CHECKMATE!');
+            setTimeout(() => finalizeGame('checkmate'), 1500);
+            this.kingCaptured = null;
+            return;
+        }
+
         if (this.isCheckmate(nextTurn)) {
             console.log(`Checkmate! ${this.currentPlayer} wins!`);
             currentSpecialStatus = 'checkmate';

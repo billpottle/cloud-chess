@@ -195,6 +195,49 @@
     color: #2d4574;
 }
 
+.last-move-bar {
+    width: 100%;
+    max-width: var(--board-size, 520px);
+    margin-top: -4px;
+    margin-bottom: 6px;
+    border-radius: 12px;
+    background: rgba(79, 124, 189, 0.08);
+    padding: 8px 12px;
+    font-weight: 600;
+    color: #2d4574;
+    box-shadow: 0 6px 16px rgba(64, 100, 170, 0.12);
+}
+
+.last-move-inline {
+    width: 100%;
+    text-align: center;
+    color: #2d4574;
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 8px;
+    min-height: 1.2em;
+}
+
+.last-move-origin::after,
+.last-move-dest::after {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: rgba(60, 130, 255, 0.9);
+    box-shadow: 0 0 8px rgba(60, 130, 255, 0.7);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.last-move-arrow-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
 .score-item {
     flex: 1;
     display: flex;
@@ -259,6 +302,14 @@
     width: 48px;
     height: 48px;
     background-size: 78%;
+}
+
+.captured-piece.white-piece.dragon-piece {
+    filter: drop-shadow(0 0 2px rgba(0,0,0,0.7)) drop-shadow(0 0 4px rgba(0,0,0,0.45));
+}
+
+.captured-piece.black-piece.dragon-piece {
+    filter: drop-shadow(0 0 2px rgba(255,255,255,0.8)) drop-shadow(0 0 4px rgba(255,255,255,0.55));
 }
 
 .captured-piece.archer-piece {
@@ -697,10 +748,12 @@
 /* Use the image files for each color */
 .black-piece.dragon-piece {
     background-image: url('images/dragon_icon_black.png');
+    filter: drop-shadow(0 0 2px rgba(255,255,255,0.8)) drop-shadow(0 0 4px rgba(255,255,255,0.55));
 }
 
 .white-piece.dragon-piece {
     background-image: url('images/dragon_icon_white.png');
+    filter: drop-shadow(0 0 2px rgba(0,0,0,0.7)) drop-shadow(0 0 4px rgba(0,0,0,0.45));
 }
 
 .dragon-piece {
