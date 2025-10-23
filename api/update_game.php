@@ -160,6 +160,8 @@ try {
     
     // Get the special status from the form data
     $special_status = isset($_POST['special_status']) ? $_POST['special_status'] : null;
+    $last_move_white = isset($_POST['last_move_white']) ? trim($_POST['last_move_white']) : null;
+    $last_move_black = isset($_POST['last_move_black']) ? trim($_POST['last_move_black']) : null;
     
     // Update the game state
     $current_timestamp = time();
@@ -167,14 +169,37 @@ try {
     // Properly escape the board state for SQL
     $escaped_board_state = $conn->real_escape_string($board_state);
     
-    $update_query = "UPDATE games SET 
-    board_state = '$escaped_board_state', 
-    turn = '$next_turn', 
-    last_move_timestamp = $current_timestamp,
-    special_status = '$special_status'
-    WHERE id = $game_id";
+    $update_fields = [
+        "board_state = '$escaped_board_state'",
+        "turn = '$next_turn'",
+        "last_move_timestamp = $current_timestamp"
+    ];
 
-execute_query($conn, $update_query);
+    if ($special_status !== null && $special_status !== '') {
+        $update_fields[] = "special_status = '" . $conn->real_escape_string($special_status) . "'";
+    } else {
+        $update_fields[] = "special_status = NULL";
+    }
+
+    if ($last_move_white !== null) {
+        if ($last_move_white === '') {
+            $update_fields[] = "last_move_white = NULL";
+        } else {
+            $update_fields[] = "last_move_white = '" . $conn->real_escape_string($last_move_white) . "'";
+        }
+    }
+
+    if ($last_move_black !== null) {
+        if ($last_move_black === '') {
+            $update_fields[] = "last_move_black = NULL";
+        } else {
+            $update_fields[] = "last_move_black = '" . $conn->real_escape_string($last_move_black) . "'";
+        }
+    }
+
+    $update_query = "UPDATE games SET " . implode(", ", $update_fields) . " WHERE id = $game_id";
+
+    execute_query($conn, $update_query);
     
     // Clear the output buffer before sending JSON
     ob_end_clean();

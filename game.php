@@ -89,7 +89,7 @@ ob_end_flush();
         </div>
     </div>
     
-    <div class="container">
+    <div class="container game-view">
         <div class="game-header">
             <h1 class="game-title">Game #<?php echo $game_id; ?></h1>
             <button class="game-btn danger" id="resign-btn">Resign Game</button>
@@ -210,6 +210,8 @@ ob_end_flush();
             const currentTurn = '<?php echo $game['turn']; ?>';
             const isComplete = <?php echo $game['is_complete'] ? 'true' : 'false'; ?>;
             const boardState = <?php echo json_encode($game['board_state']); ?>;
+            const lastMoveWhite = <?php echo json_encode($game['last_move_white']); ?>;
+            const lastMoveBlack = <?php echo json_encode($game['last_move_black']); ?>;
             
             // Parse the board state if it's a string
             let parsedBoardState;
@@ -263,6 +265,7 @@ ob_end_flush();
             
             // Initialize the multiplayer game
             initializeMultiplayerGame(gameId, playerColor, currentTurn, parsedBoardState, isSpectator);
+            updateLastMoveFromServer(lastMoveWhite, lastMoveBlack);
             
             // Only set up game updates for active games
             if (!isComplete) {

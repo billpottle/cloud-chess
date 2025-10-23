@@ -33,6 +33,8 @@ CREATE TABLE games (
     start_timestamp INT NOT NULL,  -- Game start time (Unix timestamp)
     end_timestamp INT DEFAULT NULL,  -- Game end time (NULL if ongoing)
     last_move_timestamp INT DEFAULT NULL,  -- Last move time (Unix timestamp)
+    last_move_white VARCHAR(30) DEFAULT NULL,
+    last_move_black VARCHAR(30) DEFAULT NULL,
     special_status VARCHAR(50) DEFAULT NULL, -- check, promotion, etc. 
     winner VARCHAR(50) DEFAULT NULL, -- username of the winner
     

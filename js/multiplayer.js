@@ -5,6 +5,28 @@ let playerColor = null;
 let isSpectatorMode = false;
 let currentSpecialStatus = null;
 
+function updateLastMoveFromServer(whiteSummary, blackSummary) {
+    const whiteEl = document.getElementById('last-move-inline-white');
+    if (whiteEl && whiteSummary !== undefined) {
+        whiteEl.textContent = whiteSummary && whiteSummary.length ? whiteSummary : '—';
+    }
+    const blackEl = document.getElementById('last-move-inline-black');
+    if (blackEl && blackSummary !== undefined) {
+        blackEl.textContent = blackSummary && blackSummary.length ? blackSummary : '—';
+    }
+    const legacy = document.getElementById('last-move-bar');
+    if (legacy) {
+        let text = null;
+        if (whiteSummary && blackSummary) {
+            text = whiteSummary; // default to white; overwritten below if black more recent when known elsewhere
+        }
+        if (blackSummary) {
+            text = blackSummary;
+        }
+        legacy.textContent = text && text.length ? text : '—';
+    }
+}
+
 function convertPiecesToBoard(pieces) {
     // Create empty 10x10 board
     const board = Array(10).fill().map(() => Array(10).fill(''));
@@ -223,6 +245,8 @@ function checkForGameUpdates() {
             console.log('Received game update:', data.game);
             
             // Check if the turn has changed
+            updateLastMoveFromServer(data.game.last_move_white, data.game.last_move_black);
+
             if (data.game.turn !== multiplayerGame.currentPlayer) {
                 console.log('Turn has changed, updating board');
                 
@@ -502,6 +526,17 @@ function updateGameState(boardState, nextTurn) {
     formData.append('board_state', JSON.stringify(boardState));
     formData.append('next_turn', nextTurn);
     formData.append('special_status', currentSpecialStatus || ''); // Include the special status
+
+    if (multiplayerGame && multiplayerGame.lastMoves) {
+        const whiteSummary = multiplayerGame.lastMoves.white?.summary;
+        const blackSummary = multiplayerGame.lastMoves.black?.summary;
+        if (whiteSummary) {
+            formData.append('last_move_white', whiteSummary);
+        }
+        if (blackSummary) {
+            formData.append('last_move_black', blackSummary);
+        }
+    }
 
     // Send the update to the server
     fetch('api/update_game.php', {

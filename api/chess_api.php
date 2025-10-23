@@ -14,6 +14,8 @@ function initialize_database($conn) {
         black_player VARCHAR(50),
         game_state TEXT,
         last_move TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_move_white VARCHAR(30) DEFAULT NULL,
+        last_move_black VARCHAR(30) DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         status ENUM('waiting', 'active', 'completed') DEFAULT 'waiting'
     )";

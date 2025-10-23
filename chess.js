@@ -786,12 +786,8 @@ class ChessGame {
                 this.attachLastMoveHover(el, null);
                 return;
             }
-            const { type, fromRow, fromCol, toRow, toCol, archerShot } = move;
-            const typeName = (type || '').charAt(0).toUpperCase() + (type || '').slice(1);
-            const arrow = '→';
-            const verb = archerShot ? 'shot' : '';
-            const text = `${typeName} ${verb} ${this.squareName(fromRow, fromCol)} ${arrow} ${this.squareName(toRow, toCol)}`.replace(/\s+/g,' ').trim();
-            el.textContent = text;
+            const text = move.summary || this.formatMoveSummary(move);
+            el.textContent = text || '—';
             this.attachLastMoveHover(el, move);
         };
 
@@ -810,7 +806,29 @@ class ChessGame {
 
     recordLastMove(move) {
         const timed = { ...move, time: Date.now() };
+        timed.summary = this.formatMoveSummary(timed);
         if (timed.color === 'white') this.lastMoves.white = timed; else this.lastMoves.black = timed;
+    }
+
+    formatMoveSummary(move) {
+        if (!move) return '';
+        const typeMap = {
+            king: 'King',
+            queen: 'Queen',
+            rook: 'Rook',
+            bishop: 'Bishop',
+            knight: 'Knight',
+            pawn: 'Pawn',
+            archer: 'Archer',
+            dragon: 'Dragon'
+        };
+        const typeName = typeMap[move.type] || (move.type ? move.type.charAt(0).toUpperCase() + move.type.slice(1) : 'Piece');
+        const from = this.squareName(move.fromRow, move.fromCol);
+        const to = this.squareName(move.toRow, move.toCol);
+        if (move.archerShot) {
+            return `${typeName} shot ${from} → ${to}`;
+        }
+        return `${typeName} ${from} → ${to}`;
     }
 
     attachLastMoveHover(el, move) {
