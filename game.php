@@ -56,7 +56,7 @@ ob_end_flush();
     <link rel="stylesheet" href="css/modals.css">
     <link rel="stylesheet" href="css/tables.css">
     <link rel="stylesheet" href="css/challenges.css">
-    <link rel="stylesheet" href="styles.css?v=20260517g">
+    <link rel="stylesheet" href="styles.css?v=20260517h">
 
     <!-- Favicon -->
     <link rel="icon" href="images/favicon.ico" sizes="any">
@@ -65,7 +65,7 @@ ob_end_flush();
     <!-- JavaScript files -->
     <script src="chess.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="js/three-board.js?v=20260517g"></script>
+    <script src="js/three-board.js?v=20260517h"></script>
     <script src="js/multiplayer.js?v=20260517e"></script>
 </head>
 <body>

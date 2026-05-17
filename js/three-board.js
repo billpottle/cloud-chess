@@ -21,6 +21,7 @@
             this.pointer = null;
             this.boardGroup = null;
             this.pieceGroup = null;
+            this.boardRoot = null;
             this.squareMeshes = [];
             this.pieceMeshes = [];
             this.mode = localStorage.getItem(STORAGE_KEY) === '3d' ? '3d' : '2d';
@@ -32,6 +33,17 @@
             this.radius = 15.5;
             this.animationFrame = null;
             this.resizeObserver = null;
+            this.arSession = null;
+            this.arSupported = false;
+            this.arSupportChecked = false;
+            this.arHitTestSource = null;
+            this.arHitTestSourceRequested = false;
+            this.arViewerSpace = null;
+            this.arReticle = null;
+            this.arPlaced = false;
+            this.xrController = null;
+            this.normalSceneBackground = null;
+            this.normalSceneFog = null;
         }
 
         attach(game) {
@@ -89,6 +101,17 @@
                     actions.insertBefore(fullButton, document.getElementById('piece-set-select')?.nextSibling || toggle.nextSibling);
                     document.addEventListener('fullscreenchange', () => this.updateFullScreenState());
                 }
+                if (!document.getElementById('three-ar-btn')) {
+                    const arButton = document.createElement('button');
+                    arButton.type = 'button';
+                    arButton.id = 'three-ar-btn';
+                    arButton.className = 'game-btn three-ar-btn';
+                    arButton.textContent = 'AR';
+                    arButton.disabled = true;
+                    arButton.title = 'Checking AR support';
+                    arButton.addEventListener('click', () => this.toggleAR());
+                    actions.insertBefore(arButton, document.getElementById('three-fullscreen-btn')?.nextSibling || toggle.nextSibling);
+                }
             } else {
                 this.wrapper.insertBefore(toggle, this.wrapper.firstChild);
                 if (!document.getElementById('piece-set-select')) {
@@ -114,6 +137,17 @@
                     document.getElementById('piece-set-select')?.insertAdjacentElement('afterend', fullButton);
                     document.addEventListener('fullscreenchange', () => this.updateFullScreenState());
                 }
+                if (!document.getElementById('three-ar-btn')) {
+                    const arButton = document.createElement('button');
+                    arButton.type = 'button';
+                    arButton.id = 'three-ar-btn';
+                    arButton.className = 'game-btn three-ar-btn';
+                    arButton.textContent = 'AR';
+                    arButton.disabled = true;
+                    arButton.title = 'Checking AR support';
+                    arButton.addEventListener('click', () => this.toggleAR());
+                    document.getElementById('three-fullscreen-btn')?.insertAdjacentElement('afterend', arButton);
+                }
             }
 
             toggle.addEventListener('click', (event) => {
@@ -121,6 +155,7 @@
                 if (!button) return;
                 this.setMode(button.dataset.renderMode);
             });
+            this.checkARSupport();
         }
 
         createScene() {
@@ -148,23 +183,28 @@
             this.scene = new THREE.Scene();
             this.scene.background = new THREE.Color(0xf2eadf);
             this.scene.fog = new THREE.Fog(0xf2eadf, 18, 38);
+            this.normalSceneBackground = this.scene.background;
+            this.normalSceneFog = this.scene.fog;
 
             this.camera = new THREE.PerspectiveCamera(52, 1, 0.1, 100);
-            this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
+            this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
             this.renderer.outputEncoding = THREE.sRGBEncoding;
             this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
             this.renderer.toneMappingExposure = 0.88;
             this.renderer.shadowMap.enabled = true;
             this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            this.renderer.xr.enabled = true;
             this.container.appendChild(this.renderer.domElement);
 
             this.raycaster = new THREE.Raycaster();
             this.pointer = new THREE.Vector2();
+            this.boardRoot = new THREE.Group();
             this.boardGroup = new THREE.Group();
             this.pieceGroup = new THREE.Group();
-            this.scene.add(this.boardGroup);
-            this.scene.add(this.pieceGroup);
+            this.boardRoot.add(this.boardGroup);
+            this.boardRoot.add(this.pieceGroup);
+            this.scene.add(this.boardRoot);
 
             const ambient = new THREE.HemisphereLight(0xfff8ec, 0x61442e, 1.15);
             this.scene.add(ambient);
@@ -182,7 +222,7 @@
             );
             base.position.y = -0.25;
             base.receiveShadow = true;
-            this.scene.add(base);
+            this.boardRoot.add(base);
 
             const rim = new THREE.Mesh(
                 new THREE.BoxGeometry(10.7, 0.25, 10.7),
@@ -190,7 +230,19 @@
             );
             rim.position.y = -0.06;
             rim.receiveShadow = true;
-            this.scene.add(rim);
+            this.boardRoot.add(rim);
+
+            this.arReticle = new THREE.Mesh(
+                new THREE.RingGeometry(0.28, 0.34, 32).rotateX(-Math.PI / 2),
+                new THREE.MeshBasicMaterial({ color: 0x77d284, transparent: true, opacity: 0.92 })
+            );
+            this.arReticle.matrixAutoUpdate = false;
+            this.arReticle.visible = false;
+            this.scene.add(this.arReticle);
+
+            this.xrController = this.renderer.xr.getController(0);
+            this.xrController.addEventListener('select', () => this.handleARSelect());
+            this.scene.add(this.xrController);
 
             this.createBoardSquares();
             this.bindInput();
@@ -510,6 +562,218 @@
             }
         }
 
+        checkARSupport() {
+            const button = document.getElementById('three-ar-btn');
+            if (!button || this.arSupportChecked) return;
+            this.arSupportChecked = true;
+
+            if (!window.isSecureContext || !navigator.xr) {
+                this.arSupported = false;
+                button.disabled = true;
+                button.title = 'AR requires a secure mobile browser with WebXR support';
+                return;
+            }
+
+            navigator.xr.isSessionSupported('immersive-ar')
+                .then((supported) => {
+                    this.arSupported = Boolean(supported);
+                    button.disabled = !this.arSupported;
+                    button.title = this.arSupported ? 'Place the 3D board on a real surface' : 'AR is not available in this browser';
+                })
+                .catch(() => {
+                    this.arSupported = false;
+                    button.disabled = true;
+                    button.title = 'AR is not available in this browser';
+                });
+        }
+
+        async toggleAR() {
+            if (this.arSession) {
+                await this.arSession.end();
+                return;
+            }
+            await this.startAR();
+        }
+
+        async startAR() {
+            if (!this.renderer || !navigator.xr || !this.arSupported) {
+                this.showARStatus('AR is not available on this browser.');
+                return;
+            }
+
+            try {
+                if (this.mode !== '3d') {
+                    this.setMode('3d');
+                }
+                this.setExpanded(false);
+
+                const session = await navigator.xr.requestSession('immersive-ar', {
+                    requiredFeatures: ['hit-test'],
+                    optionalFeatures: ['dom-overlay', 'local-floor'],
+                    domOverlay: { root: document.body }
+                });
+                this.arSession = session;
+                session.addEventListener('end', () => this.endAR());
+
+                if (this.animationFrame) {
+                    cancelAnimationFrame(this.animationFrame);
+                    this.animationFrame = null;
+                }
+
+                await this.renderer.xr.setSession(session);
+                this.prepareARScene();
+                this.renderer.setAnimationLoop((time, frame) => this.renderScene(time, frame));
+            } catch (error) {
+                this.arSession = null;
+                this.showARStatus('AR could not start on this device.');
+                console.warn('Cloud Chess AR start failed', error);
+                this.renderLoop();
+            }
+        }
+
+        prepareARScene() {
+            this.arPlaced = false;
+            this.arHitTestSource = null;
+            this.arHitTestSourceRequested = false;
+            this.arViewerSpace = null;
+            if (this.boardRoot) {
+                this.boardRoot.visible = false;
+                this.boardRoot.position.set(0, -100, 0);
+                this.boardRoot.rotation.set(0, 0, 0);
+                this.boardRoot.scale.setScalar(0.065);
+            }
+            if (this.scene) {
+                this.scene.background = null;
+                this.scene.fog = null;
+            }
+            if (this.arReticle) {
+                this.arReticle.visible = false;
+            }
+            this.container?.classList.add('is-ar-active');
+            const button = document.getElementById('three-ar-btn');
+            if (button) {
+                button.textContent = 'Exit AR';
+                button.disabled = false;
+            }
+            this.showARStatus('Move your device until a ring appears, then tap to place the board.');
+        }
+
+        endAR() {
+            this.arSession = null;
+            if (this.arHitTestSource && typeof this.arHitTestSource.cancel === 'function') {
+                this.arHitTestSource.cancel();
+            }
+            this.arHitTestSource = null;
+            this.arHitTestSourceRequested = false;
+            this.arViewerSpace = null;
+            this.arPlaced = false;
+
+            if (this.arReticle) {
+                this.arReticle.visible = false;
+            }
+            if (this.boardRoot) {
+                this.boardRoot.visible = true;
+                this.boardRoot.position.set(0, 0, 0);
+                this.boardRoot.rotation.set(0, 0, 0);
+                this.boardRoot.scale.setScalar(1);
+            }
+            if (this.scene) {
+                this.scene.background = this.normalSceneBackground;
+                this.scene.fog = this.normalSceneFog;
+            }
+
+            this.container?.classList.remove('is-ar-active');
+            const button = document.getElementById('three-ar-btn');
+            if (button) {
+                button.textContent = 'AR';
+                button.disabled = !this.arSupported;
+            }
+            this.showARStatus('');
+            this.renderer?.setAnimationLoop(null);
+            this.resize();
+            this.renderLoop();
+        }
+
+        showARStatus(message) {
+            let status = document.getElementById('three-ar-status');
+            if (!this.container || !message) {
+                status?.remove();
+                return;
+            }
+            if (!status) {
+                status = document.createElement('div');
+                status.id = 'three-ar-status';
+                status.className = 'three-ar-status';
+                this.container.appendChild(status);
+            }
+            status.textContent = message;
+        }
+
+        updateARFrame(frame) {
+            if (!this.arSession || !frame) return;
+            const session = this.renderer.xr.getSession();
+            const referenceSpace = this.renderer.xr.getReferenceSpace();
+
+            if (!this.arHitTestSourceRequested) {
+                this.arHitTestSourceRequested = true;
+                session.requestReferenceSpace('viewer')
+                    .then((viewerSpace) => {
+                        this.arViewerSpace = viewerSpace;
+                        return session.requestHitTestSource({ space: viewerSpace });
+                    })
+                    .then((source) => {
+                        this.arHitTestSource = source;
+                    })
+                    .catch(() => {
+                        this.showARStatus('Surface detection is not available in this AR session.');
+                    });
+            }
+
+            if (!this.arHitTestSource || !referenceSpace || this.arPlaced) return;
+            const hits = frame.getHitTestResults(this.arHitTestSource);
+            if (hits.length > 0) {
+                const pose = hits[0].getPose(referenceSpace);
+                this.arReticle.visible = true;
+                this.arReticle.matrix.fromArray(pose.transform.matrix);
+            } else {
+                this.arReticle.visible = false;
+            }
+        }
+
+        handleARSelect() {
+            if (!this.arSession || !this.boardRoot) return;
+            if (!this.arPlaced && this.arReticle?.visible) {
+                this.boardRoot.position.setFromMatrixPosition(this.arReticle.matrix);
+                this.boardRoot.quaternion.setFromRotationMatrix(this.arReticle.matrix);
+                this.boardRoot.scale.setScalar(0.065);
+                this.boardRoot.visible = true;
+                this.arPlaced = true;
+                this.arReticle.visible = false;
+                this.showARStatus('Board placed. Tap pieces and squares to play, or use Exit AR.');
+                return;
+            }
+            this.handleARBoardPick();
+        }
+
+        handleARBoardPick() {
+            if (!this.game || !this.xrController) return;
+            const rotation = new THREE.Matrix4();
+            rotation.extractRotation(this.xrController.matrixWorld);
+            this.raycaster.ray.origin.setFromMatrixPosition(this.xrController.matrixWorld);
+            this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(rotation);
+
+            const hits = this.raycaster.intersectObjects([...this.pieceMeshes, ...this.boardGroup.children], true);
+            const hit = hits.find((item) => item.object.userData && item.object.userData.row !== undefined);
+            if (!hit) return;
+
+            const { row, col } = hit.object.userData;
+            const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            if (!square) return;
+
+            this.game.handleSquareClick({ target: square });
+            this.syncFromGame(this.game);
+        }
+
         setMode(mode) {
             this.mode = mode === '3d' && window.THREE ? '3d' : '2d';
             localStorage.setItem(STORAGE_KEY, this.mode);
@@ -561,6 +825,7 @@
             this.container.hidden = !active;
             document.getElementById('piece-set-select')?.classList.toggle('is-visible', active);
             document.getElementById('three-fullscreen-btn')?.classList.toggle('is-visible', active);
+            document.getElementById('three-ar-btn')?.classList.toggle('is-visible', active);
             document.querySelectorAll('[data-render-mode]').forEach((button) => {
                 const pressed = button.dataset.renderMode === this.mode;
                 button.classList.toggle('is-active', pressed);
@@ -590,15 +855,24 @@
         }
 
         renderLoop() {
-            this.animationFrame = requestAnimationFrame(() => this.renderLoop());
-            if (this.mode === '3d' && this.renderer && this.scene && this.camera) {
-                const t = performance.now() * 0.001;
-                this.pieceGroup.children.forEach((piece, index) => {
-                    piece.position.y = 0.18 + Math.sin(t * 1.6 + index * 0.35) * 0.015;
-                });
-                this.updateHighlights();
-                this.renderer.render(this.scene, this.camera);
-            }
+            if (this.arSession || this.animationFrame) return;
+            this.animationFrame = requestAnimationFrame((time) => {
+                this.animationFrame = null;
+                if (this.arSession) return;
+                this.renderScene(time, null);
+                this.renderLoop();
+            });
+        }
+
+        renderScene(time, frame) {
+            if (this.mode !== '3d' || !this.renderer || !this.scene || !this.camera || !this.pieceGroup) return;
+            const t = time * 0.001;
+            this.pieceGroup.children.forEach((piece, index) => {
+                piece.position.y = 0.18 + Math.sin(t * 1.6 + index * 0.35) * 0.015;
+            });
+            this.updateHighlights();
+            this.updateARFrame(frame);
+            this.renderer.render(this.scene, this.camera);
         }
 
         colToX(col) {

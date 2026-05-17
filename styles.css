@@ -246,6 +246,19 @@
     display: inline-block;
 }
 
+.three-ar-btn {
+    display: none;
+}
+
+.three-ar-btn.is-visible {
+    display: inline-block;
+}
+
+.three-ar-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
 .three-board {
     position: relative;
     width: var(--board-size, min(82vw, 520px));
@@ -277,6 +290,27 @@
 .three-board:fullscreen .three-board-exit-btn,
 .three-board.is-expanded .three-board-exit-btn {
     display: inline-block;
+}
+
+.three-ar-status {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    z-index: 2;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 6px;
+    background: rgba(22, 25, 30, 0.78);
+    color: #fffaf1;
+    font-size: 0.92rem;
+    font-weight: 700;
+    line-height: 1.35;
+    text-align: center;
+}
+
+.three-board.is-ar-active {
+    background: transparent;
 }
 
 .three-board canvas {
