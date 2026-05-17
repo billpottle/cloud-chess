@@ -22,6 +22,17 @@ function getActiveUsername() {
     return window.currentUsername || localStorage.getItem('chessUsername');
 }
 
+function getAuthToken() {
+    return localStorage.getItem('chessAuthToken');
+}
+
+function getChallengeAuthPayload(extra = {}) {
+    return {
+        ...extra,
+        token: getAuthToken()
+    };
+}
+
 // Function to challenge a user
 function challengeUser(userId, username) {
     console.log(`Challenging user: ${username} (ID: ${userId})`);
@@ -39,20 +50,25 @@ function challengeUser(userId, username) {
     const confirmChallenge = confirm(`Are you sure you want to challenge ${username}?`);
     if (confirmChallenge) {
         const challenger = getActiveUsername();
+        const token = getAuthToken();
         if (!challenger) {
             alert('Unable to determine your username. Please log in again.');
             return;
         }
+        if (!token) {
+            alert('Your login has expired. Please log in again.');
+            return;
+        }
 
         // Send challenge request
-        fetch(`api/challenge_api.php?action=create&username=${encodeURIComponent(challenger)}`, {
+        fetch(`api/challenge_api.php?action=create`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
+            body: JSON.stringify(getChallengeAuthPayload({
                 challenged_username: username
-            })
+            }))
         })
         .then(response => response.json())
         .then(data => {
@@ -160,14 +176,20 @@ function handleOutsideClick(event) {
 
 // Function to accept a challenge
 function acceptChallenge(challengeId) {
+    const token = getAuthToken();
+    if (!token) {
+        alert('Your login has expired. Please log in again.');
+        return;
+    }
+
     fetch('api/challenge_api.php?action=accept', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
+        body: JSON.stringify(getChallengeAuthPayload({
             challenge_id: parseInt(challengeId, 10)
-        })
+        }))
     })
     .then(response => response.json())
     .then(data => {
@@ -201,19 +223,24 @@ function acceptChallenge(challengeId) {
 // Function to decline a challenge
 function declineChallenge(challengeId) {
     const username = getActiveUsername();
+    const token = getAuthToken();
     if (!username) {
         alert('Unable to determine your username. Please log in again.');
         return;
     }
+    if (!token) {
+        alert('Your login has expired. Please log in again.');
+        return;
+    }
 
-    fetch(`api/challenge_api.php?action=decline&username=${encodeURIComponent(username)}`, {
+    fetch(`api/challenge_api.php?action=decline`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
+        body: JSON.stringify(getChallengeAuthPayload({
             challenge_id: challengeId
-        })
+        }))
     })
     .then(response => response.json())
     .then(data => {
@@ -332,14 +359,20 @@ function loadChallenges(type) {
 // Function to cancel an outgoing challenge
 function cancelChallenge(challengeId) {
     const username = getActiveUsername();
-    fetch(`api/challenge_api.php?action=cancel&username=${encodeURIComponent(username)}`, {
+    const token = getAuthToken();
+    if (!username || !token) {
+        alert('Your login has expired. Please log in again.');
+        return;
+    }
+
+    fetch(`api/challenge_api.php?action=cancel`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
+        body: JSON.stringify(getChallengeAuthPayload({
             challenge_id: challengeId
-        })
+        }))
     })
     .then(response => response.json())
     .then(data => {

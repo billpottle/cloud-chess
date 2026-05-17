@@ -62,7 +62,7 @@ ob_end_flush();
     
     <!-- JavaScript files -->
     <script src="chess.js"></script>
-    <script src="js/multiplayer.js"></script>
+    <script src="js/multiplayer.js?v=20260517d"></script>
 </head>
 <body>
     <div class="navbar">
@@ -112,7 +112,7 @@ ob_end_flush();
                     $winner = $game['winner'];
                     $loser = null;
 
-                    if ($game['result'] === 'win' || $game['result'] === 'resignation') {
+                    if ($game['result'] === 'win' || $game['result'] === 'resignation' || $game['result'] === 'checkmate') {
                         if ($winner === $game['white_player']) {
                             $loser = $game['black_player'];
                             $resultText = ($game['result'] === 'resignation') ? 'Black Resigned' : 'White Won';
@@ -200,7 +200,7 @@ ob_end_flush();
     <!-- Include all necessary JavaScript files -->
     <script src="js/ui.js"></script>
     <script src="js/user.js"></script>
-    <script src="js/challenges.js"></script>
+    <script src="js/challenges.js?v=20260517c"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Get game data from PHP

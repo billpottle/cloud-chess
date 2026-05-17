@@ -5,7 +5,19 @@ let playerColor = null;
 let isSpectatorMode = false;
 let currentSpecialStatus = null;
 
+function rememberServerLastMove(color, summary) {
+    if (!multiplayerGame || summary === undefined) {
+        return;
+    }
+
+    multiplayerGame.lastMoves = multiplayerGame.lastMoves || { white: null, black: null };
+    multiplayerGame.lastMoves[color] = summary && summary.length ? { summary } : null;
+}
+
 function updateLastMoveFromServer(whiteSummary, blackSummary) {
+    rememberServerLastMove('white', whiteSummary);
+    rememberServerLastMove('black', blackSummary);
+
     const whiteEl = document.getElementById('last-move-inline-white');
     if (whiteEl && whiteSummary !== undefined) {
         whiteEl.textContent = whiteSummary && whiteSummary.length ? whiteSummary : '—';

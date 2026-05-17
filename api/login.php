@@ -12,20 +12,20 @@ $is_api_request = false;
 // If it's a POST request, treat it as an API call
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $is_api_request = true;
-    
+
     // Include database connection
     require_once 'db_connect.php';
-    
+
     // Include auth token functions
     require_once 'auth_token.php';
-    
+
     // Set content type to JSON for API responses
     header('Content-Type: application/json');
-    
+
     // Get username and password from request (support both JSON and form data)
     $username = '';
     $password = '';
-    
+
     // Check if this is a JSON request
     $contentType = isset($_SERVER['CONTENT_TYPE']) ? $_SERVER['CONTENT_TYPE'] : '';
     if (strpos($contentType, 'application/json') !== false) {
@@ -38,31 +38,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = $_POST['username'] ?? '';
         $password = $_POST['password'] ?? '';
     }
-    
+
     // Simple validation
     if (empty($username) || empty($password)) {
         echo json_encode(['success' => false, 'message' => 'Username and password required']);
         ob_end_flush();
         exit;
     }
-    
+
     // Check user credentials
     $query = "SELECT id, username, password_hash FROM users WHERE username = ?";
     $stmt = $conn->prepare($query);
     $stmt->bind_param("s", $username);
     $stmt->execute();
     $result = $stmt->get_result();
-    
+
     if ($result->num_rows === 1) {
         $user = $result->fetch_assoc();
-        
-        // For testing purposes, we're comparing hashed passwords directly
-        // In production, you should use password_verify()
-       // if ($user['password_hash'] === password_hash($password, PASSWORD_DEFAULT)) {
-       if (true) {
+
+        if (password_verify($password, $user['password_hash'])) {
             // Create token using your existing function
             $token = create_auth_token($user['id']);
-            
+
             if ($token) {
                 // Update last login time and last activity as Unix timestamp
                 $current_time = time(); // Get current Unix timestamp
@@ -70,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $update_stmt = $conn->prepare($update_query);
                 $update_stmt->bind_param("ii", $current_time, $user['id']);
                 $update_stmt->execute();
-                
+
                 echo json_encode([
                     'success' => true,
                     'message' => 'Login successful',
@@ -87,11 +84,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         echo json_encode(['success' => false, 'message' => 'Invalid username or password']);
     }
-    
+
     // Close the database connection
     $stmt->close();
     $conn->close();
-    
+
     // End output buffering and send the response
     ob_end_flush();
     exit;
@@ -205,9 +202,9 @@ ob_end_clean();
     <script>
         document.getElementById('loginForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            
+
             const formData = new FormData(this);
-            
+
             fetch('login.php', {
                 method: 'POST',
                 body: formData
@@ -215,13 +212,13 @@ ob_end_clean();
             .then(response => response.json())
             .then(data => {
                 const messageDiv = document.getElementById('message');
-                
+
                 if (data.success) {
                     // Store authentication data in localStorage
                     localStorage.setItem('chessAuthToken', data.token);
                     localStorage.setItem('chessUsername', data.username);
                     localStorage.setItem('chessUserId', data.user_id);
-                    
+
                     messageDiv.className = 'success';
                     messageDiv.textContent = data.message;
                     // Redirect to index page after 1 second
@@ -241,4 +238,4 @@ ob_end_clean();
         });
     </script>
 </body>
-</html> 
+</html>
