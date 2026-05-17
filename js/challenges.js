@@ -60,6 +60,11 @@ function challengeUser(userId, username) {
                 alert(`Challenge sent to ${username}!`);
                 // Reload active users to update UI
                 loadActiveUsers();
+                
+                // If challenges UI is present, refresh outgoing list
+                if (document.getElementById('outgoing-challenge-list')) {
+                    loadChallenges('outgoing');
+                }
             } else {
                 alert(data.message || 'Failed to send challenge');
             }
@@ -326,7 +331,8 @@ function loadChallenges(type) {
 
 // Function to cancel an outgoing challenge
 function cancelChallenge(challengeId) {
-    fetch('api/challenge_api.php?action=cancel', {
+    const username = getActiveUsername();
+    fetch(`api/challenge_api.php?action=cancel&username=${encodeURIComponent(username)}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -385,7 +391,8 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Add active class to clicked button and corresponding content
             this.classList.add('active');
-            const tabName = this.getAttribute('data-tab');
+            const rawTab = this.getAttribute('data-tab');
+            const tabName = rawTab.replace('-challenges', ''); // normalize for both index and profile pages
             document.getElementById(`${tabName}-challenges`).classList.add('active');
             
             // Load the challenges for this tab

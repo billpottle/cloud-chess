@@ -18,6 +18,18 @@ function create_challenge($conn, $challenger, $challenged) {
     $current_time = time();
     $expires = $current_time + 3600; // Challenge expires in 1 hour
     
+    // Prevent challenging yourself
+    if ($challenger === $challenged) {
+        return ['success' => false, 'message' => 'You cannot challenge yourself'];
+    }
+    
+    // Ensure challenged user exists
+    $user_exists_query = "SELECT username FROM users WHERE username = '$challenged' LIMIT 1";
+    $user_exists_result = execute_query($conn, $user_exists_query);
+    if ($user_exists_result->num_rows === 0) {
+        return ['success' => false, 'message' => 'Challenged user does not exist'];
+    }
+    
     // Check if there's already an active challenge between these users
     $check_query = "SELECT id FROM challenges 
                    WHERE challenger = '$challenger' 
@@ -140,7 +152,7 @@ function get_outgoing_challenges($conn, $username) {
     // Get challenges where this user is challenging others
     $query = "SELECT c.id, c.player_being_challenged, c.challenge_timestamp, c.expires, u.elo 
               FROM challenges c
-              JOIN users u ON c.player_being_challenged = u.username
+              LEFT JOIN users u ON c.player_being_challenged = u.username
               WHERE c.challenger = '$username' 
               AND c.accepted = FALSE 
               AND c.expires > $current_time
