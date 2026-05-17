@@ -421,6 +421,45 @@ describe('Graveyard and Scoring', () => {
   });
 });
 
+describe('Move History', () => {
+  let game;
+
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div class="navbar"><a href="#"></a></div>
+      <div id="current-turn"></div>
+      <div id="mode-selection"></div>
+      <div id="game-board">
+        <div id="board"></div>
+        <ol id="move-history-list"></ol>
+      </div>
+    `;
+    game = new ChessGame();
+    game.showGameStatusAnimation = jest.fn();
+  });
+
+  test('records and renders local move history', () => {
+    game.startGame('pvp');
+
+    const pawnSquare = document.querySelector('[data-row="8"][data-col="0"]');
+    game.selectPiece(pawnSquare);
+    game.tryMove(7, 0);
+
+    expect(game.moveHistory).toHaveLength(1);
+    expect(game.moveHistory[0]).toMatchObject({
+      color: 'white',
+      moveNumber: 1,
+      fromRow: 8,
+      fromCol: 0,
+      toRow: 7,
+      toCol: 0
+    });
+
+    expect(document.getElementById('move-history-list').textContent).toContain('1.');
+    expect(document.getElementById('move-history-list').textContent).toContain('Pawn A2 → A3');
+  });
+});
+
 describe('Special Piece Rules', () => {
   let game;
   

@@ -1,3 +1,21 @@
+const cloudChessRawLog = console.log.bind(console);
+const cloudChessDebugEnabled = (() => {
+    try {
+        return new URLSearchParams(window.location.search).has('debug') ||
+            window.localStorage?.getItem('cloudChessDebug') === '1';
+    } catch (e) {
+        return false;
+    }
+})();
+
+function cloudChessLog(...args) {
+    if (cloudChessDebugEnabled) {
+        cloudChessRawLog(...args);
+    }
+}
+
+window.cloudChessLog = window.cloudChessLog || cloudChessLog;
+
 // Update the navigation links based on game state
 function updateNavigation(inGame) {
     const homeLink = document.querySelector('.navbar a:first-child');
@@ -20,11 +38,11 @@ function updateNavigation(inGame) {
             }
         });
 
-        console.log('Navigation updated for game mode - New Game button should be visible');
+        cloudChessLog('Navigation updated for game mode - New Game button should be visible');
     } else {
         // In home mode, hide the "Home" link since we're already home
         homeLink.style.display = 'none';
-        console.log('Navigation updated for home mode - Home button hidden');
+        cloudChessLog('Navigation updated for home mode - Home button hidden');
     }
 }
 
@@ -90,7 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Check squares
     const squares = document.querySelectorAll('.square');
-    console.log(`Found ${squares.length} squares`);
+    cloudChessLog(`Found ${squares.length} squares`);
     if (squares.length > 0) {
         const squareStyle = window.getComputedStyle(squares[0]);
 
@@ -134,6 +152,7 @@ class ChessGame {
         this.gameOver = false;
         this.kingCaptured = null; // 'white' or 'black' when a king is removed
         this.lastMoves = { white: null, black: null }; // per-color last move
+        this.moveHistory = [];
 
         // Bind the handleSquareClick method
         this.handleSquareClick = this.handleSquareClick.bind(this);
@@ -287,7 +306,7 @@ class ChessGame {
             this.setStatusMessage('The computer is thinking...', 'thinking');
             return;
         }
-        console.log("--- ChessGame.handleSquareClick ---"); // Base log
+        cloudChessLog("--- ChessGame.handleSquareClick ---"); // Base log
 
         // Make sure we're targeting the square, not the piece
         let square = event.target;
@@ -296,7 +315,7 @@ class ChessGame {
             // find the parent square
             square = square.closest('.square');
             if (!square) {
-                console.log('No square found for click - returning');
+                cloudChessLog('No square found for click - returning');
                 return;
             }
         }
@@ -304,33 +323,33 @@ class ChessGame {
         // Get row and col from the square data attributes
         const row = parseInt(square.dataset.row);
         const col = parseInt(square.dataset.col);
-        console.log(`Clicked square: row=${row}, col=${col}`);
+        cloudChessLog(`Clicked square: row=${row}, col=${col}`);
 
         // Continue with your existing logic...
         const piece = square.querySelector('.piece');
-        console.log("Piece found:", piece ? piece.textContent : 'None');
-        console.log("Current player:", this.currentPlayer);
-        console.log("Is piece selected?", !!this.selectedPiece, this.selectedPiece ? `(Row: ${this.selectedPiece.dataset.row}, Col: ${this.selectedPiece.dataset.col})` : '');
+        cloudChessLog("Piece found:", piece ? piece.textContent : 'None');
+        cloudChessLog("Current player:", this.currentPlayer);
+        cloudChessLog("Is piece selected?", !!this.selectedPiece, this.selectedPiece ? `(Row: ${this.selectedPiece.dataset.row}, Col: ${this.selectedPiece.dataset.col})` : '');
 
 
         if (this.selectedPiece) {
             // If a piece is already selected, try to move it
-            console.log("Attempting to call tryMove...");
+            cloudChessLog("Attempting to call tryMove...");
             this.tryMove(row, col);
         } else if (piece) {
             const owned = this.isPieceOwnedByCurrentPlayer(piece);
-            console.log(`Is piece owned by current player (${this.currentPlayer})?`, owned);
+            cloudChessLog(`Is piece owned by current player (${this.currentPlayer})?`, owned);
             if (owned) {
                 // If no piece is selected and we clicked on our own piece, select it
-                console.log("Attempting to call selectPiece...");
+                cloudChessLog("Attempting to call selectPiece...");
                 this.selectPiece(square);
             } else {
-                 console.log("Clicked on opponent's piece, doing nothing.");
+                 cloudChessLog("Clicked on opponent's piece, doing nothing.");
             }
         } else {
-             console.log("Clicked on empty square with no piece selected, doing nothing.");
+             cloudChessLog("Clicked on empty square with no piece selected, doing nothing.");
         }
-        console.log("--- End ChessGame.handleSquareClick ---");
+        cloudChessLog("--- End ChessGame.handleSquareClick ---");
     }
 
     clearHighlights() {
@@ -398,13 +417,13 @@ class ChessGame {
         }
         // Queen movement (♛ or ♕)
         else if (pieceType === '♛' || pieceType === '♕') {
-            //  console.log(`Checking queen move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
+            //  cloudChessLog(`Checking queen move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
             const rowDiff = Math.abs(fromRow - toRow);
             const colDiff = Math.abs(fromCol - toCol);
 
             // Queen can move any number of squares horizontally, vertically, or diagonally
             if (!(rowDiff === 0 || colDiff === 0 || rowDiff === colDiff)) {
-                //        console.log('Invalid queen move - not horizontal, vertical, or diagonal');
+                //        cloudChessLog('Invalid queen move - not horizontal, vertical, or diagonal');
                 return false;
             }
 
@@ -418,25 +437,25 @@ class ChessGame {
             while (currentRow !== toRow || currentCol !== toCol) {
                 const pathSquare = document.querySelector(`[data-row="${currentRow}"][data-col="${currentCol}"]`);
                 if (pathSquare.querySelector('.piece')) {
-                    //       console.log(`Path blocked at ${currentRow},${currentCol}`);
+                    //       cloudChessLog(`Path blocked at ${currentRow},${currentCol}`);
                     return false; // Path is blocked
                 }
                 currentRow += rowStep;
                 currentCol += colStep;
             }
 
-            console.log('Valid queen move');
+            cloudChessLog('Valid queen move');
             return true;
         }
         // Rook movement (♜ or ♖)
         else if (pieceType === '♜' || pieceType === '♖') {
-            // console.log(`Checking rook move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
+            // cloudChessLog(`Checking rook move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
             const rowDiff = Math.abs(fromRow - toRow);
             const colDiff = Math.abs(fromCol - toCol);
 
             // Rook can only move horizontally or vertically
             if (!(rowDiff === 0 || colDiff === 0) || (rowDiff === 0 && colDiff === 0)) {
-                //        console.log('Invalid rook move - not horizontal or vertical');
+                //        cloudChessLog('Invalid rook move - not horizontal or vertical');
                 return false;
             }
 
@@ -450,25 +469,25 @@ class ChessGame {
             while (currentRow !== toRow || currentCol !== toCol) {
                 const pathSquare = document.querySelector(`[data-row="${currentRow}"][data-col="${currentCol}"]`);
                 if (pathSquare.querySelector('.piece')) {
-                    console.log(`Path blocked at ${currentRow},${currentCol}`);
+                    cloudChessLog(`Path blocked at ${currentRow},${currentCol}`);
                     return false; // Path is blocked
                 }
                 currentRow += rowStep;
                 currentCol += colStep;
             }
 
-            console.log('Valid rook move');
+            cloudChessLog('Valid rook move');
             return true;
         }
         // Bishop movement (♝ or ♗)
         else if (pieceType === '♝' || pieceType === '♗') {
-            //  console.log(`Checking bishop move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
+            //  cloudChessLog(`Checking bishop move from ${fromRow},${fromCol} to ${toRow},${toCol}`);
             const rowDiff = Math.abs(fromRow - toRow);
             const colDiff = Math.abs(fromCol - toCol);
 
             // Bishop can only move diagonally
             if (rowDiff !== colDiff || rowDiff === 0) {
-                //    console.log('Invalid bishop move - not diagonal');
+                //    cloudChessLog('Invalid bishop move - not diagonal');
                 return false;
             }
 
@@ -482,14 +501,14 @@ class ChessGame {
             while (currentRow !== toRow && currentCol !== toCol) {
                 const pathSquare = document.querySelector(`[data-row="${currentRow}"][data-col="${currentCol}"]`);
                 if (pathSquare.querySelector('.piece')) {
-                    //       console.log(`Path blocked at ${currentRow},${currentCol}`);
+                    //       cloudChessLog(`Path blocked at ${currentRow},${currentCol}`);
                     return false; // Path is blocked
                 }
                 currentRow += rowStep;
                 currentCol += colStep;
             }
 
-            console.log('Valid bishop move');
+            cloudChessLog('Valid bishop move');
             return true;
         }
         // Knight movement (♞ or ♘)
@@ -638,10 +657,10 @@ class ChessGame {
     movePiece(toRow, toCol) {
 
         const fromSquare = this.selectedPiece;
-        console.log({ fromSquare, toRow, toCol })
+        cloudChessLog({ fromSquare, toRow, toCol })
         const toSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
         const piece = fromSquare.querySelector('.piece');
-        console.log({ piece })
+        cloudChessLog({ piece })
 
         // Check if this is an archer capture without moving
         const isArcher = piece.textContent === '♟⇣' || piece.textContent === '♙⇡';
@@ -656,7 +675,7 @@ class ChessGame {
 
         if (isArcherCapture) {
             // For archer capture without moving, just remove the target piece
-            console.log("Archer capturing without moving");
+            cloudChessLog("Archer capturing without moving");
             if (targetPiece && targetPiece.dataset.color !== movingColor) {
                 if (targetPiece.dataset.type === 'king') {
                     this.kingCaptured = targetPiece.dataset.color;
@@ -698,7 +717,7 @@ class ChessGame {
 
                         // If the middle square has an opponent, remove it and score the capture
                         if (midPiece && midPiece.dataset.color !== piece.dataset.color) {
-                            console.log("Wrath activated: Capturing middle piece");
+                            cloudChessLog("Wrath activated: Capturing middle piece");
                             if (midPiece.dataset.type === 'king') {
                                 this.kingCaptured = midPiece.dataset.color;
                             }
@@ -810,9 +829,62 @@ class ChessGame {
     }
 
     recordLastMove(move) {
-        const timed = { ...move, time: Date.now() };
+        const timed = {
+            ...move,
+            time: Date.now(),
+            halfMove: this.moveHistory.length + 1
+        };
+        timed.moveNumber = Math.ceil(timed.halfMove / 2);
         timed.summary = this.formatMoveSummary(timed);
         if (timed.color === 'white') this.lastMoves.white = timed; else this.lastMoves.black = timed;
+        this.moveHistory.push(timed);
+        this.updateMoveHistoryUI();
+    }
+
+    resetMoveHistory() {
+        this.moveHistory = [];
+        this.updateMoveHistoryUI();
+    }
+
+    updateMoveHistoryUI() {
+        const list = document.getElementById('move-history-list');
+        if (!list) {
+            return;
+        }
+
+        list.innerHTML = '';
+
+        if (!this.moveHistory.length) {
+            const empty = document.createElement('li');
+            empty.className = 'move-history-empty';
+            empty.textContent = 'Moves will appear here.';
+            list.appendChild(empty);
+            return;
+        }
+
+        const fragment = document.createDocumentFragment();
+        this.moveHistory.slice(-18).forEach(move => {
+            const item = document.createElement('li');
+            item.className = `move-history-item ${move.color}-move`;
+            const prefix = move.color === 'white' ? `${move.moveNumber}.` : `${move.moveNumber}...`;
+
+            const number = document.createElement('span');
+            number.className = 'move-history-number';
+            number.textContent = prefix;
+
+            const text = document.createElement('span');
+            text.className = 'move-history-text';
+            text.textContent = move.summary || this.formatMoveSummary(move);
+
+            item.appendChild(number);
+            item.appendChild(text);
+            item.addEventListener('mouseenter', () => this.showLastMoveOverlay(move));
+            item.addEventListener('mouseleave', () => this.hideLastMoveOverlay());
+            fragment.appendChild(item);
+        });
+
+        list.appendChild(fragment);
+        list.scrollTop = list.scrollHeight;
     }
 
     formatMoveSummary(move) {
@@ -938,7 +1010,7 @@ class ChessGame {
         }
 
         if (!moveMade) {
-            console.warn('AI could not find a valid move.');
+            cloudChessLog('AI could not find a valid move.');
             this.isAiThinking = false;
             this.setBoardDisabled(false);
             this.setStatusMessage('The computer could not find a legal move.', 'warning');
@@ -1039,11 +1111,11 @@ class ChessGame {
         } else if (normalMoves.length > 0) {
             move = this.pickRandomMove(normalMoves);
         } else {
-            console.log("No valid moves for black");
+            cloudChessLog("No valid moves for black");
             return false;
         }
-        console.log({ captureMoves, normalMoves })
-        console.log({ move })
+        cloudChessLog({ captureMoves, normalMoves })
+        cloudChessLog({ move })
 
         this.executeMove(move);
         return true;
@@ -1127,7 +1199,7 @@ class ChessGame {
             return true;
         }
 
-        console.log("No valid moves for black");
+        cloudChessLog("No valid moves for black");
         return false;
     }
 
@@ -1136,7 +1208,7 @@ class ChessGame {
         const allMoves = [...captureMoves, ...normalMoves];
 
         if (allMoves.length === 0) {
-            console.log("No valid moves for black");
+            cloudChessLog("No valid moves for black");
             return false;
         }
 
@@ -1260,7 +1332,7 @@ class ChessGame {
             return true;
         }
 
-        console.log("No valid moves for black");
+        cloudChessLog("No valid moves for black");
         return false;
     }
 
@@ -1905,7 +1977,7 @@ class ChessGame {
         }
 
         if (kingRow === -1) {
-            console.warn(`King not found for ${color}`);
+            cloudChessLog(`King not found for ${color}`);
             return false;
         }
 
@@ -2020,6 +2092,7 @@ class ChessGame {
         this.board = boardContainer;
         this.initializeBoard();
         this.resetGraveyards();
+        this.resetMoveHistory();
 
         // Reset game state
         this.selectedPiece = null;
@@ -2107,18 +2180,18 @@ class ChessGame {
      * Selects a piece
      */
     selectPiece(square) {
-        console.log("--- ChessGame.selectPiece ---"); // Log entry
+        cloudChessLog("--- ChessGame.selectPiece ---"); // Log entry
         if (this.selectedPiece) {
-            console.log("Deselecting previous piece:", this.selectedPiece);
+            cloudChessLog("Deselecting previous piece:", this.selectedPiece);
             this.selectedPiece.classList.remove('selected');
         }
 
         this.selectedPiece = square;
         square.classList.add('selected');
-        console.log("Selected new piece:", this.selectedPiece);
-        console.log("Calling showValidMoves...");
+        cloudChessLog("Selected new piece:", this.selectedPiece);
+        cloudChessLog("Calling showValidMoves...");
         this.showValidMoves(); // Note: showValidMoves calls isValidMove repeatedly
-        console.log("--- End ChessGame.selectPiece ---");
+        cloudChessLog("--- End ChessGame.selectPiece ---");
     }
 
     /**
@@ -2126,7 +2199,7 @@ class ChessGame {
      */
     tryMove(row, col) {
         if (this.gameOver) return;
-        console.log(`--- ChessGame.tryMove to ${row}, ${col} ---`); // Log entry
+        cloudChessLog(`--- ChessGame.tryMove to ${row}, ${col} ---`); // Log entry
         if (!this.selectedPiece) {
              console.error("tryMove called but no piece selected!");
              return;
@@ -2134,47 +2207,47 @@ class ChessGame {
 
         const selectedRow = parseInt(this.selectedPiece.dataset.row);
         const selectedCol = parseInt(this.selectedPiece.dataset.col);
-        console.log(`Selected piece at: ${selectedRow}, ${selectedCol}`);
+        cloudChessLog(`Selected piece at: ${selectedRow}, ${selectedCol}`);
 
         // If clicking on the same square, deselect it
         if (selectedRow === row && selectedCol === col) {
-            console.log("Clicked same square, deselecting.");
+            cloudChessLog("Clicked same square, deselecting.");
             this.selectedPiece.classList.remove('selected');
             this.clearValidMoves();
             this.selectedPiece = null;
-             console.log("--- End ChessGame.tryMove (deselected) ---");
+             cloudChessLog("--- End ChessGame.tryMove (deselected) ---");
             return;
         }
 
         // Check if the move is valid
         const valid = this.isValidMove(row, col);
-        console.log(`Is move valid? ${valid}`);
+        cloudChessLog(`Is move valid? ${valid}`);
 
         if (valid) {
             const isArcherCaptureMove = this.isArcherCapture;
             // Check if the move would leave the king in check
             const leavesKingInCheck = this.wouldMoveLeaveKingInCheck(selectedRow, selectedCol, row, col, isArcherCaptureMove);
-            console.log(`Would move leave king in check? ${leavesKingInCheck}`);
+            cloudChessLog(`Would move leave king in check? ${leavesKingInCheck}`);
 
             if (leavesKingInCheck) {
-                console.log("Move aborted - would leave king in check.");
+                cloudChessLog("Move aborted - would leave king in check.");
                 this.setStatusMessage('That move would leave your king in check.', 'warning');
                 const illegalSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
                 if (illegalSquare) {
                     illegalSquare.classList.add('illegal-move');
                     setTimeout(() => illegalSquare.classList.remove('illegal-move'), 900);
                 }
-                console.log("--- End ChessGame.tryMove (check violation) ---");
+                cloudChessLog("--- End ChessGame.tryMove (check violation) ---");
                 return;
             }
             this.isArcherCapture = isArcherCaptureMove;
 
             // Move the piece
-            console.log("Calling movePiece...");
+            cloudChessLog("Calling movePiece...");
             this.movePiece(row, col); // This is the actual move execution
 
             // Clear selection and valid moves
-             console.log("Clearing selection and highlights after move.");
+             cloudChessLog("Clearing selection and highlights after move.");
             this.selectedPiece.classList.remove('selected'); // Should be null after movePiece? No, movePiece doesn't null it.
             this.clearValidMoves();
             this.selectedPiece = null; // Nullify selection AFTER move
@@ -2182,7 +2255,7 @@ class ChessGame {
             // Switch turns - IMPORTANT: This might be overridden in multiplayer.js!
             const oldPlayer = this.currentPlayer;
             this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
-            console.log(`Switched player from ${oldPlayer} to ${this.currentPlayer} (in base class)`);
+            cloudChessLog(`Switched player from ${oldPlayer} to ${this.currentPlayer} (in base class)`);
             const turnDisplay = document.getElementById('current-turn');
             if (turnDisplay) {
                 turnDisplay.textContent = this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
@@ -2191,14 +2264,14 @@ class ChessGame {
             // Check if the opponent's king is in check
             const opponentColor = this.currentPlayer;
             const inCheck = this.isKingInCheck(opponentColor);
-            console.log(`${opponentColor} king in check: ${inCheck}`);
+            cloudChessLog(`${opponentColor} king in check: ${inCheck}`);
             let isDraw = false;
 
             if (inCheck) {
                 // Check if it's checkmate
                 if (this.isCheckmate(opponentColor)) {
                     const winner = opponentColor === 'white' ? 'Black' : 'White';
-                     console.log("Checkmate detected!");
+                     cloudChessLog("Checkmate detected!");
                     this.showGameStatusAnimation('checkmate', 'CHECKMATE!');
                     this.gameOver = true;
                     this.setStatusMessage(`${winner} wins by checkmate.`, 'game-over');
@@ -2206,12 +2279,12 @@ class ChessGame {
                         alert(`${winner} wins!`);
                     }, 2000);
                 } else {
-                     console.log("Check detected.");
+                     cloudChessLog("Check detected.");
                     this.showGameStatusAnimation('check', 'CHECK!');
                     this.setStatusMessage(`${opponentColor.charAt(0).toUpperCase() + opponentColor.slice(1)} is in check.`, 'check');
                 }
             } else if (this.isStalemate(opponentColor)) {
-                 console.log("Stalemate detected.");
+                 cloudChessLog("Stalemate detected.");
                 this.showGameStatusAnimation('stalemate', 'STALEMATE');
                 this.gameOver = true;
                 this.setStatusMessage('Stalemate. The game is a draw.', 'game-over');
@@ -2225,7 +2298,7 @@ class ChessGame {
 
             // If playing against AI, make the AI move
             if (!isDraw && this.aiLevel > 0 && this.currentPlayer === 'black') {
-                 console.log("Handing over to AI...");
+                 cloudChessLog("Handing over to AI...");
                 this.isAiThinking = true;
                 this.setBoardDisabled(true);
                 this.setStatusMessage('The computer is thinking...', 'thinking');
@@ -2241,19 +2314,19 @@ class ChessGame {
 
             if (pieceOnTarget && this.isPieceOwnedByCurrentPlayer(pieceOnTarget)) {
                 // Clear previous selection
-                 console.log("Invalid move, but clicked on own piece. Selecting new piece.");
+                 cloudChessLog("Invalid move, but clicked on own piece. Selecting new piece.");
                 this.selectedPiece.classList.remove('selected');
                 this.clearValidMoves();
 
                 // Select new piece
-                 console.log("Calling selectPiece for the newly clicked piece...");
+                 cloudChessLog("Calling selectPiece for the newly clicked piece...");
                 this.selectPiece(clickedSquare); // Calls selectPiece again
             } else {
-                 console.log("Invalid move and didn't click own piece. Doing nothing.");
+                 cloudChessLog("Invalid move and didn't click own piece. Doing nothing.");
                 this.setStatusMessage('That piece cannot move there.', 'warning');
             }
         }
-         console.log("--- End ChessGame.tryMove ---");
+         cloudChessLog("--- End ChessGame.tryMove ---");
     }
 }
 
@@ -2269,7 +2342,7 @@ function updateGameStats(gameType) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                console.log('Game usage updated:', data);
+                cloudChessLog('Game usage updated:', data);
             } else {
                 console.error('Failed to update game usage:', data.message);
             }

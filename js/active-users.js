@@ -1,6 +1,8 @@
 // Function to load active users
 function loadActiveUsers() {
-    console.log('loading active users');
+    if (window.cloudChessLog) {
+        window.cloudChessLog('loading active users');
+    }
     fetch('api/active_users.php')
         .then(response => response.json())
         .then(data => {
@@ -59,4 +61,4 @@ function loadActiveUsers() {
             document.getElementById('active-users-container').innerHTML = 
                 '<p>Error loading online players.</p>';
         });
-} 
+}

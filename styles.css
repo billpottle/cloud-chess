@@ -253,6 +253,77 @@
     pointer-events: none;
 }
 
+.move-history-panel {
+    width: 100%;
+    max-width: var(--board-size, 520px);
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(88, 120, 186, 0.16);
+    border-radius: 12px;
+    box-shadow: 0 8px 22px rgba(64, 100, 170, 0.12);
+    padding: 12px 14px;
+    box-sizing: border-box;
+}
+
+.move-history-panel h3 {
+    margin: 0 0 8px;
+    color: #204179;
+    font-size: 0.95rem;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+}
+
+.move-history-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 12px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 132px;
+    overflow-y: auto;
+}
+
+.move-history-item,
+.move-history-empty {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    min-height: 28px;
+    color: #2d4574;
+    font-size: 0.9rem;
+    line-height: 1.2;
+}
+
+.move-history-item {
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 4px 6px;
+}
+
+.move-history-item:hover {
+    background: rgba(64, 124, 255, 0.1);
+}
+
+.move-history-number {
+    flex: 0 0 auto;
+    min-width: 28px;
+    color: #6d7fa1;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+}
+
+.move-history-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.move-history-empty {
+    grid-column: 1 / -1;
+    color: #7a8aa8;
+}
+
 .score-item {
     flex: 1;
     display: flex;
@@ -467,6 +538,11 @@
     .game-scoreboard {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .move-history-list {
+        grid-template-columns: 1fr;
+        max-height: 150px;
     }
 
     .score-item {
