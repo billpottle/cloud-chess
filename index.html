@@ -11,14 +11,14 @@
     <link rel="stylesheet" href="css/tables.css">
     <link rel="stylesheet" href="css/modals.css">
     <link rel="stylesheet" href="css/challenges.css">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=20260517">
     
     <!-- Favicon -->
     <link rel="icon" href="images/favicon.ico" sizes="any">
     <link rel="manifest" href="manifest.webmanifest">
     
     <!-- Scripts -->
-    <script src="chess.js" defer></script>
+    <script src="chess.js?v=20260517" defer></script>
 </head>
 <body>
     <div class="navbar">
@@ -163,9 +163,10 @@
                 </div>
             </div>
         </div>
-        <div id="game-board" style="display: none;">
+        <div id="game-board" hidden>
             <div class="game-info">
-                <div>Current Turn: <span id="current-turn">White</span></div>
+                <div class="turn-pill">Current Turn: <span id="current-turn">White</span></div>
+                <div id="game-status-message" class="game-status-message" aria-live="polite">Choose a mode to begin.</div>
             </div>
             <div class="game-layout">
                 <aside class="graveyard graveyard-white">
@@ -195,7 +196,7 @@
     <script src="js/stats.js"></script>
     <script src="js/active-users.js"></script>
     <script src="js/challenges.js"></script>
-    <script src="js/main.js"></script>
+    <script src="js/main.js?v=20260517"></script>
     
     <script>
         // Load rules content when the page loads

@@ -115,6 +115,7 @@ class ChessGame {
         this.gameBoard = null;
         this.aiLevel = 0;
         this.gameMode = null;
+        this.isAiThinking = false;
         this.isArcherCapture = false;
         this.capturedPieces = { white: [], black: [] };
         this.scores = { white: 0, black: 0 };
@@ -282,6 +283,10 @@ class ChessGame {
 
     handleSquareClick(event) {
         if (this.gameOver) return; // do nothing if game finished
+        if (this.isAiThinking) {
+            this.setStatusMessage('The computer is thinking...', 'thinking');
+            return;
+        }
         console.log("--- ChessGame.handleSquareClick ---"); // Base log
 
         // Make sure we're targeting the square, not the piece
@@ -915,6 +920,12 @@ class ChessGame {
     }
 
     makeAIMove() {
+        if (this.gameOver) {
+            this.isAiThinking = false;
+            this.setBoardDisabled(false);
+            return;
+        }
+
         const opponentColor = this.currentPlayer === 'white' ? 'black' : 'white';
         let moveMade = false;
 
@@ -928,6 +939,9 @@ class ChessGame {
 
         if (!moveMade) {
             console.warn('AI could not find a valid move.');
+            this.isAiThinking = false;
+            this.setBoardDisabled(false);
+            this.setStatusMessage('The computer could not find a legal move.', 'warning');
             return;
         }
 
@@ -942,14 +956,19 @@ class ChessGame {
             if (this.isCheckmate(opponentColor)) {
                 const winner = this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
                 this.showGameStatusAnimation('checkmate', 'CHECKMATE!');
+                this.gameOver = true;
+                this.setStatusMessage(`${winner} wins by checkmate.`, 'game-over');
                 setTimeout(() => {
                     alert(`${winner} wins!`);
                 }, 2000);
             } else {
                 this.showGameStatusAnimation('check', 'CHECK!');
+                this.setStatusMessage('Your king is in check. Find a safe move.', 'check');
             }
         } else if (this.isStalemate(opponentColor)) {
             this.showGameStatusAnimation('stalemate', 'STALEMATE');
+            this.gameOver = true;
+            this.setStatusMessage('Stalemate. The game is a draw.', 'game-over');
             setTimeout(() => {
                 alert('Stalemate! The game is a draw.');
             }, 1500);
@@ -962,8 +981,11 @@ class ChessGame {
             turnDisplay.textContent = this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
         }
 
-        if (isDraw) {
-            return;
+        this.isAiThinking = false;
+        this.setBoardDisabled(false);
+
+        if (!this.gameOver && !isDraw) {
+            this.setStatusMessage('Your move. Select a white piece.', 'ready');
         }
     }
 
@@ -1956,9 +1978,33 @@ class ChessGame {
         }
     }
 
+    setStatusMessage(message, type = '') {
+        const status = document.getElementById('game-status-message');
+        if (!status) {
+            return;
+        }
+
+        status.textContent = message;
+        status.dataset.status = type;
+    }
+
+    setBoardDisabled(disabled) {
+        const boardEl = this.board || document.getElementById('board');
+        if (boardEl) {
+            boardEl.classList.toggle('board-disabled', disabled);
+        }
+        const gameBoard = document.getElementById('game-board');
+        if (gameBoard) {
+            gameBoard.classList.toggle('ai-thinking', disabled);
+        }
+    }
+
     startGame(mode, aiLevel = 0) {
         this.gameMode = mode;
         this.aiLevel = aiLevel;
+        this.isAiThinking = false;
+        this.gameOver = false;
+        this.kingCaptured = null;
 
         // Clear any existing game boards
         const gameBoard = document.getElementById('game-board');
@@ -1991,11 +2037,20 @@ class ChessGame {
             modeSelection.style.display = 'none';
         }
         if (gameBoard) {
-            gameBoard.style.display = 'block';
+            gameBoard.hidden = false;
+            gameBoard.style.display = 'flex';
+            gameBoard.classList.toggle('single-player-mode', mode === 'pvc');
         }
 
         // Update navigation
         updateNavigation(true);
+        this.setBoardDisabled(false);
+        this.setStatusMessage(
+            mode === 'pvc'
+                ? `Single player: you are White. Computer difficulty ${aiLevel}.`
+                : 'Local two-player: pass the device between White and Black.',
+            'ready'
+        );
 
         // Show the "Begin" animation
         setTimeout(() => {
@@ -2003,9 +2058,9 @@ class ChessGame {
         }, 100);
 
         // Track game usage
-        if (mode === 'computer') {
+        if (mode === 'computer' || mode === 'pvc') {
             updateGameStats('Vs Computer Level ' + aiLevel);
-        } else if (mode === 'player') {
+        } else if (mode === 'player' || mode === 'pvp') {
             updateGameStats('Player Vs Player (Local)');
         }
 
@@ -2103,6 +2158,12 @@ class ChessGame {
 
             if (leavesKingInCheck) {
                 console.log("Move aborted - would leave king in check.");
+                this.setStatusMessage('That move would leave your king in check.', 'warning');
+                const illegalSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                if (illegalSquare) {
+                    illegalSquare.classList.add('illegal-move');
+                    setTimeout(() => illegalSquare.classList.remove('illegal-move'), 900);
+                }
                 console.log("--- End ChessGame.tryMove (check violation) ---");
                 return;
             }
@@ -2139,25 +2200,35 @@ class ChessGame {
                     const winner = opponentColor === 'white' ? 'Black' : 'White';
                      console.log("Checkmate detected!");
                     this.showGameStatusAnimation('checkmate', 'CHECKMATE!');
+                    this.gameOver = true;
+                    this.setStatusMessage(`${winner} wins by checkmate.`, 'game-over');
                     setTimeout(() => {
                         alert(`${winner} wins!`);
                     }, 2000);
                 } else {
                      console.log("Check detected.");
                     this.showGameStatusAnimation('check', 'CHECK!');
+                    this.setStatusMessage(`${opponentColor.charAt(0).toUpperCase() + opponentColor.slice(1)} is in check.`, 'check');
                 }
             } else if (this.isStalemate(opponentColor)) {
                  console.log("Stalemate detected.");
                 this.showGameStatusAnimation('stalemate', 'STALEMATE');
+                this.gameOver = true;
+                this.setStatusMessage('Stalemate. The game is a draw.', 'game-over');
                 setTimeout(() => {
                     alert('Stalemate! The game is a draw.');
                 }, 1500);
                 isDraw = true;
+            } else {
+                this.setStatusMessage(`${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)} to move.`, 'ready');
             }
 
             // If playing against AI, make the AI move
             if (!isDraw && this.aiLevel > 0 && this.currentPlayer === 'black') {
                  console.log("Handing over to AI...");
+                this.isAiThinking = true;
+                this.setBoardDisabled(true);
+                this.setStatusMessage('The computer is thinking...', 'thinking');
                 setTimeout(() => {
                     this.makeAIMove();
                     this.clearValidMoves();
@@ -2179,6 +2250,7 @@ class ChessGame {
                 this.selectPiece(clickedSquare); // Calls selectPiece again
             } else {
                  console.log("Invalid move and didn't click own piece. Doing nothing.");
+                this.setStatusMessage('That piece cannot move there.', 'warning');
             }
         }
          console.log("--- End ChessGame.tryMove ---");

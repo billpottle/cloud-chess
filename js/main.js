@@ -6,20 +6,6 @@ document.addEventListener('DOMContentLoaded', function () {
     loadGameStats();
     loadPlayerRankings();
 
-    // Set up event listeners for game mode buttons
-    document.getElementById('vs-player').addEventListener('click', function () {
-        updateGameStats('Player Vs Player (Local)');
-        // Existing code to start the game
-    });
-
-    document.getElementById('computer-difficulty').addEventListener('change', function () {
-        const level = this.value;
-        if (level) {
-            updateGameStats('Vs Computer Level ' + level);
-            // Existing code to start the game
-        }
-    });
-
     // Set up ranking sort change handler
     document.getElementById('ranking-sort').addEventListener('change', function () {
         loadPlayerRankings(this.value);
@@ -72,4 +58,4 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-}); 
+});
