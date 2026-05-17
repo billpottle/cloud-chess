@@ -12,6 +12,14 @@
     const AR_MIN_SCALE = 0.035;
     const AR_MAX_SCALE = 0.18;
     const AR_BOARD_HALF_SIZE = 5.7;
+    const REALISTIC_MODEL_PATHS = {
+        pawn: 'assets/models/realistic/pawn.glb',
+        rook: 'assets/models/realistic/rook.glb',
+        knight: 'assets/models/realistic/knight.glb',
+        bishop: 'assets/models/realistic/bishop.glb',
+        queen: 'assets/models/realistic/queen.glb',
+        king: 'assets/models/realistic/king.glb'
+    };
 
     class CloudChess3D {
         constructor() {
@@ -30,7 +38,9 @@
             this.squareMeshes = [];
             this.pieceMeshes = [];
             this.mode = localStorage.getItem(STORAGE_KEY) === '3d' ? '3d' : '2d';
-            this.pieceSet = localStorage.getItem(PIECE_SET_KEY) === 'sculpted' ? 'sculpted' : 'marked';
+            this.pieceSet = ['sculpted', 'realistic'].includes(localStorage.getItem(PIECE_SET_KEY))
+                ? localStorage.getItem(PIECE_SET_KEY)
+                : 'marked';
             this.dragging = false;
             this.lastPointer = null;
             this.orbitAngle = -Math.PI / 4;
@@ -58,6 +68,11 @@
             this.arLastHit = null;
             this.normalSceneBackground = null;
             this.normalSceneFog = null;
+            this.modelLoader = null;
+            this.modelCache = {};
+            this.modelPromises = {};
+            this.modelFailures = new Set();
+            this.modelRefreshQueued = new Set();
         }
 
         attach(game) {
@@ -100,6 +115,7 @@
                     setSelect.innerHTML = `
                         <option value="marked">Marked set</option>
                         <option value="sculpted">Sculpted set</option>
+                        <option value="realistic">Realistic beta</option>
                     `;
                     setSelect.value = this.pieceSet;
                     setSelect.addEventListener('change', () => this.setPieceSet(setSelect.value));
@@ -136,6 +152,7 @@
                     setSelect.innerHTML = `
                         <option value="marked">Marked set</option>
                         <option value="sculpted">Sculpted set</option>
+                        <option value="realistic">Realistic beta</option>
                     `;
                     setSelect.value = this.pieceSet;
                     setSelect.addEventListener('change', () => this.setPieceSet(setSelect.value));
@@ -513,6 +530,7 @@
             while (this.pieceGroup.children.length) {
                 const child = this.pieceGroup.children.pop();
                 child.traverse((node) => {
+                    if (node.userData?.assetClone) return;
                     if (node.geometry) node.geometry.dispose();
                     if (node.material) node.material.dispose();
                 });
@@ -540,6 +558,24 @@
             const trimMaterial = new THREE.MeshStandardMaterial({ color: trim, roughness: 0.45, metalness: 0.12 });
             const dragonMaterial = new THREE.MeshStandardMaterial({ color: dragonRed, roughness: 0.44, metalness: 0.16 });
             const archerMaterial = new THREE.MeshStandardMaterial({ color: archerGreen, roughness: 0.44, metalness: 0.12 });
+
+            if (this.pieceSet === 'realistic' && REALISTIC_MODEL_PATHS[info.type]) {
+                const realisticPiece = this.createRealisticPiece(info, row, col);
+                if (realisticPiece) {
+                    group.add(realisticPiece);
+                    this.pieceGroup.add(group);
+                    return;
+                }
+                if (!this.modelRefreshQueued.has(info.type)) {
+                    this.modelRefreshQueued.add(info.type);
+                    this.loadRealisticModel(info.type).then((model) => {
+                        this.modelRefreshQueued.delete(info.type);
+                        if (model && this.pieceSet === 'realistic') {
+                            this.scheduleSync(this.game);
+                        }
+                    });
+                }
+            }
 
             const add = (mesh) => {
                 mesh.castShadow = true;
@@ -646,6 +682,101 @@
                 this.addPieceBadge(group, info, row, col);
             }
             this.pieceGroup.add(group);
+        }
+
+        createRealisticPiece(info, row, col) {
+            const cached = this.modelCache[info.type];
+            if (!cached) return null;
+
+            const model = cached.clone(true);
+            const pieceColor = info.color === 'white' ? 0xf6ead7 : 0x14171c;
+            const accentColor = info.color === 'white' ? 0xb88743 : 0x6f93c4;
+            const material = new THREE.MeshStandardMaterial({
+                color: pieceColor,
+                roughness: info.color === 'white' ? 0.34 : 0.42,
+                metalness: info.color === 'white' ? 0.22 : 0.34,
+                envMapIntensity: 0.8
+            });
+            const accentMaterial = new THREE.MeshStandardMaterial({
+                color: accentColor,
+                roughness: 0.38,
+                metalness: 0.28
+            });
+
+            model.traverse((node) => {
+                node.userData = { ...node.userData, row, col, piece: true, assetClone: true };
+                if (node.isMesh) {
+                    node.castShadow = true;
+                    node.receiveShadow = true;
+                    node.material = material;
+                    this.pieceMeshes.push(node);
+                }
+            });
+
+            const box = new THREE.Box3().setFromObject(model);
+            const size = box.getSize(new THREE.Vector3());
+            const maxAxis = Math.max(size.x, size.y, size.z) || 1;
+            const scale = 0.92 / maxAxis;
+            model.scale.setScalar(scale);
+            model.rotation.y = info.color === 'white' ? Math.PI : 0;
+
+            const normalizedBox = new THREE.Box3().setFromObject(model);
+            const center = normalizedBox.getCenter(new THREE.Vector3());
+            const minY = normalizedBox.min.y;
+            model.position.set(-center.x, 0.07 - minY, -center.z);
+
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.37, 0.12, 40), material);
+            base.position.y = 0.06;
+            base.userData = { row, col, piece: true };
+            base.castShadow = true;
+            base.receiveShadow = true;
+            this.pieceMeshes.push(base);
+
+            const trim = new THREE.Mesh(new THREE.TorusGeometry(0.31, 0.022, 10, 40), accentMaterial);
+            trim.position.y = 0.13;
+            trim.userData = { row, col, piece: true };
+            trim.castShadow = true;
+            trim.receiveShadow = true;
+            this.pieceMeshes.push(trim);
+
+            const root = new THREE.Group();
+            root.userData = { row, col, piece: true };
+            root.add(base);
+            root.add(trim);
+            root.add(model);
+            return root;
+        }
+
+        loadRealisticModel(type) {
+            if (this.modelCache[type]) {
+                return Promise.resolve(this.modelCache[type]);
+            }
+            if (this.modelPromises[type]) {
+                return this.modelPromises[type];
+            }
+            if (this.modelFailures.has(type) || !window.THREE?.GLTFLoader || !REALISTIC_MODEL_PATHS[type]) {
+                return Promise.resolve(null);
+            }
+
+            if (!this.modelLoader) {
+                this.modelLoader = new THREE.GLTFLoader();
+            }
+            this.modelPromises[type] = new Promise((resolve) => {
+                this.modelLoader.load(
+                    REALISTIC_MODEL_PATHS[type],
+                    (gltf) => {
+                        this.modelCache[type] = gltf.scene;
+                        resolve(gltf.scene);
+                    },
+                    undefined,
+                    (error) => {
+                        console.warn(`Failed to load realistic ${type} model`, error);
+                        this.modelFailures.add(type);
+                        resolve(null);
+                    }
+                );
+            });
+            return this.modelPromises[type];
         }
 
         addPieceBadge(group, info, row, col) {
@@ -1156,7 +1287,7 @@
         }
 
         setPieceSet(value) {
-            this.pieceSet = value === 'sculpted' ? 'sculpted' : 'marked';
+            this.pieceSet = ['sculpted', 'realistic'].includes(value) ? value : 'marked';
             localStorage.setItem(PIECE_SET_KEY, this.pieceSet);
             const select = document.getElementById('piece-set-select');
             if (select) {

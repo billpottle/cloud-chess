@@ -103,3 +103,59 @@ describe('ChessGame threat detection helpers', () => {
     expect(snapshot[7][7]).toMatchObject({ type: 'queen', color: 'black' });
   });
 });
+
+describe('Battle chess captures', () => {
+  let game;
+  let board;
+
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div class="navbar"><a href="#"></a></div>
+      <div id="current-turn"></div>
+      <div id="game-status-message"></div>
+      <div id="mode-selection"></div>
+      <div id="game-board">
+        <div id="board"></div>
+        <section id="battle-panel" hidden>
+          <span id="battle-round"></span>
+          <div id="battle-attacker-name"></div>
+          <div id="battle-defender-name"></div>
+          <div><span id="battle-attacker-hp"></span></div>
+          <div><span id="battle-defender-hp"></span></div>
+          <div id="battle-attacker-stats"></div>
+          <div id="battle-defender-stats"></div>
+          <div id="battle-log"></div>
+          <button type="button" class="battle-action" data-action="strike">Strike</button>
+        </section>
+      </div>
+      <ol id="move-history-list"></ol>
+    `;
+    game = new ChessGame();
+    game.startGame('pvc', 1, { battleMode: true });
+    board = document.getElementById('board');
+    clearPieces(board);
+    placePiece(board, 9, 5, { type: 'king', color: 'white', symbol: '♔' });
+    placePiece(board, 0, 5, { type: 'king', color: 'black', symbol: '♚' });
+    placePiece(board, 4, 4, { type: 'pawn', color: 'white', symbol: '♙' });
+    placePiece(board, 3, 5, { type: 'pawn', color: 'black', symbol: '♟' });
+  });
+
+  test('player capture starts a battle before moving the piece', () => {
+    game.selectPiece(board.querySelector('[data-row="4"][data-col="4"]'));
+
+    game.tryMove(3, 5);
+
+    expect(game.activeBattle).toMatchObject({
+      fromRow: 4,
+      fromCol: 4,
+      toRow: 3,
+      toCol: 5,
+      attackerName: 'White Pawn',
+      defenderName: 'Black Pawn'
+    });
+    expect(document.getElementById('battle-panel').hidden).toBe(false);
+    expect(board.querySelector('[data-row="4"][data-col="4"] .piece')?.dataset.color).toBe('white');
+    expect(board.querySelector('[data-row="3"][data-col="5"] .piece')?.dataset.color).toBe('black');
+    expect(game.currentPlayer).toBe('white');
+  });
+});

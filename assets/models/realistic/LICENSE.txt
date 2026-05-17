@@ -1,0 +1,9 @@
+Realistic chess piece models
+
+Source: https://opengameart.org/content/3d-chess-pieces
+Author: tunakron
+License: CC0 1.0 Universal Public Domain Dedication
+
+The original OpenGameArt entry describes the package as exported in glTF format
+and lists the license as CC0. Attribution is not required, but this note is kept
+so the asset source remains easy to audit.

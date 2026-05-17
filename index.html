@@ -20,7 +20,8 @@
     <!-- Scripts -->
     <script src="chess.js?v=20260517b" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
-    <script src="js/three-board.js?v=20260517j" defer></script>
+    <script src="js/vendor/GLTFLoader.js?v=20260517a" defer></script>
+    <script src="js/three-board.js?v=20260517k" defer></script>
 </head>
 <body>
     <div class="navbar">
@@ -108,6 +109,10 @@
                         <option value="2">Medium</option>
                         <option value="3">Hard</option>
                     </select>
+                    <label class="battle-mode-toggle" for="battle-mode-toggle">
+                        <input type="checkbox" id="battle-mode-toggle">
+                        Battle chess captures
+                    </label>
                 </div>
             </div>
 
@@ -187,6 +192,36 @@
                         <ol id="move-history-list" class="move-history-list">
                             <li class="move-history-empty">Moves will appear here.</li>
                         </ol>
+                    </section>
+                    <section id="battle-panel" class="battle-panel" hidden aria-live="polite">
+                        <div class="battle-panel-header">
+                            <h3>Battle</h3>
+                            <span id="battle-round">Round 1</span>
+                        </div>
+                        <div class="battle-combatants">
+                            <div class="battle-card attacker">
+                                <div class="battle-role">Attacker</div>
+                                <div id="battle-attacker-name" class="battle-piece-name">Piece</div>
+                                <div class="battle-hp-bar" aria-label="Attacker health">
+                                    <span id="battle-attacker-hp"></span>
+                                </div>
+                                <div id="battle-attacker-stats" class="battle-stats"></div>
+                            </div>
+                            <div class="battle-card defender">
+                                <div class="battle-role">Defender</div>
+                                <div id="battle-defender-name" class="battle-piece-name">Piece</div>
+                                <div class="battle-hp-bar" aria-label="Defender health">
+                                    <span id="battle-defender-hp"></span>
+                                </div>
+                                <div id="battle-defender-stats" class="battle-stats"></div>
+                            </div>
+                        </div>
+                        <div id="battle-log" class="battle-log">Choose an attack.</div>
+                        <div class="battle-actions">
+                            <button type="button" class="battle-action" data-action="strike">Strike</button>
+                            <button type="button" class="battle-action" data-action="guard">Guard</button>
+                            <button type="button" class="battle-action" data-action="power">Power</button>
+                        </div>
                     </section>
                 </div>
                 <aside class="graveyard graveyard-black">

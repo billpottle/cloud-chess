@@ -67,8 +67,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (computerDifficulty) {
         computerDifficulty.addEventListener('change', () => {
             const difficulty = parseInt(computerDifficulty.value);
+            const battleToggle = document.getElementById('battle-mode-toggle');
             if (difficulty > 0) {
-                window.gameInstance.startGame('pvc', difficulty);
+                window.gameInstance.startGame('pvc', difficulty, {
+                    battleMode: Boolean(battleToggle?.checked)
+                });
             }
         });
     }
@@ -135,6 +138,8 @@ class ChessGame {
         this.gameMode = null;
         this.isAiThinking = false;
         this.isArcherCapture = false;
+        this.battleMode = false;
+        this.activeBattle = null;
         this.capturedPieces = { white: [], black: [] };
         this.scores = { white: 0, black: 0 };
         this.pieceScoreValues = {
@@ -146,6 +151,16 @@ class ChessGame {
             queen: 9,
             dragon: 7,
             king: 0
+        };
+        this.pieceBattleStats = {
+            pawn: { hp: 5, attack: 2 },
+            archer: { hp: 6, attack: 2 },
+            knight: { hp: 9, attack: 4 },
+            bishop: { hp: 8, attack: 4 },
+            rook: { hp: 12, attack: 5 },
+            queen: { hp: 14, attack: 6 },
+            king: { hp: 16, attack: 5 },
+            dragon: { hp: 22, attack: 8 }
         };
 
         // Game end flags
@@ -302,6 +317,10 @@ class ChessGame {
 
     handleSquareClick(event) {
         if (this.gameOver) return; // do nothing if game finished
+        if (this.activeBattle) {
+            this.setStatusMessage('Finish the battle before moving another piece.', 'thinking');
+            return;
+        }
         if (this.isAiThinking) {
             this.setStatusMessage('The computer is thinking...', 'thinking');
             return;
@@ -835,7 +854,7 @@ class ChessGame {
             halfMove: this.moveHistory.length + 1
         };
         timed.moveNumber = Math.ceil(timed.halfMove / 2);
-        timed.summary = this.formatMoveSummary(timed);
+        timed.summary = move.summary || this.formatMoveSummary(timed);
         if (timed.color === 'white') this.lastMoves.white = timed; else this.lastMoves.black = timed;
         this.moveHistory.push(timed);
         this.updateMoveHistoryUI();
@@ -985,6 +1004,344 @@ class ChessGame {
         if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
     }
 
+    getOpponentColor(color) {
+        return color === 'white' ? 'black' : 'white';
+    }
+
+    getPieceDisplayName(pieceEl) {
+        if (!pieceEl) return 'Piece';
+        const type = pieceEl.dataset.type || this.inferPieceType(pieceEl.dataset.symbol || pieceEl.textContent, pieceEl.dataset.type);
+        const color = pieceEl.dataset.color || this.inferPieceColor(pieceEl.dataset.symbol || pieceEl.textContent, pieceEl.dataset.color);
+        const labels = {
+            pawn: 'Pawn',
+            archer: 'Archer',
+            knight: 'Knight',
+            bishop: 'Bishop',
+            rook: 'Rook',
+            queen: 'Queen',
+            king: 'King',
+            dragon: 'Dragon'
+        };
+        const pieceName = labels[type] || 'Piece';
+        return `${color ? color.charAt(0).toUpperCase() + color.slice(1) + ' ' : ''}${pieceName}`;
+    }
+
+    getBattleStatsForPiece(pieceEl) {
+        const type = pieceEl?.dataset.type || this.inferPieceType(pieceEl?.dataset.symbol || pieceEl?.textContent || '', pieceEl?.dataset.type);
+        const base = this.pieceBattleStats[type] || { hp: 8, attack: 3 };
+        return { ...base, type };
+    }
+
+    getMoveCaptureInfo(fromRow, fromCol, toRow, toCol, isArcherCaptureMove = this.isArcherCapture) {
+        const fromSquare = document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`);
+        const toSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
+        const attacker = fromSquare?.querySelector('.piece');
+        const defender = toSquare?.querySelector('.piece');
+        if (!fromSquare || !toSquare || !attacker) {
+            return null;
+        }
+
+        const targets = [];
+        const attackerColor = attacker.dataset.color;
+        if (defender && defender.dataset.color !== attackerColor) {
+            targets.push({ square: toSquare, piece: defender, row: toRow, col: toCol });
+        }
+
+        const rowDiff = Math.abs(toRow - fromRow);
+        const colDiff = Math.abs(toCol - fromCol);
+        if (!isArcherCaptureMove && attacker.dataset.type === 'dragon' && (rowDiff === 2 || colDiff === 2)) {
+            if (rowDiff === 0 || colDiff === 0 || rowDiff === colDiff) {
+                const midRow = (fromRow + toRow) / 2;
+                const midCol = (fromCol + toCol) / 2;
+                const midSquare = document.querySelector(`[data-row="${midRow}"][data-col="${midCol}"]`);
+                const midPiece = midSquare?.querySelector('.piece');
+                if (midPiece && midPiece.dataset.color !== attackerColor) {
+                    targets.push({ square: midSquare, piece: midPiece, row: midRow, col: midCol });
+                }
+            }
+        }
+
+        if (targets.length === 0) {
+            return null;
+        }
+
+        const primaryTarget = targets.reduce((best, target) => {
+            const bestValue = this.pieceScoreValues[best.piece.dataset.type] ?? 0;
+            const targetValue = this.pieceScoreValues[target.piece.dataset.type] ?? 0;
+            return targetValue > bestValue ? target : best;
+        }, targets[0]);
+
+        return {
+            fromRow,
+            fromCol,
+            toRow,
+            toCol,
+            archerShot: Boolean(isArcherCaptureMove),
+            attackerSquare: fromSquare,
+            attacker,
+            defenderSquare: primaryTarget.square,
+            defender: primaryTarget.piece,
+            targets
+        };
+    }
+
+    shouldBattleForCapture(captureInfo) {
+        return Boolean(
+            this.battleMode &&
+            this.gameMode === 'pvc' &&
+            this.aiLevel > 0 &&
+            captureInfo &&
+            captureInfo.attacker &&
+            captureInfo.defender
+        );
+    }
+
+    startBattleForMove(captureInfo) {
+        const attackerStats = this.getBattleStatsForPiece(captureInfo.attacker);
+        const defenderStats = this.getBattleStatsForPiece(captureInfo.defender);
+        this.activeBattle = {
+            ...captureInfo,
+            round: 1,
+            attackerHp: attackerStats.hp,
+            defenderHp: defenderStats.hp + 1,
+            attackerMaxHp: attackerStats.hp,
+            defenderMaxHp: defenderStats.hp + 1,
+            attackerAttack: attackerStats.attack,
+            defenderAttack: defenderStats.attack,
+            attackerName: this.getPieceDisplayName(captureInfo.attacker),
+            defenderName: this.getPieceDisplayName(captureInfo.defender),
+            log: `${this.getPieceDisplayName(captureInfo.attacker)} challenges ${this.getPieceDisplayName(captureInfo.defender)}.`
+        };
+        this.renderBattlePanel();
+        this.setBoardDisabled(true);
+        this.setStatusMessage('Battle started. Choose how your piece fights.', 'thinking');
+    }
+
+    bindBattleActions(panel) {
+        panel.querySelectorAll('.battle-action').forEach(button => {
+            if (button.dataset.bound === 'true') return;
+            button.dataset.bound = 'true';
+            button.addEventListener('click', () => this.playBattleRound(button.dataset.action));
+        });
+    }
+
+    renderBattlePanel() {
+        const battle = this.activeBattle;
+        const panel = document.getElementById('battle-panel');
+        if (!panel || !battle) return;
+
+        panel.hidden = false;
+        this.bindBattleActions(panel);
+
+        const setText = (id, text) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = text;
+        };
+        const setHp = (id, hp, maxHp) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const percent = Math.max(0, Math.min(100, (hp / maxHp) * 100));
+            el.style.width = `${percent}%`;
+            el.textContent = `${Math.max(0, hp)} / ${maxHp}`;
+        };
+
+        setText('battle-round', `Round ${battle.round}`);
+        setText('battle-attacker-name', battle.attackerName);
+        setText('battle-defender-name', battle.defenderName);
+        setText('battle-attacker-stats', `HP ${battle.attackerMaxHp} / ATK ${battle.attackerAttack}`);
+        setText('battle-defender-stats', `HP ${battle.defenderMaxHp} / ATK ${battle.defenderAttack}`);
+        setText('battle-log', battle.log);
+        setHp('battle-attacker-hp', battle.attackerHp, battle.attackerMaxHp);
+        setHp('battle-defender-hp', battle.defenderHp, battle.defenderMaxHp);
+    }
+
+    chooseComputerBattleAction(battle, side = 'defender') {
+        const hp = side === 'attacker' ? battle.attackerHp : battle.defenderHp;
+        const maxHp = side === 'attacker' ? battle.attackerMaxHp : battle.defenderMaxHp;
+        if (hp / maxHp < 0.35 && Math.random() < 0.45) {
+            return 'guard';
+        }
+        if (Math.random() < 0.28) {
+            return 'power';
+        }
+        return 'strike';
+    }
+
+    rollBattleDamage(attack, action, targetGuarding) {
+        let damage = attack + Math.floor(Math.random() * 3) - 1;
+        if (action === 'guard') {
+            damage = Math.max(1, Math.floor(attack * 0.45));
+        } else if (action === 'power') {
+            damage = Math.random() < 0.25 ? 0 : Math.ceil(attack * 1.65);
+        }
+        if (targetGuarding) {
+            damage = Math.ceil(damage / 2);
+        }
+        return Math.max(0, damage);
+    }
+
+    describeBattleAction(action) {
+        return {
+            strike: 'strikes',
+            guard: 'guards',
+            power: 'swings hard'
+        }[action] || 'strikes';
+    }
+
+    playBattleRound(playerAction) {
+        const battle = this.activeBattle;
+        if (!battle) return;
+
+        const defenderAction = this.chooseComputerBattleAction(battle, 'defender');
+        const attackerDamage = this.rollBattleDamage(battle.attackerAttack, playerAction, defenderAction === 'guard');
+        const defenderDamage = this.rollBattleDamage(battle.defenderAttack, defenderAction, playerAction === 'guard');
+
+        battle.defenderHp -= attackerDamage;
+        battle.attackerHp -= defenderDamage;
+        battle.log = `${battle.attackerName} ${this.describeBattleAction(playerAction)} for ${attackerDamage}. ${battle.defenderName} ${this.describeBattleAction(defenderAction)} for ${defenderDamage}.`;
+
+        if (battle.defenderHp <= 0 || battle.attackerHp <= 0) {
+            this.finishBattle(battle.defenderHp <= 0 && battle.attackerHp <= 0
+                ? battle.attackerAttack >= battle.defenderAttack
+                : battle.defenderHp <= 0);
+            return;
+        }
+
+        battle.round += 1;
+        this.renderBattlePanel();
+    }
+
+    finishBattle(attackerWon) {
+        const battle = this.activeBattle;
+        if (!battle) return;
+
+        this.activeBattle = null;
+        const panel = document.getElementById('battle-panel');
+        if (panel) {
+            panel.hidden = true;
+        }
+
+        if (attackerWon) {
+            this.setStatusMessage(`${battle.attackerName} won the battle and takes the square.`, 'ready');
+            this.isArcherCapture = battle.archerShot;
+            this.movePiece(battle.toRow, battle.toCol);
+        } else {
+            this.setStatusMessage(`${battle.defenderName} held the square. The capture fails.`, 'warning');
+            this.recordLastMove({
+                color: battle.attacker.dataset.color,
+                type: battle.attacker.dataset.type || this.inferPieceType(battle.attacker.textContent, battle.attacker.dataset.type),
+                fromRow: battle.fromRow,
+                fromCol: battle.fromCol,
+                toRow: battle.toRow,
+                toCol: battle.toCol,
+                archerShot: battle.archerShot,
+                summary: `${battle.attackerName} lost battle at ${this.squareName(battle.toRow, battle.toCol)}`
+            });
+        }
+
+        if (this.selectedPiece) {
+            this.selectedPiece.classList.remove('selected');
+        }
+        this.clearValidMoves();
+        this.selectedPiece = null;
+        this.setBoardDisabled(false);
+        this.finishTurnAfterAction();
+    }
+
+    autoResolveBattle(captureInfo) {
+        const attackerStats = this.getBattleStatsForPiece(captureInfo.attacker);
+        const defenderStats = this.getBattleStatsForPiece(captureInfo.defender);
+        const battle = {
+            attackerHp: attackerStats.hp,
+            defenderHp: defenderStats.hp + 1,
+            attackerMaxHp: attackerStats.hp,
+            defenderMaxHp: defenderStats.hp + 1,
+            attackerAttack: attackerStats.attack,
+            defenderAttack: defenderStats.attack,
+            attackerName: this.getPieceDisplayName(captureInfo.attacker),
+            defenderName: this.getPieceDisplayName(captureInfo.defender)
+        };
+
+        for (let round = 1; round <= 8 && battle.attackerHp > 0 && battle.defenderHp > 0; round++) {
+            const attackerAction = this.chooseComputerBattleAction(battle, 'attacker');
+            const defenderAction = this.chooseComputerBattleAction(battle, 'defender');
+            battle.defenderHp -= this.rollBattleDamage(battle.attackerAttack, attackerAction, defenderAction === 'guard');
+            battle.attackerHp -= this.rollBattleDamage(battle.defenderAttack, defenderAction, attackerAction === 'guard');
+        }
+
+        const attackerWon = battle.defenderHp <= 0 && (battle.attackerHp > 0 || battle.attackerAttack >= battle.defenderAttack);
+        if (attackerWon) {
+            this.setStatusMessage(`${battle.attackerName} won a battle and captured ${battle.defenderName}.`, 'ready');
+        } else {
+            this.recordLastMove({
+                color: captureInfo.attacker.dataset.color,
+                type: captureInfo.attacker.dataset.type || this.inferPieceType(captureInfo.attacker.textContent, captureInfo.attacker.dataset.type),
+                fromRow: captureInfo.fromRow,
+                fromCol: captureInfo.fromCol,
+                toRow: captureInfo.toRow,
+                toCol: captureInfo.toCol,
+                archerShot: captureInfo.archerShot,
+                summary: `${battle.attackerName} lost battle at ${this.squareName(captureInfo.toRow, captureInfo.toCol)}`
+            });
+            this.setStatusMessage(`${battle.defenderName} won the battle. The computer capture fails.`, 'warning');
+        }
+        return attackerWon;
+    }
+
+    finishTurnAfterAction() {
+        if (this.gameOver) {
+            this.setBoardDisabled(false);
+            return;
+        }
+
+        const oldPlayer = this.currentPlayer;
+        this.currentPlayer = this.getOpponentColor(this.currentPlayer);
+        cloudChessLog(`Switched player from ${oldPlayer} to ${this.currentPlayer}`);
+        const turnDisplay = document.getElementById('current-turn');
+        if (turnDisplay) {
+            turnDisplay.textContent = this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
+        }
+
+        const opponentColor = this.currentPlayer;
+        const inCheck = this.isKingInCheck(opponentColor);
+        let isDraw = false;
+
+        if (inCheck) {
+            if (this.isCheckmate(opponentColor)) {
+                const winner = opponentColor === 'white' ? 'Black' : 'White';
+                this.showGameStatusAnimation('checkmate', 'CHECKMATE!');
+                this.gameOver = true;
+                this.setStatusMessage(`${winner} wins by checkmate.`, 'game-over');
+                setTimeout(() => {
+                    alert(`${winner} wins!`);
+                }, 2000);
+            } else {
+                this.showGameStatusAnimation('check', 'CHECK!');
+                this.setStatusMessage(`${opponentColor.charAt(0).toUpperCase() + opponentColor.slice(1)} is in check.`, 'check');
+            }
+        } else if (this.isStalemate(opponentColor)) {
+            this.showGameStatusAnimation('stalemate', 'STALEMATE');
+            this.gameOver = true;
+            this.setStatusMessage('Stalemate. The game is a draw.', 'game-over');
+            setTimeout(() => {
+                alert('Stalemate! The game is a draw.');
+            }, 1500);
+            isDraw = true;
+        } else if (!this.battleMode || this.gameMode !== 'pvc') {
+            this.setStatusMessage(`${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)} to move.`, 'ready');
+        }
+
+        if (!isDraw && !this.gameOver && this.aiLevel > 0 && this.currentPlayer === 'black') {
+            this.isAiThinking = true;
+            this.setBoardDisabled(true);
+            this.setStatusMessage('The computer is thinking...', 'thinking');
+            setTimeout(() => {
+                this.makeAIMove();
+                this.clearValidMoves();
+            }, 500);
+        }
+    }
+
     handleTurn() {
         if (this.currentPlayer === 'black') {
             setTimeout(() => this.makeAIMove(), 500); // Delay for better UX
@@ -1099,8 +1456,7 @@ class ChessGame {
         if (checkmateMoves.length > 0) {
             const winningMove = this.pickRandomMove(checkmateMoves);
             if (winningMove) {
-                this.executeMove(winningMove);
-                return true;
+                return this.executeMove(winningMove);
             }
         }
 
@@ -1117,8 +1473,7 @@ class ChessGame {
         cloudChessLog({ captureMoves, normalMoves })
         cloudChessLog({ move })
 
-        this.executeMove(move);
-        return true;
+        return this.executeMove(move);
     }
 
     makeMediumAIMove() {
@@ -1132,32 +1487,28 @@ class ChessGame {
                 ? this.chooseHighestValueCapture(winningCapture)
                 : this.pickRandomMove(checkmateMoves);
             if (move) {
-                this.executeMove(move);
-                return true;
+                return this.executeMove(move);
             }
         }
 
         const checkingCaptureMoves = captureMoves.filter(move => this.doesMoveDeliverCheck(move, 'white'));
         if (checkingCaptureMoves.length > 0) {
             const move = this.chooseHighestValueCapture(checkingCaptureMoves);
-            this.executeMove(move);
-            return true;
+            return this.executeMove(move);
         }
 
         const checkingNormalMoves = normalMoves.filter(move => this.doesMoveDeliverCheck(move, 'white'));
         if (checkingNormalMoves.length > 0) {
             const move = this.pickRandomMove(checkingNormalMoves);
             if (move) {
-                this.executeMove(move);
-                return true;
+                return this.executeMove(move);
             }
         }
 
         // First priority: capture moves
         if (captureMoves.length > 0) {
             const move = this.chooseHighestValueCapture(captureMoves);
-            this.executeMove(move);
-            return true;
+            return this.executeMove(move);
         }
 
         // Second priority: avoid pieces that are in danger
@@ -1187,16 +1538,14 @@ class ChessGame {
             if (safeMoves.length > 0) {
                 // Choose a random safe move
                 const move = this.pickRandomMove(safeMoves);
-                this.executeMove(move);
-                return true;
+                return this.executeMove(move);
             }
         }
 
         // Third priority: just make a random move
         if (normalMoves.length > 0) {
             const move = this.pickRandomMove(normalMoves);
-            this.executeMove(move);
-            return true;
+            return this.executeMove(move);
         }
 
         cloudChessLog("No valid moves for black");
@@ -1219,8 +1568,7 @@ class ChessGame {
                 ? this.chooseHighestValueCapture(captureFinishes)
                 : this.pickRandomMove(checkmateMoves);
             if (move) {
-                this.executeMove(move);
-                return true;
+                return this.executeMove(move);
             }
         }
 
@@ -1235,14 +1583,12 @@ class ChessGame {
         const checkingSafeCaptures = safeCaptureMoves.filter(move => this.doesMoveDeliverCheck(move, 'white'));
         if (checkingSafeCaptures.length > 0) {
             const move = this.chooseHighestValueCapture(checkingSafeCaptures);
-            this.executeMove(move);
-            return true;
+            return this.executeMove(move);
         }
 
         if (safeCaptureMoves.length > 0) {
             const move = this.chooseHighestValueCapture(safeCaptureMoves);
-            this.executeMove(move);
-            return true;
+            return this.executeMove(move);
         }
 
         const piecesInDanger = this.findPiecesInDanger('black');
@@ -1274,8 +1620,7 @@ class ChessGame {
                     ? this.pickRandomMove(checkingRelief)
                     : this.pickRandomMove(safeReliefMoves);
                 if (move) {
-                    this.executeMove(move);
-                    return true;
+                    return this.executeMove(move);
                 }
             }
         }
@@ -1288,8 +1633,7 @@ class ChessGame {
         if (checkingSafeNormals.length > 0) {
             const move = this.pickRandomMove(checkingSafeNormals);
             if (move) {
-                this.executeMove(move);
-                return true;
+                return this.executeMove(move);
             }
         }
 
@@ -1301,8 +1645,7 @@ class ChessGame {
         if (quietSafeMoves.length > 0) {
             const move = this.pickRandomMove(quietSafeMoves);
             if (move) {
-                this.executeMove(move);
-                return true;
+                return this.executeMove(move);
             }
         }
 
@@ -1328,8 +1671,7 @@ class ChessGame {
         });
 
         if (allFallbackMoves.length > 0) {
-            this.executeMove(allFallbackMoves[0]);
-            return true;
+            return this.executeMove(allFallbackMoves[0]);
         }
 
         cloudChessLog("No valid moves for black");
@@ -1343,7 +1685,15 @@ class ChessGame {
         }
         // Ensure archerShot behavior is honored for engine-controlled moves
         this.isArcherCapture = !!archerShot;
+        const captureInfo = this.getMoveCaptureInfo(fromRow, fromCol, toRow, toCol, this.isArcherCapture);
+        if (this.shouldBattleForCapture(captureInfo)) {
+            const attackerWon = this.autoResolveBattle(captureInfo);
+            if (!attackerWon) {
+                return true;
+            }
+        }
         this.movePiece(toRow, toCol);
+        return true;
     }
 
     findPieces(color) {
@@ -2071,9 +2421,11 @@ class ChessGame {
         }
     }
 
-    startGame(mode, aiLevel = 0) {
+    startGame(mode, aiLevel = 0, options = {}) {
         this.gameMode = mode;
         this.aiLevel = aiLevel;
+        this.battleMode = mode === 'pvc' && Boolean(options.battleMode);
+        this.activeBattle = null;
         this.isAiThinking = false;
         this.gameOver = false;
         this.kingCaptured = null;
@@ -2113,6 +2465,12 @@ class ChessGame {
             gameBoard.hidden = false;
             gameBoard.style.display = 'flex';
             gameBoard.classList.toggle('single-player-mode', mode === 'pvc');
+            gameBoard.classList.toggle('battle-mode-active', this.battleMode);
+        }
+
+        const battlePanel = document.getElementById('battle-panel');
+        if (battlePanel) {
+            battlePanel.hidden = true;
         }
 
         // Update navigation
@@ -2120,7 +2478,7 @@ class ChessGame {
         this.setBoardDisabled(false);
         this.setStatusMessage(
             mode === 'pvc'
-                ? `Single player: you are White. Computer difficulty ${aiLevel}.`
+                ? `Single player: you are White. Computer difficulty ${aiLevel}${this.battleMode ? ' with battle captures' : ''}.`
                 : 'Local two-player: pass the device between White and Black.',
             'ready'
         );
@@ -2132,7 +2490,7 @@ class ChessGame {
 
         // Track game usage
         if (mode === 'computer' || mode === 'pvc') {
-            updateGameStats('Vs Computer Level ' + aiLevel);
+            updateGameStats('Vs Computer Level ' + aiLevel + (this.battleMode ? ' Battle Chess' : ''));
         } else if (mode === 'player' || mode === 'pvp') {
             updateGameStats('Player Vs Player (Local)');
         }
@@ -2242,6 +2600,13 @@ class ChessGame {
             }
             this.isArcherCapture = isArcherCaptureMove;
 
+            const captureInfo = this.getMoveCaptureInfo(selectedRow, selectedCol, row, col, isArcherCaptureMove);
+            if (this.shouldBattleForCapture(captureInfo)) {
+                this.startBattleForMove(captureInfo);
+                cloudChessLog("--- End ChessGame.tryMove (battle started) ---");
+                return;
+            }
+
             // Move the piece
             cloudChessLog("Calling movePiece...");
             this.movePiece(row, col); // This is the actual move execution
@@ -2252,61 +2617,7 @@ class ChessGame {
             this.clearValidMoves();
             this.selectedPiece = null; // Nullify selection AFTER move
 
-            // Switch turns - IMPORTANT: This might be overridden in multiplayer.js!
-            const oldPlayer = this.currentPlayer;
-            this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
-            cloudChessLog(`Switched player from ${oldPlayer} to ${this.currentPlayer} (in base class)`);
-            const turnDisplay = document.getElementById('current-turn');
-            if (turnDisplay) {
-                turnDisplay.textContent = this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
-            }
-
-            // Check if the opponent's king is in check
-            const opponentColor = this.currentPlayer;
-            const inCheck = this.isKingInCheck(opponentColor);
-            cloudChessLog(`${opponentColor} king in check: ${inCheck}`);
-            let isDraw = false;
-
-            if (inCheck) {
-                // Check if it's checkmate
-                if (this.isCheckmate(opponentColor)) {
-                    const winner = opponentColor === 'white' ? 'Black' : 'White';
-                     cloudChessLog("Checkmate detected!");
-                    this.showGameStatusAnimation('checkmate', 'CHECKMATE!');
-                    this.gameOver = true;
-                    this.setStatusMessage(`${winner} wins by checkmate.`, 'game-over');
-                    setTimeout(() => {
-                        alert(`${winner} wins!`);
-                    }, 2000);
-                } else {
-                     cloudChessLog("Check detected.");
-                    this.showGameStatusAnimation('check', 'CHECK!');
-                    this.setStatusMessage(`${opponentColor.charAt(0).toUpperCase() + opponentColor.slice(1)} is in check.`, 'check');
-                }
-            } else if (this.isStalemate(opponentColor)) {
-                 cloudChessLog("Stalemate detected.");
-                this.showGameStatusAnimation('stalemate', 'STALEMATE');
-                this.gameOver = true;
-                this.setStatusMessage('Stalemate. The game is a draw.', 'game-over');
-                setTimeout(() => {
-                    alert('Stalemate! The game is a draw.');
-                }, 1500);
-                isDraw = true;
-            } else {
-                this.setStatusMessage(`${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)} to move.`, 'ready');
-            }
-
-            // If playing against AI, make the AI move
-            if (!isDraw && this.aiLevel > 0 && this.currentPlayer === 'black') {
-                 cloudChessLog("Handing over to AI...");
-                this.isAiThinking = true;
-                this.setBoardDisabled(true);
-                this.setStatusMessage('The computer is thinking...', 'thinking');
-                setTimeout(() => {
-                    this.makeAIMove();
-                    this.clearValidMoves();
-                }, 500);
-            }
+            this.finishTurnAfterAction();
         } else {
             // If the move is not valid, try to select a different piece
             const clickedSquare = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
