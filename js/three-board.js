@@ -8,6 +8,10 @@
     const SELECT_COLOR = 0xffd166;
     const MOVE_COLOR = 0x77d284;
     const ILLEGAL_COLOR = 0xef476f;
+    const AR_DEFAULT_SCALE = 0.065;
+    const AR_MIN_SCALE = 0.035;
+    const AR_MAX_SCALE = 0.18;
+    const AR_BOARD_HALF_SIZE = 5.7;
 
     class CloudChess3D {
         constructor() {
@@ -22,6 +26,7 @@
             this.boardGroup = null;
             this.pieceGroup = null;
             this.boardRoot = null;
+            this.boardPickMesh = null;
             this.squareMeshes = [];
             this.pieceMeshes = [];
             this.mode = localStorage.getItem(STORAGE_KEY) === '3d' ? '3d' : '2d';
@@ -42,6 +47,15 @@
             this.arReticle = null;
             this.arPlaced = false;
             this.xrController = null;
+            this.xrControllers = [];
+            this.arActiveController = null;
+            this.arCursor = null;
+            this.arPointerLines = [];
+            this.arHandlesGroup = null;
+            this.arHandleMeshes = [];
+            this.arDrag = null;
+            this.arSelectSuppressed = false;
+            this.arLastHit = null;
             this.normalSceneBackground = null;
             this.normalSceneFog = null;
         }
@@ -240,9 +254,15 @@
             this.arReticle.visible = false;
             this.scene.add(this.arReticle);
 
-            this.xrController = this.renderer.xr.getController(0);
-            this.xrController.addEventListener('select', () => this.handleARSelect());
-            this.scene.add(this.xrController);
+            this.arCursor = new THREE.Mesh(
+                new THREE.SphereGeometry(0.075, 18, 12),
+                new THREE.MeshBasicMaterial({ color: 0x20d37a, transparent: true, opacity: 0.94 })
+            );
+            this.arCursor.visible = false;
+            this.scene.add(this.arCursor);
+
+            this.createARHandles();
+            this.createARControllers();
 
             this.createBoardSquares();
             this.bindInput();
@@ -271,6 +291,94 @@
                     this.squareMeshes[row][col] = square;
                 }
             }
+
+            this.boardPickMesh = new THREE.Mesh(
+                new THREE.BoxGeometry(10, 0.04, 10),
+                new THREE.MeshBasicMaterial({
+                    transparent: true,
+                    opacity: 0,
+                    depthWrite: false,
+                    colorWrite: false
+                })
+            );
+            this.boardPickMesh.position.y = 0.15;
+            this.boardPickMesh.userData = { boardPick: true };
+            this.boardGroup.add(this.boardPickMesh);
+        }
+
+        createARHandles() {
+            this.arHandlesGroup = new THREE.Group();
+            this.arHandlesGroup.visible = false;
+            this.boardRoot.add(this.arHandlesGroup);
+
+            const cornerMaterial = new THREE.MeshStandardMaterial({
+                color: 0xffd166,
+                roughness: 0.35,
+                metalness: 0.15,
+                emissive: 0x442800,
+                emissiveIntensity: 0.3
+            });
+            const moveMaterial = new THREE.MeshStandardMaterial({
+                color: 0x20d37a,
+                roughness: 0.38,
+                metalness: 0.08,
+                emissive: 0x06391f,
+                emissiveIntensity: 0.32
+            });
+            const corners = [
+                { id: 'nw', x: -AR_BOARD_HALF_SIZE, z: -AR_BOARD_HALF_SIZE },
+                { id: 'ne', x: AR_BOARD_HALF_SIZE, z: -AR_BOARD_HALF_SIZE },
+                { id: 'se', x: AR_BOARD_HALF_SIZE, z: AR_BOARD_HALF_SIZE },
+                { id: 'sw', x: -AR_BOARD_HALF_SIZE, z: AR_BOARD_HALF_SIZE }
+            ];
+
+            corners.forEach((corner) => {
+                const handle = new THREE.Mesh(new THREE.SphereGeometry(0.68, 24, 16), cornerMaterial);
+                handle.position.set(corner.x, 0.72, corner.z);
+                handle.userData = {
+                    arHandle: true,
+                    handleType: 'resize',
+                    corner: corner.id,
+                    local: new THREE.Vector3(corner.x, 0, corner.z)
+                };
+                handle.castShadow = true;
+                handle.receiveShadow = true;
+                this.arHandlesGroup.add(handle);
+                this.arHandleMeshes.push(handle);
+            });
+
+            const moveHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.92, 0.92, 0.1, 40), moveMaterial);
+            moveHandle.position.set(0, 0.5, AR_BOARD_HALF_SIZE + 0.66);
+            moveHandle.userData = { arHandle: true, handleType: 'move', local: new THREE.Vector3(0, 0, AR_BOARD_HALF_SIZE + 0.66) };
+            moveHandle.castShadow = true;
+            moveHandle.receiveShadow = true;
+            this.arHandlesGroup.add(moveHandle);
+            this.arHandleMeshes.push(moveHandle);
+        }
+
+        createARControllers() {
+            const pointerGeometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(0, 0, -1.2)
+            ]);
+            const pointerMaterial = new THREE.LineBasicMaterial({ color: 0x20d37a, transparent: true, opacity: 0.85 });
+
+            for (let index = 0; index < 2; index++) {
+                const controller = this.renderer.xr.getController(index);
+                controller.addEventListener('selectstart', (event) => this.handleARSelectStart(event));
+                controller.addEventListener('selectend', (event) => this.handleARSelectEnd(event));
+                controller.addEventListener('select', (event) => this.handleARSelect(event));
+
+                const line = new THREE.Line(pointerGeometry.clone(), pointerMaterial.clone());
+                line.name = `ar-pointer-${index}`;
+                line.visible = false;
+                controller.add(line);
+
+                this.scene.add(controller);
+                this.xrControllers.push(controller);
+                this.arPointerLines.push(line);
+            }
+            this.xrController = this.xrControllers[0] || null;
         }
 
         bindInput() {
@@ -321,15 +429,25 @@
             this.raycaster.setFromCamera(this.pointer, this.camera);
 
             const hits = this.raycaster.intersectObjects([...this.pieceMeshes, ...this.boardGroup.children], true);
-            const hit = hits.find((item) => item.object.userData && item.object.userData.row !== undefined);
+            const hit = hits.find((item) => item.object.userData && (item.object.userData.row !== undefined || item.object.userData.boardPick));
             if (!hit) return;
 
-            const { row, col } = hit.object.userData;
+            const { row, col } = hit.object.userData.boardPick
+                ? this.pointToBoardSquare(hit.point)
+                : hit.object.userData;
             const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
             if (!square) return;
 
             this.game.handleSquareClick({ target: square });
             this.syncFromGame(this.game);
+        }
+
+        pointToBoardSquare(point) {
+            const local = this.boardRoot.worldToLocal(point.clone());
+            return {
+                row: Math.max(0, Math.min(BOARD_SIZE - 1, Math.floor(local.z + BOARD_SIZE / 2))),
+                col: Math.max(0, Math.min(BOARD_SIZE - 1, Math.floor(local.x + BOARD_SIZE / 2)))
+            };
         }
 
         syncFromGame(game) {
@@ -609,7 +727,7 @@
 
                 const session = await navigator.xr.requestSession('immersive-ar', {
                     requiredFeatures: ['hit-test'],
-                    optionalFeatures: ['dom-overlay', 'local-floor'],
+                    optionalFeatures: ['dom-overlay', 'local-floor', 'hand-tracking'],
                     domOverlay: { root: document.body }
                 });
                 this.arSession = session;
@@ -640,7 +758,7 @@
                 this.boardRoot.visible = false;
                 this.boardRoot.position.set(0, -100, 0);
                 this.boardRoot.rotation.set(0, 0, 0);
-                this.boardRoot.scale.setScalar(0.065);
+                this.boardRoot.scale.setScalar(AR_DEFAULT_SCALE);
             }
             if (this.scene) {
                 this.scene.background = null;
@@ -649,6 +767,18 @@
             if (this.arReticle) {
                 this.arReticle.visible = false;
             }
+            if (this.arCursor) {
+                this.arCursor.visible = false;
+            }
+            if (this.arHandlesGroup) {
+                this.arHandlesGroup.visible = false;
+            }
+            this.arPointerLines.forEach((line) => {
+                line.visible = false;
+            });
+            this.arDrag = null;
+            this.arSelectSuppressed = false;
+            this.arLastHit = null;
             this.container?.classList.add('is-ar-active');
             const button = document.getElementById('three-ar-btn');
             if (button) {
@@ -671,6 +801,18 @@
             if (this.arReticle) {
                 this.arReticle.visible = false;
             }
+            if (this.arCursor) {
+                this.arCursor.visible = false;
+            }
+            if (this.arHandlesGroup) {
+                this.arHandlesGroup.visible = false;
+            }
+            this.arPointerLines.forEach((line) => {
+                line.visible = false;
+            });
+            this.arDrag = null;
+            this.arSelectSuppressed = false;
+            this.arLastHit = null;
             if (this.boardRoot) {
                 this.boardRoot.visible = true;
                 this.boardRoot.position.set(0, 0, 0);
@@ -729,7 +871,12 @@
                     });
             }
 
-            if (!this.arHitTestSource || !referenceSpace || this.arPlaced) return;
+            if (this.arPlaced) {
+                this.updateARPointer();
+                this.updateARDrag();
+                return;
+            }
+            if (!this.arHitTestSource || !referenceSpace) return;
             const hits = frame.getHitTestResults(this.arHitTestSource);
             if (hits.length > 0) {
                 const pose = hits[0].getPose(referenceSpace);
@@ -740,38 +887,225 @@
             }
         }
 
-        handleARSelect() {
+        handleARSelectStart(event) {
+            if (!this.arSession || !this.arPlaced) return;
+            this.arActiveController = event?.target || this.xrController;
+            const hit = this.getARRaycastHit({ controller: this.arActiveController, includeHandles: true });
+            if (!hit?.handle) return;
+
+            this.arSelectSuppressed = true;
+            if (hit.handle.userData.handleType === 'move') {
+                const point = this.getBoardPlaneIntersection(this.arActiveController) || hit.point;
+                this.arDrag = {
+                    type: 'move',
+                    startPoint: point.clone(),
+                    startPosition: this.boardRoot.position.clone(),
+                    moved: false
+                };
+                this.showARStatus('Drag the green front handle to move the board.');
+                return;
+            }
+
+            const activeLocal = hit.handle.userData.local.clone();
+            const oppositeLocal = activeLocal.clone().multiplyScalar(-1);
+            this.arDrag = {
+                type: 'resize',
+                activeLocal,
+                oppositeLocal,
+                oppositeWorld: this.localToWorldNoScale(oppositeLocal, this.boardRoot.scale.x),
+                moved: false
+            };
+            this.showARStatus('Drag a gold corner to resize the board.');
+        }
+
+        handleARSelectEnd() {
+            if (this.arDrag) {
+                this.arSelectSuppressed = true;
+                this.arDrag = null;
+                this.showARStatus('Aim at a piece or square and tap to play. Drag the green front handle to move; drag gold corners to resize.');
+                setTimeout(() => {
+                    this.arSelectSuppressed = false;
+                }, 250);
+            }
+            this.arActiveController = null;
+        }
+
+        handleARSelect(event) {
             if (!this.arSession || !this.boardRoot) return;
+            this.arActiveController = event?.target || this.xrController;
             if (!this.arPlaced && this.arReticle?.visible) {
                 this.boardRoot.position.setFromMatrixPosition(this.arReticle.matrix);
                 this.boardRoot.quaternion.setFromRotationMatrix(this.arReticle.matrix);
-                this.boardRoot.scale.setScalar(0.065);
+                this.boardRoot.scale.setScalar(AR_DEFAULT_SCALE);
                 this.boardRoot.visible = true;
                 this.arPlaced = true;
                 this.arReticle.visible = false;
-                this.showARStatus('Board placed. Tap pieces and squares to play, or use Exit AR.');
+                if (this.arHandlesGroup) {
+                    this.arHandlesGroup.visible = true;
+                }
+                this.showARStatus('Aim at a piece or square and tap to play. Drag the green front handle to move; drag gold corners to resize.');
                 return;
             }
-            this.handleARBoardPick();
+            if (this.arSelectSuppressed) {
+                this.arSelectSuppressed = false;
+                return;
+            }
+            this.handleARBoardPick(this.arActiveController);
         }
 
-        handleARBoardPick() {
-            if (!this.game || !this.xrController) return;
-            const rotation = new THREE.Matrix4();
-            rotation.extractRotation(this.xrController.matrixWorld);
-            this.raycaster.ray.origin.setFromMatrixPosition(this.xrController.matrixWorld);
-            this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(rotation);
+        handleARBoardPick(controller = this.xrController) {
+            if (!this.game) return;
+            const hit = this.getARRaycastHit({ controller, includeHandles: false });
+            const target = hit?.square || hit?.piece;
+            if (!target) {
+                this.showARStatus('Aim the green dot at a piece or square, then tap.');
+                return;
+            }
 
-            const hits = this.raycaster.intersectObjects([...this.pieceMeshes, ...this.boardGroup.children], true);
-            const hit = hits.find((item) => item.object.userData && item.object.userData.row !== undefined);
-            if (!hit) return;
-
-            const { row, col } = hit.object.userData;
+            const { row, col } = target.object.userData;
             const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
             if (!square) return;
 
             this.game.handleSquareClick({ target: square });
             this.syncFromGame(this.game);
+        }
+
+        updateARPointer() {
+            if (!this.arPlaced) return;
+            const hit = this.getARRaycastHit({ controller: this.arActiveController || this.xrController, includeHandles: true });
+            this.arLastHit = hit;
+
+            this.arPointerLines.forEach((line) => {
+                line.visible = true;
+            });
+
+            if (!this.arCursor || !hit?.point) {
+                if (this.arCursor) {
+                    this.arCursor.visible = false;
+                }
+                return;
+            }
+
+            this.arCursor.visible = true;
+            this.arCursor.position.copy(hit.point);
+            const material = this.arCursor.material;
+            if (hit.handle) {
+                material.color.setHex(hit.handle.userData.handleType === 'move' ? 0x20d37a : 0xffd166);
+                this.arCursor.scale.setScalar(1.45);
+            } else {
+                material.color.setHex(0x20d37a);
+                this.arCursor.scale.setScalar(1);
+            }
+        }
+
+        updateARDrag() {
+            if (!this.arDrag || !this.boardRoot) return;
+            const controller = this.arActiveController || this.xrController;
+            const point = this.getBoardPlaneIntersection(controller);
+            if (!point) return;
+
+            if (this.arDrag.type === 'move') {
+                const delta = point.clone().sub(this.arDrag.startPoint);
+                if (delta.length() > 0.01) {
+                    this.arDrag.moved = true;
+                }
+                this.boardRoot.position.copy(this.arDrag.startPosition).add(delta);
+                return;
+            }
+
+            const inverseRotation = this.boardRoot.quaternion.clone().invert();
+            const diagonal = point.clone().sub(this.arDrag.oppositeWorld).applyQuaternion(inverseRotation);
+            const localDelta = this.arDrag.activeLocal.clone().sub(this.arDrag.oppositeLocal);
+            const xScale = Math.abs(diagonal.x / localDelta.x);
+            const zScale = Math.abs(diagonal.z / localDelta.z);
+            const nextScale = Math.max(AR_MIN_SCALE, Math.min(AR_MAX_SCALE, Math.max(xScale, zScale)));
+            if (Math.abs(nextScale - this.boardRoot.scale.x) > 0.002) {
+                this.arDrag.moved = true;
+            }
+            this.boardRoot.scale.setScalar(nextScale);
+            const offset = this.arDrag.oppositeLocal.clone().multiplyScalar(nextScale).applyQuaternion(this.boardRoot.quaternion);
+            this.boardRoot.position.copy(this.arDrag.oppositeWorld).sub(offset);
+        }
+
+        getARRaycastHit({ controller = this.xrController, includeHandles = true } = {}) {
+            const rays = this.getARRays(controller);
+            for (const ray of rays) {
+                const hit = this.intersectARRay(ray, includeHandles);
+                if (hit) return hit;
+            }
+            return null;
+        }
+
+        getARRays(controller = this.xrController) {
+            const rays = [];
+            if (controller) {
+                controller.updateMatrixWorld(true);
+                const rotation = new THREE.Matrix4();
+                rotation.extractRotation(controller.matrixWorld);
+                const origin = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
+                const direction = new THREE.Vector3(0, 0, -1).applyMatrix4(rotation).normalize();
+                if (Number.isFinite(origin.x) && direction.lengthSq() > 0.5) {
+                    rays.push(new THREE.Ray(origin, direction));
+                }
+            }
+
+            const xrCamera = this.renderer?.xr?.isPresenting ? this.renderer.xr.getCamera(this.camera) : this.camera;
+            if (xrCamera) {
+                xrCamera.updateMatrixWorld(true);
+                const origin = new THREE.Vector3().setFromMatrixPosition(xrCamera.matrixWorld);
+                const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(xrCamera.quaternion).normalize();
+                rays.push(new THREE.Ray(origin, direction));
+            }
+            return rays;
+        }
+
+        intersectARRay(ray, includeHandles = true) {
+            this.raycaster.ray.copy(ray);
+            this.raycaster.camera = this.renderer?.xr?.isPresenting ? this.renderer.xr.getCamera(this.camera) : this.camera;
+            if (includeHandles && this.arHandlesGroup?.visible) {
+                const handleHits = this.raycaster.intersectObjects(this.arHandleMeshes, true);
+                if (handleHits.length) {
+                    return { handle: handleHits[0].object, point: handleHits[0].point, ray };
+                }
+            }
+            const hits = this.raycaster.intersectObjects([...this.pieceMeshes, ...this.boardGroup.children], true);
+            const hit = hits.find((item) => item.object.userData && (item.object.userData.row !== undefined || item.object.userData.boardPick));
+            if (!hit) return null;
+            if (hit.object.userData.boardPick) {
+                const { row, col } = this.pointToBoardSquare(hit.point);
+                return {
+                    point: hit.point,
+                    square: { object: { userData: { row, col, square: true } } },
+                    piece: null,
+                    ray
+                };
+            }
+            return {
+                point: hit.point,
+                piece: hit.object.userData.piece ? hit : null,
+                square: hit.object.userData.square ? hit : null,
+                ray
+            };
+        }
+
+        getBoardPlaneIntersection(controller = this.xrController) {
+            if (!this.boardRoot) return null;
+            const normal = new THREE.Vector3(0, 1, 0).applyQuaternion(this.boardRoot.quaternion).normalize();
+            const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, this.boardRoot.position);
+            for (const ray of this.getARRays(controller)) {
+                const point = new THREE.Vector3();
+                if (ray.intersectPlane(plane, point)) {
+                    return point;
+                }
+            }
+            return null;
+        }
+
+        localToWorldNoScale(local, scale) {
+            return local.clone()
+                .multiplyScalar(scale)
+                .applyQuaternion(this.boardRoot.quaternion)
+                .add(this.boardRoot.position);
         }
 
         setMode(mode) {
