@@ -10,9 +10,12 @@ ob_start();
 // Include database connection
 require_once 'db_connect.php';
 require_once 'auth_token.php';
+require_once 'schema_helpers.php';
 
 // Set header to return JSON
 header('Content-Type: application/json');
+
+ensure_multiplayer_schema($conn);
 
 function get_request_data() {
     $json_data = file_get_contents('php://input');
@@ -43,9 +46,18 @@ function require_authenticated_username($data) {
 }
 
 // Function to create a new challenge
-function create_challenge($conn, $challenger, $challenged) {
+function normalize_move_time_limit_seconds($value) {
+    $seconds = (int)$value;
+    if ($seconds <= 0) {
+        return 86400;
+    }
+    return max(60, min($seconds, 30 * 24 * 60 * 60));
+}
+
+function create_challenge($conn, $challenger, $challenged, $move_time_limit_seconds = 86400) {
     $current_time = time();
     $expires = $current_time + 3600; // Challenge expires in 1 hour
+    $move_time_limit_seconds = normalize_move_time_limit_seconds($move_time_limit_seconds);
 
     // Prevent challenging yourself
     if ($challenger === $challenged) {
@@ -79,9 +91,9 @@ function create_challenge($conn, $challenger, $challenged) {
     $stmt->close();
 
     // Create new challenge
-    $stmt = $conn->prepare("INSERT INTO challenges (challenger, player_being_challenged, challenge_timestamp, expires)
-              VALUES (?, ?, ?, ?)");
-    $stmt->bind_param('ssii', $challenger, $challenged, $current_time, $expires);
+    $stmt = $conn->prepare("INSERT INTO challenges (challenger, player_being_challenged, challenge_timestamp, expires, move_time_limit_seconds)
+              VALUES (?, ?, ?, ?, ?)");
+    $stmt->bind_param('ssiii', $challenger, $challenged, $current_time, $expires, $move_time_limit_seconds);
     $stmt->execute();
     $stmt->close();
 
@@ -109,6 +121,7 @@ function accept_challenge($conn, $challenge_id, $username) {
     $challenge = $result->fetch_assoc();
     $stmt->close();
     $challenger = $challenge['challenger'];
+    $move_time_limit_seconds = normalize_move_time_limit_seconds($challenge['move_time_limit_seconds'] ?? 86400);
 
     // Mark challenge as accepted
     $stmt = $conn->prepare("UPDATE challenges SET accepted = TRUE WHERE id = ?");
@@ -122,9 +135,9 @@ function accept_challenge($conn, $challenge_id, $username) {
 
     $turn = 'white';
     $is_complete = 0;
-    $stmt = $conn->prepare("INSERT INTO games (white_player, black_player, turn, is_complete, board_state, start_timestamp)
-                  VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param('sssisi', $challenger, $username, $turn, $is_complete, $initial_board, $start_time);
+    $stmt = $conn->prepare("INSERT INTO games (white_player, black_player, turn, is_complete, board_state, start_timestamp, last_move_timestamp, move_time_limit_seconds)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param('sssisiii', $challenger, $username, $turn, $is_complete, $initial_board, $start_time, $start_time, $move_time_limit_seconds);
     $stmt->execute();
     $stmt->close();
 
@@ -168,7 +181,7 @@ function get_pending_challenges($conn, $username) {
     $current_time = time();
 
     // Get challenges where this user is being challenged
-    $query = "SELECT c.id, c.challenger, c.challenge_timestamp, c.expires, u.elo
+    $query = "SELECT c.id, c.challenger, c.challenge_timestamp, c.expires, c.move_time_limit_seconds, u.elo
               FROM challenges c
               JOIN users u ON c.challenger = u.username
               WHERE c.player_being_challenged = '$username'
@@ -183,6 +196,7 @@ function get_pending_challenges($conn, $username) {
         $row['id'] = (int)$row['id'];
         $row['challenge_timestamp'] = (int)$row['challenge_timestamp'];
         $row['expires'] = (int)$row['expires'];
+        $row['move_time_limit_seconds'] = (int)$row['move_time_limit_seconds'];
         $row['elo'] = (int)$row['elo'];
 
         // Add formatted date
@@ -202,7 +216,7 @@ function get_outgoing_challenges($conn, $username) {
     $current_time = time();
 
     // Get challenges where this user is challenging others
-    $query = "SELECT c.id, c.player_being_challenged, c.challenge_timestamp, c.expires, u.elo
+    $query = "SELECT c.id, c.player_being_challenged, c.challenge_timestamp, c.expires, c.move_time_limit_seconds, u.elo
               FROM challenges c
               LEFT JOIN users u ON c.player_being_challenged = u.username
               WHERE c.challenger = '$username'
@@ -217,6 +231,7 @@ function get_outgoing_challenges($conn, $username) {
         $row['id'] = (int)$row['id'];
         $row['challenge_timestamp'] = (int)$row['challenge_timestamp'];
         $row['expires'] = (int)$row['expires'];
+        $row['move_time_limit_seconds'] = (int)$row['move_time_limit_seconds'];
         $row['elo'] = (int)$row['elo'];
 
         // Add formatted date
@@ -290,13 +305,14 @@ try {
 
             // Get the challenged username from the request
             $challenged_username = isset($data['challenged_username']) ? sanitize_input($conn, $data['challenged_username']) : '';
+            $move_time_limit_seconds = normalize_move_time_limit_seconds($data['move_time_limit_seconds'] ?? 86400);
 
             if (empty($challenged_username)) {
                 throw new Exception('Challenged username is required');
             }
 
             // Create the challenge
-            $result = create_challenge($conn, $username, $challenged_username);
+            $result = create_challenge($conn, $username, $challenged_username, $move_time_limit_seconds);
             break;
 
         case 'accept':

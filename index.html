@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cloud Chess Game</title>
-    
+
     <!-- CSS files -->
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/chess-board.css">
@@ -12,11 +12,11 @@
     <link rel="stylesheet" href="css/modals.css">
     <link rel="stylesheet" href="css/challenges.css">
     <link rel="stylesheet" href="styles.css?v=20260517b">
-    
+
     <!-- Favicon -->
     <link rel="icon" href="images/favicon.ico" sizes="any">
     <link rel="manifest" href="manifest.webmanifest">
-    
+
     <!-- Scripts -->
     <script src="chess.js?v=20260517b" defer></script>
 </head>
@@ -44,19 +44,19 @@
             </span>
         </div>
     </div>
-    
+
     <!-- Rules Modal -->
     <div id="rules-modal" class="modal">
         <div class="modal-content">
             <span class="close-modal">&times;</span>
             <h1>Cloud Chess Rules</h1>
-            
+
             <div id="rules-container">
                 <!-- Rules content will be loaded here -->
             </div>
         </div>
     </div>
-    
+
     <!-- Challenge notification -->
     <div id="challenge-notification" class="challenge-notification">
         <h4>New Challenge</h4>
@@ -66,24 +66,24 @@
             <button id="decline-challenge-btn" class="decline-btn">Decline</button>
         </div>
     </div>
-    
+
     <!-- Challenge modal -->
     <div id="challenge-modal" class="challenge-modal">
         <div class="challenge-modal-content">
             <span id="close-challenge-modal" class="close-modal">&times;</span>
             <h3>Challenges</h3>
-            
+
             <div class="tab-buttons">
                 <button class="tab-button active" data-tab="pending">Pending Challenges</button>
                 <button class="tab-button" data-tab="outgoing">Outgoing Challenges</button>
             </div>
-            
+
             <div id="pending-challenges" class="tab-content active">
                 <div id="pending-challenge-list" class="challenge-list">
                     <p>Loading challenges...</p>
                 </div>
             </div>
-            
+
             <div id="outgoing-challenges" class="tab-content">
                 <div id="outgoing-challenge-list" class="challenge-list">
                     <p>Loading challenges...</p>
@@ -91,14 +91,14 @@
             </div>
         </div>
     </div>
-    
+
     <div id="game-container">
         <div id="mode-selection" class="mode-selection">
             <h2>Welcome to Cloud Chess Online</h2>
-            
+
             <div class="game-mode-options">
                 <button id="vs-player" class="main-button">Player vs Player</button>
-                
+
                 <div class="computer-mode">
                     <select id="computer-difficulty" class="difficulty-select">
                         <option value="" disabled selected>Player vs Computer</option>
@@ -108,7 +108,7 @@
                     </select>
                 </div>
             </div>
-            
+
             <!-- Add intro image below the buttons -->
             <div class="intro-image-container">
                 <img src="./images/intro.jpeg" alt="Chess Game Introduction" class="intro-image">
@@ -129,7 +129,7 @@
                         <p>Loading public games...</p>
                     </div>
                 </div>
-                
+
                 <!-- Online Players section third -->
                 <div class="stats-section">
                     <h3>Online Players</h3>
@@ -137,7 +137,7 @@
                         <p>Loading online players...</p>
                     </div>
                 </div>
-                
+
                 <!-- Top Players section fourth -->
                 <div class="stats-section">
                     <h3>Top Players</h3>
@@ -153,7 +153,7 @@
                         <p>Loading player rankings...</p>
                     </div>
                 </div>
-                
+
                 <!-- Game Statistics section fifth -->
                 <div class="stats-section">
                     <h3>Game Statistics</h3>
@@ -195,15 +195,15 @@
             </div>
         </div>
     </div>
-    
+
     <!-- JavaScript files -->
     <script src="js/ui.js"></script>
     <script src="js/user.js"></script>
     <script src="js/stats.js"></script>
     <script src="js/active-users.js?v=20260517b"></script>
-    <script src="js/challenges.js?v=20260517c"></script>
+    <script src="js/challenges.js?v=20260517e"></script>
     <script src="js/main.js?v=20260517b"></script>
-    
+
     <script>
         // Load rules content when the page loads
         document.addEventListener('DOMContentLoaded', function() {

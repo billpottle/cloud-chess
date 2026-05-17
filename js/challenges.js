@@ -4,7 +4,7 @@ window.showChallengeModal = function() {
     const modal = document.getElementById('challenge-modal');
     if (modal) {
         modal.style.display = 'block';
-        
+
         // Load both types of challenges when opening the modal
         loadChallenges('pending');
         loadChallenges('outgoing');
@@ -33,22 +33,47 @@ function getChallengeAuthPayload(extra = {}) {
     };
 }
 
+function formatChallengeLimit(seconds) {
+    const total = parseInt(seconds || 86400, 10);
+    if (total % 86400 === 0) return `${total / 86400} day${total === 86400 ? '' : 's'}`;
+    if (total % 3600 === 0) return `${total / 3600} hour${total === 3600 ? '' : 's'}`;
+    return `${Math.max(1, Math.round(total / 60))} min`;
+}
+
+function askMoveTimeLimitSeconds() {
+    const value = prompt('Move time limit in minutes. Use 1440 for 24 hours, 5 for blitz, or any value from 1 to 43200.', '1440');
+    if (value === null) {
+        return null;
+    }
+    const minutes = parseInt(value, 10);
+    if (!Number.isFinite(minutes) || minutes < 1 || minutes > 43200) {
+        alert('Please enter a whole number of minutes from 1 to 43200.');
+        return null;
+    }
+    return minutes * 60;
+}
+
 // Function to challenge a user
 function challengeUser(userId, username) {
     console.log(`Challenging user: ${username} (ID: ${userId})`);
-    
+
     if (!window.currentUserId) {
         alert('You must be logged in to challenge other players.');
         return;
     }
-    
+
     if (userId === window.currentUserId) {
         alert('You cannot challenge yourself.');
         return;
     }
-    
+
     const confirmChallenge = confirm(`Are you sure you want to challenge ${username}?`);
     if (confirmChallenge) {
+        const moveTimeLimitSeconds = askMoveTimeLimitSeconds();
+        if (moveTimeLimitSeconds === null) {
+            return;
+        }
+
         const challenger = getActiveUsername();
         const token = getAuthToken();
         if (!challenger) {
@@ -67,7 +92,8 @@ function challengeUser(userId, username) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(getChallengeAuthPayload({
-                challenged_username: username
+                challenged_username: username,
+                move_time_limit_seconds: moveTimeLimitSeconds
             }))
         })
         .then(response => response.json())
@@ -76,7 +102,7 @@ function challengeUser(userId, username) {
                 alert(`Challenge sent to ${username}!`);
                 // Reload active users to update UI
                 loadActiveUsers();
-                
+
                 // If challenges UI is present, refresh outgoing list
                 if (document.getElementById('outgoing-challenge-list')) {
                     loadChallenges('outgoing');
@@ -97,14 +123,14 @@ function checkPendingChallenges() {
     if (!window.currentUserId) {
         return;
     }
-    
+
     // Get the current username
     const username = getActiveUsername();
     if (!username) {
         console.error('Username not found for pending challenges check');
         return;
     }
-    
+
     console.log('Checking for pending challenges...', username);
     fetch(`api/challenge_api.php?action=pending&username=${encodeURIComponent(username)}`)
         .then(response => response.json())
@@ -113,10 +139,10 @@ function checkPendingChallenges() {
             if (data.success && data.challenges && data.challenges.length > 0) {
                 // Show the first pending challenge
                 const challenge = data.challenges[0];
-                
+
                 // Update notification content
                 const notification = document.getElementById('challenge-notification');
-                
+
                 // Add close button if it doesn't exist
                 if (!notification.querySelector('.close-notification')) {
                     const closeButton = document.createElement('span');
@@ -129,21 +155,21 @@ function checkPendingChallenges() {
                     closeButton.style.fontWeight = 'bold';
                     closeButton.style.cursor = 'pointer';
                     closeButton.onclick = hideNotification;
-                    
+
                     // Insert as first child of notification
                     notification.insertBefore(closeButton, notification.firstChild);
                 }
-                
+
                 notification.querySelector('h4').textContent = `Challenge from ${challenge.challenger}`;
-                notification.querySelector('p').textContent = `Player with ELO ${challenge.elo} has challenged you to a game!`;
-                
+                notification.querySelector('p').textContent = `Player with ELO ${challenge.elo} has challenged you to a game. Move limit: ${formatChallengeLimit(challenge.move_time_limit_seconds)}.`;
+
                 // Set challenge ID for the buttons
                 document.getElementById('accept-challenge-btn').setAttribute('data-challenge-id', challenge.id);
                 document.getElementById('decline-challenge-btn').setAttribute('data-challenge-id', challenge.id);
-                
+
                 // Show notification
                 notification.style.display = 'block';
-                
+
                 // Add click outside listener
                 document.addEventListener('click', handleOutsideClick);
             }
@@ -158,7 +184,7 @@ function hideNotification() {
     const notification = document.getElementById('challenge-notification');
     if (notification) {
         notification.style.display = 'none';
-        
+
         // Remove the click outside listener
         document.removeEventListener('click', handleOutsideClick);
     }
@@ -167,7 +193,7 @@ function hideNotification() {
 // Function to handle clicks outside the notification
 function handleOutsideClick(event) {
     const notification = document.getElementById('challenge-notification');
-    
+
     // If the click is outside the notification, hide it
     if (notification && !notification.contains(event.target)) {
         hideNotification();
@@ -196,10 +222,10 @@ function acceptChallenge(challengeId) {
         if (data.success) {
             // Hide the notification
             hideNotification();
-            
+
             // Hide the modal if it's open
             hideChallengeModal();
-            
+
             // Redirect to the game
             if (data.game_id) {
                 window.location.href = 'game.php?id=' + data.game_id;
@@ -247,7 +273,7 @@ function declineChallenge(challengeId) {
         if (data.success) {
             // Hide the notification
             hideNotification();
-            
+
             // Reload challenges if the modal is open
             loadChallenges('pending');
             loadChallenges('outgoing');
@@ -269,16 +295,16 @@ function loadChallenges(type) {
         console.error(`Element with ID "${type}-challenge-list" not found`);
         return;
     }
-    
+
     // Get the current username
     const username = getActiveUsername();
     if (!username) {
         listElement.innerHTML = '<p>Please log in to view challenges.</p>';
         return;
     }
-    
+
     listElement.innerHTML = '<p>Loading challenges...</p>';
-    
+
     fetch(`api/challenge_api.php?action=${type}&username=${encodeURIComponent(username)}`)
         .then(response => response.json())
         .then(data => {
@@ -288,7 +314,7 @@ function loadChallenges(type) {
                     listElement.innerHTML = '<p>No challenges found.</p>';
                     return;
                 }
-                
+
                 let html = '';
                 data.challenges.forEach(challenge => {
                     if (type === 'pending') {
@@ -296,6 +322,7 @@ function loadChallenges(type) {
                             <div class="challenge-item">
                                 <div class="challenge-info">
                                     <strong>${challenge.challenger}</strong> (ELO: ${challenge.elo})<br>
+                                    <small>Move limit: ${formatChallengeLimit(challenge.move_time_limit_seconds)}</small><br>
                                     <small>Received: ${challenge.challenge_date}</small><br>
                                     <small>Expires in: ${challenge.expires_in_minutes} minutes</small>
                                 </div>
@@ -310,6 +337,7 @@ function loadChallenges(type) {
                             <div class="challenge-item">
                                 <div class="challenge-info">
                                     <strong>${challenge.player_being_challenged}</strong> (ELO: ${challenge.elo})<br>
+                                    <small>Move limit: ${formatChallengeLimit(challenge.move_time_limit_seconds)}</small><br>
                                     <small>Sent: ${challenge.challenge_date}</small><br>
                                     <small>Expires in: ${challenge.expires_in_minutes} minutes</small>
                                 </div>
@@ -320,9 +348,9 @@ function loadChallenges(type) {
                         `;
                     }
                 });
-                
+
                 listElement.innerHTML = html;
-                
+
                 // Add event listeners to buttons
                 if (type === 'pending') {
                     listElement.querySelectorAll('.accept-btn').forEach(button => {
@@ -331,7 +359,7 @@ function loadChallenges(type) {
                             acceptChallenge(challengeId);
                         });
                     });
-                    
+
                     listElement.querySelectorAll('.decline-btn').forEach(button => {
                         button.addEventListener('click', function() {
                             const challengeId = this.getAttribute('data-challenge-id');
@@ -400,7 +428,7 @@ document.addEventListener('DOMContentLoaded', function() {
             acceptChallenge(challengeId);
         });
     }
-    
+
     const declineBtn = document.getElementById('decline-challenge-btn');
     if (declineBtn) {
         declineBtn.addEventListener('click', function() {
@@ -408,31 +436,31 @@ document.addEventListener('DOMContentLoaded', function() {
             declineChallenge(challengeId);
         });
     }
-    
+
     // Set up challenge modal
     const closeModalBtn = document.getElementById('close-challenge-modal');
     if (closeModalBtn) {
         closeModalBtn.addEventListener('click', hideChallengeModal);
     }
-    
+
     // Set up tab switching in the challenge modal
     document.querySelectorAll('.tab-button').forEach(button => {
         button.addEventListener('click', function() {
             // Remove active class from all buttons and content
             document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            
+
             // Add active class to clicked button and corresponding content
             this.classList.add('active');
             const rawTab = this.getAttribute('data-tab');
             const tabName = rawTab.replace('-challenges', ''); // normalize for both index and profile pages
             document.getElementById(`${tabName}-challenges`).classList.add('active');
-            
+
             // Load the challenges for this tab
             loadChallenges(tabName);
         });
     });
-    
+
     // Set up the challenges link click event
     const challengesLink = document.getElementById('challenges-link');
     if (challengesLink) {
@@ -442,4 +470,4 @@ document.addEventListener('DOMContentLoaded', function() {
             showChallengeModal();
         });
     }
-}); 
+});

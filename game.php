@@ -18,10 +18,12 @@ $game_id = (int)$_GET['id'];
 
 // Include database connection
 require_once 'api/db_connect.php';
+require_once 'api/schema_helpers.php';
+ensure_multiplayer_schema($conn);
 
 // Get game details from the database
-$query = "SELECT g.*, 
-    DATE_FORMAT(FROM_UNIXTIME(g.end_timestamp), '%M %D, %Y at %l:%i %p') as formatted_end_date 
+$query = "SELECT g.*,
+    DATE_FORMAT(FROM_UNIXTIME(g.end_timestamp), '%M %D, %Y at %l:%i %p') as formatted_end_date
     FROM games g WHERE g.id = $game_id";
 $result = execute_query($conn, $query);
 
@@ -47,7 +49,7 @@ ob_end_flush();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cloud Chess - Game #<?php echo $game_id; ?></title>
-    
+
     <!-- CSS files -->
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/chess-board.css">
@@ -55,14 +57,14 @@ ob_end_flush();
     <link rel="stylesheet" href="css/tables.css">
     <link rel="stylesheet" href="css/challenges.css">
     <link rel="stylesheet" href="styles.css">
-    
+
     <!-- Favicon -->
     <link rel="icon" href="images/favicon.ico" sizes="any">
     <link rel="manifest" href="manifest.webmanifest">
-    
+
     <!-- JavaScript files -->
     <script src="chess.js"></script>
-    <script src="js/multiplayer.js?v=20260517d"></script>
+    <script src="js/multiplayer.js?v=20260517e"></script>
 </head>
 <body>
     <div class="navbar">
@@ -88,11 +90,14 @@ ob_end_flush();
             </span>
         </div>
     </div>
-    
+
     <div class="container game-view">
         <div class="game-header">
             <h1 class="game-title">Game #<?php echo $game_id; ?></h1>
-            <button class="game-btn danger" id="resign-btn">Resign Game</button>
+            <div class="game-actions">
+                <button class="game-btn" id="claim-timeout-btn">Claim Timeout Win</button>
+                <button class="game-btn danger" id="resign-btn">Resign Game</button>
+            </div>
         </div>
 
         <div class="game-info-container">
@@ -112,14 +117,26 @@ ob_end_flush();
                     $winner = $game['winner'];
                     $loser = null;
 
-                    if ($game['result'] === 'win' || $game['result'] === 'resignation' || $game['result'] === 'checkmate') {
+                    if ($game['result'] === 'win' || $game['result'] === 'resignation' || $game['result'] === 'checkmate' || $game['result'] === 'timeout') {
                         if ($winner === $game['white_player']) {
                             $loser = $game['black_player'];
-                            $resultText = ($game['result'] === 'resignation') ? 'Black Resigned' : 'White Won';
+                            if ($game['result'] === 'resignation') {
+                                $resultText = 'Black Resigned';
+                            } else if ($game['result'] === 'timeout') {
+                                $resultText = 'White Won on Time';
+                            } else {
+                                $resultText = 'White Won';
+                            }
                             $resultClass = 'white-win';
                         } else {
                             $loser = $game['white_player'];
-                            $resultText = ($game['result'] === 'resignation') ? 'White Resigned' : 'Black Won';
+                            if ($game['result'] === 'resignation') {
+                                $resultText = 'White Resigned';
+                            } else if ($game['result'] === 'timeout') {
+                                $resultText = 'Black Won on Time';
+                            } else {
+                                $resultText = 'Black Won';
+                            }
                             $resultClass = 'black-win';
                         }
                     } elseif ($game['result'] === 'draw') {
@@ -129,7 +146,7 @@ ob_end_flush();
                         $loser = $game['black_player'];
                     }
                     ?>
-                    
+
                     <div class="result-player-names">
                         <span>White: <?php echo $game['white_player']; ?></span>
                         <span>Black: <?php echo $game['black_player']; ?></span>
@@ -163,7 +180,7 @@ ob_end_flush();
                 </div>
             <?php endif; ?>
         </div>
-        
+
         <div id="game-board">
             <div class="game-layout">
                 <aside class="graveyard graveyard-white">
@@ -186,7 +203,7 @@ ob_end_flush();
             </div>
         </div>
     </div>
-    
+
     <!-- Rules Modal -->
     <div id="rules-modal" class="modal">
         <div class="modal-content">
@@ -196,11 +213,11 @@ ob_end_flush();
             </div>
         </div>
     </div>
-    
+
     <!-- Include all necessary JavaScript files -->
     <script src="js/ui.js"></script>
     <script src="js/user.js"></script>
-    <script src="js/challenges.js?v=20260517c"></script>
+    <script src="js/challenges.js?v=20260517e"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Get game data from PHP
@@ -212,7 +229,9 @@ ob_end_flush();
             const boardState = <?php echo json_encode($game['board_state']); ?>;
             const lastMoveWhite = <?php echo json_encode($game['last_move_white']); ?>;
             const lastMoveBlack = <?php echo json_encode($game['last_move_black']); ?>;
-            
+            const moveTimeLimitSeconds = <?php echo (int)($game['move_time_limit_seconds'] ?? 86400); ?>;
+            const lastMoveTimestamp = <?php echo (int)($game['last_move_timestamp'] ?: $game['start_timestamp']); ?>;
+
             // Parse the board state if it's a string
             let parsedBoardState;
             if (typeof boardState === 'string') {
@@ -233,12 +252,12 @@ ob_end_flush();
             } else {
                 parsedBoardState = boardState;
             }
-            
+
             // Get current user from localStorage
             const currentUsername = localStorage.getItem('chessUsername');
             let playerColor = null;
             let isSpectator = true;
-            
+
             // Determine if user is a player and which color
             if (currentUsername) {
                 if (currentUsername === whitePlayer) {
@@ -249,40 +268,46 @@ ob_end_flush();
                     isSpectator = false;
                 }
             }
-            
+
             // Hide resign button if game is complete
             if (isComplete) {
                 document.getElementById('resign-btn').style.display = 'none';
+                document.getElementById('claim-timeout-btn').style.display = 'none';
             } else {
                 // Update UI based on user role only for active games
                 if (isSpectator) {
                     document.getElementById('resign-btn').style.display = 'none';
+                    document.getElementById('claim-timeout-btn').style.display = 'none';
                 } else {
                     document.getElementById('resign-btn').style.display = 'inline-block';
                     document.getElementById('resign-btn').addEventListener('click', resignGame);
+                    document.getElementById('claim-timeout-btn').style.display = 'inline-block';
+                    document.getElementById('claim-timeout-btn').addEventListener('click', claimTimeoutWin);
                 }
             }
-            
+
             // Initialize the multiplayer game
             initializeMultiplayerGame(gameId, playerColor, currentTurn, parsedBoardState, isSpectator);
             updateLastMoveFromServer(lastMoveWhite, lastMoveBlack);
-            
+            updateTimeoutClaimButton(moveTimeLimitSeconds, lastMoveTimestamp);
+            setInterval(() => updateTimeoutClaimButton(), 60000);
+
             // Only set up game updates for active games
             if (!isComplete) {
                 checkForGameUpdates();
                 setInterval(checkForGameUpdates, 5000);
             }
-            
+
             // Update authentication UI
             updateAuthUI();
         });
-        
+
         // Function to update authentication UI
         function updateAuthUI() {
             if (isLoggedIn()) {
                 document.getElementById('auth-section').style.display = 'none';
                 document.getElementById('user-section').style.display = 'flex';
-                
+
                 // Update welcome message
                 const username = localStorage.getItem('chessUsername');
                 document.getElementById('user-welcome').textContent = 'Welcome, ' + username;
@@ -293,4 +318,4 @@ ob_end_flush();
         }
     </script>
 </body>
-</html> 
+</html>

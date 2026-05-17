@@ -8,6 +8,7 @@ CREATE TABLE users (
     last_login TIMESTAMP DEFAULT NULL,  -- Stores last login time
     wins INT DEFAULT 0 CHECK (wins >= 0),  -- Number of wins, default 0, cannot be negative
     losses INT DEFAULT 0 CHECK (losses >= 0),  -- Number of losses, default 0, cannot be negative
+    draws INT DEFAULT 0 CHECK (draws >= 0),  -- Number of draws, default 0, cannot be negative
     elo INT DEFAULT 1000 CHECK (elo >= 0),  -- Elo rating, starts at 1000, cannot be negative
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP  -- Auto-set timestamp for account creation
 );
@@ -35,9 +36,10 @@ CREATE TABLE games (
     last_move_timestamp INT DEFAULT NULL,  -- Last move time (Unix timestamp)
     last_move_white VARCHAR(30) DEFAULT NULL,
     last_move_black VARCHAR(30) DEFAULT NULL,
-    special_status VARCHAR(50) DEFAULT NULL, -- check, promotion, etc. 
+    special_status VARCHAR(50) DEFAULT NULL, -- check, promotion, etc.
     winner VARCHAR(50) DEFAULT NULL, -- username of the winner
-    
+    move_time_limit_seconds INT NOT NULL DEFAULT 86400, -- Per-move timeout limit
+
     -- Foreign Key Constraints
     CONSTRAINT fk_white FOREIGN KEY (white_player) REFERENCES users(username) ON DELETE RESTRICT,
     CONSTRAINT fk_black FOREIGN KEY (black_player) REFERENCES users(username) ON DELETE RESTRICT
@@ -50,6 +52,7 @@ CREATE TABLE challenges (
     accepted BOOLEAN DEFAULT FALSE,  -- Whether the challenge has been accepted
     challenge_timestamp INT NOT NULL,  -- When the challenge was issued (Unix timestamp)
     expires INT DEFAULT NULL,  -- When the challenge expires (Unix timestamp, NULL = no expiration)
+    move_time_limit_seconds INT NOT NULL DEFAULT 86400, -- Per-move timeout limit for the game
 
     -- Foreign Key Constraints
     CONSTRAINT fk_challenger FOREIGN KEY (challenger) REFERENCES users(username) ON DELETE RESTRICT,

@@ -12,9 +12,13 @@ try {
 
     // Include auth token functions
     require_once 'auth_token.php';
+    require_once 'schema_helpers.php';
+    require_once 'chess_rules.php';
+    require_once 'game_result_helpers.php';
 
     // Set header to return JSON
     header('Content-Type: application/json');
+    ensure_multiplayer_schema($conn);
 
     // Check if request method is POST
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -90,137 +94,52 @@ try {
         exit;
     }
 
-    // Determine the winner based on the result
-    $winner = null;
+    $player_color = $game['white_player'] === $username ? 'white' : 'black';
+    $winner_color = null;
 
-    if ($result === 'checkmate') {
-        // The player who made the last move is the winner
-        $winner = $game['turn'] === 'white' ? 'black' : 'white';
-    } else if ($result === 'resignation') {
-        // The player who is making the request is resigning
-        $winner = $username === $game['white_player'] ? 'black' : 'white';
+    if ($result === 'resignation') {
+        $winner_color = $player_color === 'white' ? 'black' : 'white';
     } else if ($result === 'timeout') {
-        // The player whose turn it is has timed out
-        $winner = $game['turn'] === 'white' ? 'black' : 'white';
-    }
-    // For draws, winner remains null
-
-    // Get the winner and loser usernames
-    $winner_username = $winner === 'white' ? $game['white_player'] : $game['black_player'];
-    $loser_username = $winner === 'white' ? $game['black_player'] : $game['white_player'];
-
-    // Update ELO ratings and win/loss records if there's a winner (not a draw)
-    if ($winner) {
-        // Get current ELO ratings and win/loss records
-        $query = "SELECT id, username, elo, wins, losses FROM users WHERE username IN ('$winner_username', '$loser_username')";
-        $result_users = execute_query($conn, $query);
-
-        $winner_elo = 1200; // Default ELO
-        $loser_elo = 1200; // Default ELO
-        $winner_id = 0;
-        $winner_wins = 0;
-        $loser_id = 0;
-        $loser_losses = 0;
-
-        while ($user_row = $result_users->fetch_assoc()) {
-            if ($user_row['username'] === $winner_username) {
-                $winner_elo = $user_row['elo'];
-                $winner_id = $user_row['id'];
-                $winner_wins = $user_row['wins'];
-            } else {
-                $loser_elo = $user_row['elo'];
-                $loser_id = $user_row['id'];
-                $loser_losses = $user_row['losses'];
-            }
+        if ($game['turn'] === $player_color) {
+            ob_end_clean();
+            echo json_encode(['success' => false, 'message' => 'You cannot claim a timeout on your own turn']);
+            exit;
         }
 
-        // Calculate new ELO ratings
-        // Using the ELO formula: Rn = Ro + K * (S - E)
-        // where Rn = new rating, Ro = old rating, K = weight (usually 32 for chess),
-        // S = score (1 for win, 0 for loss, 0.5 for draw),
-        // E = expected score = 1 / (1 + 10^((opponent's rating - player's rating) / 400))
-
-        $K = 32; // Standard ELO K-factor
-
-        // Calculate expected scores
-        $winner_expected = 1 / (1 + pow(10, ($loser_elo - $winner_elo) / 400));
-        $loser_expected = 1 / (1 + pow(10, ($winner_elo - $loser_elo) / 400));
-
-        // Calculate new ratings
-        $winner_new_elo = round($winner_elo + $K * (1 - $winner_expected));
-        $loser_new_elo = round($loser_elo + $K * (0 - $loser_expected));
-
-        // Ensure ELO doesn't go below 100
-        $loser_new_elo = max(100, $loser_new_elo);
-
-        // Increment win/loss counters
-        $winner_wins++;
-        $loser_losses++;
-
-        // Update winner's ELO and win count
-        $query = "UPDATE users SET elo = $winner_new_elo, wins = $winner_wins WHERE username = '$winner_username'";
-        execute_query($conn, $query);
-
-        // Update loser's ELO and loss count
-        $query = "UPDATE users SET elo = $loser_new_elo, losses = $loser_losses WHERE username = '$loser_username'";
-        execute_query($conn, $query);
-
-        // Record the ELO changes for the response
-        $elo_changes = [
-            'winner' => [
-                'username' => $winner_username,
-                'old_elo' => $winner_elo,
-                'new_elo' => $winner_new_elo,
-                'change' => $winner_new_elo - $winner_elo,
-                'wins' => $winner_wins
-            ],
-            'loser' => [
-                'username' => $loser_username,
-                'old_elo' => $loser_elo,
-                'new_elo' => $loser_new_elo,
-                'change' => $loser_new_elo - $loser_elo,
-                'losses' => $loser_losses
-            ]
-        ];
+        $limit = max(60, (int)($game['move_time_limit_seconds'] ?? 86400));
+        $last_activity = (int)($game['last_move_timestamp'] ?: $game['start_timestamp']);
+        $elapsed = time() - $last_activity;
+        if ($elapsed < $limit) {
+            ob_end_clean();
+            echo json_encode([
+                'success' => false,
+                'message' => 'The timeout window has not elapsed yet',
+                'seconds_remaining' => $limit - $elapsed
+            ]);
+            exit;
+        }
+        $winner_color = $player_color;
+    } else if ($result === 'checkmate') {
+        $board = chess_board_from_state($game['board_state']);
+        if (!chess_is_checkmate($board, $game['turn'])) {
+            ob_end_clean();
+            echo json_encode(['success' => false, 'message' => 'The saved board is not checkmate']);
+            exit;
+        }
+        $winner_color = $game['turn'] === 'white' ? 'black' : 'white';
     } else if ($result === 'draw') {
-        // For draws, update draw counts for both players
-        $white_player = $conn->real_escape_string($game['white_player']);
-        $black_player = $conn->real_escape_string($game['black_player']);
-        $query = "UPDATE users SET draws = draws + 1 WHERE username IN ('$white_player', '$black_player')";
-        execute_query($conn, $query);
+        $board = chess_board_from_state($game['board_state']);
+        if (!chess_is_stalemate($board, $game['turn'])) {
+            ob_end_clean();
+            echo json_encode(['success' => false, 'message' => 'The saved board is not stalemate']);
+            exit;
+        }
     }
 
-    // Update the game record
-    $winner_column = $winner ? "'" . $conn->real_escape_string($winner_username) . "'" : "NULL";
-    $winner_elo_change = isset($elo_changes) ? (int)$elo_changes['winner']['change'] : 0;
-    $loser_elo_change = isset($elo_changes) ? (int)$elo_changes['loser']['change'] : 0;
-    $query = "UPDATE games SET
-              is_complete = TRUE,
-              result = '$result',
-              winner = $winner_column,
-              end_timestamp = " . time() . ",
-              last_move_timestamp = " . time() . ",
-              winner_elo_change = $winner_elo_change,
-              loser_elo_change = $loser_elo_change
-              WHERE id = $game_id";
-
-    execute_query($conn, $query);
+    $response = complete_game_with_result($conn, $game, $result, $winner_color);
 
     // Return success response
     ob_end_clean();
-
-    $response = [
-        'success' => true,
-        'message' => 'Game finalized successfully',
-        'game_id' => $game_id,
-        'result' => $result
-    ];
-
-    // Add ELO changes to response if applicable
-    if (isset($elo_changes)) {
-        $response['elo_changes'] = $elo_changes;
-    }
-
     echo json_encode($response);
 
 } catch (Exception $e) {

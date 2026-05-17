@@ -18,9 +18,13 @@ try {
 
     // Include auth token functions
     require_once 'auth_token.php';
+    require_once 'schema_helpers.php';
+    require_once 'chess_rules.php';
+    require_once 'game_result_helpers.php';
 
     // Set header to return JSON
     header('Content-Type: application/json');
+    ensure_multiplayer_schema($conn);
 
     // Get token from request
     $token = $_POST['token'] ?? '';
@@ -148,74 +152,69 @@ try {
         exit;
     }
 
-    // Check if board_state and next_turn are provided
-    if (!isset($_POST['board_state']) || !isset($_POST['next_turn'])) {
+    // Normal moves must be submitted as coordinates. The server owns board updates.
+    if (!isset($_POST['from_row'], $_POST['from_col'], $_POST['to_row'], $_POST['to_col'])) {
         ob_end_clean();
-        echo json_encode(['success' => false, 'message' => 'Board state and next turn are required']);
+        echo json_encode(['success' => false, 'message' => 'Move coordinates are required']);
         exit;
     }
 
-    $board_state = $_POST['board_state'];
-    $next_turn = $_POST['next_turn'];
+    $from_row = (int)$_POST['from_row'];
+    $from_col = (int)$_POST['from_col'];
+    $to_row = (int)$_POST['to_row'];
+    $to_col = (int)$_POST['to_col'];
 
-    // Validate next_turn
-    if ($next_turn !== 'white' && $next_turn !== 'black') {
-        ob_end_clean();
-        echo json_encode(['success' => false, 'message' => 'Invalid next turn value']);
-        exit;
-    }
-
-    // Get the special status from the form data
-    $special_status = isset($_POST['special_status']) ? $_POST['special_status'] : null;
-    $last_move_white = isset($_POST['last_move_white']) ? trim($_POST['last_move_white']) : null;
-    $last_move_black = isset($_POST['last_move_black']) ? trim($_POST['last_move_black']) : null;
-
-    // Update the game state
+    $move_result = chess_validate_and_apply_move($game['board_state'], $from_row, $from_col, $to_row, $to_col, $player_color);
     $current_timestamp = time();
-
-    // Properly escape the board state for SQL
-    $escaped_board_state = $conn->real_escape_string($board_state);
+    $escaped_board_state = $conn->real_escape_string($move_result['board_state']);
 
     $update_fields = [
         "board_state = '$escaped_board_state'",
-        "turn = '$next_turn'",
+        "turn = '" . $conn->real_escape_string($move_result['next_turn']) . "'",
         "last_move_timestamp = $current_timestamp"
     ];
 
-    if ($special_status !== null && $special_status !== '') {
-        $update_fields[] = "special_status = '" . $conn->real_escape_string($special_status) . "'";
+    if ($move_result['special_status']) {
+        $update_fields[] = "special_status = '" . $conn->real_escape_string($move_result['special_status']) . "'";
     } else {
         $update_fields[] = "special_status = NULL";
     }
 
-    if ($last_move_white !== null) {
-        if ($last_move_white === '') {
-            $update_fields[] = "last_move_white = NULL";
-        } else {
-            $update_fields[] = "last_move_white = '" . $conn->real_escape_string($last_move_white) . "'";
-        }
-    }
-
-    if ($last_move_black !== null) {
-        if ($last_move_black === '') {
-            $update_fields[] = "last_move_black = NULL";
-        } else {
-            $update_fields[] = "last_move_black = '" . $conn->real_escape_string($last_move_black) . "'";
-        }
+    if ($player_color === 'white') {
+        $update_fields[] = "last_move_white = '" . $conn->real_escape_string($move_result['last_move']) . "'";
+    } else {
+        $update_fields[] = "last_move_black = '" . $conn->real_escape_string($move_result['last_move']) . "'";
     }
 
     $update_query = "UPDATE games SET " . implode(", ", $update_fields) . " WHERE id = $game_id";
-
     execute_query($conn, $update_query);
+
+    $finalized = null;
+    if ($move_result['is_complete']) {
+        $game['board_state'] = $move_result['board_state'];
+        $game['turn'] = $move_result['next_turn'];
+        $winner_color = $move_result['winner_color'];
+        $finalized = complete_game_with_result($conn, $game, $move_result['result'], $winner_color);
+    }
 
     // Clear the output buffer before sending JSON
     ob_end_clean();
 
-    echo json_encode([
+    $response = [
         'success' => true,
         'message' => 'Game updated successfully',
-        'next_turn' => $next_turn
-    ]);
+        'next_turn' => $move_result['next_turn'],
+        'board_state' => json_decode($move_result['board_state'], true),
+        'special_status' => $move_result['special_status'],
+        'last_move' => $move_result['last_move'],
+        'last_move_timestamp' => $current_timestamp,
+        'move_time_limit_seconds' => (int)($game['move_time_limit_seconds'] ?? 86400),
+        'is_complete' => $move_result['is_complete']
+    ];
+    if ($finalized) {
+        $response['finalized'] = $finalized;
+    }
+    echo json_encode($response);
 } catch (Exception $e) {
     // Log the error
     error_log("Error in update_game.php: " . $e->getMessage());
