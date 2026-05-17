@@ -6,7 +6,7 @@
     const DARK_COLOR = 0x8a5632;
     const EDGE_COLOR = 0x4c2f1f;
     const SELECT_COLOR = 0xffd166;
-    const MOVE_COLOR = 0x77d284;
+    const MOVE_COLOR = 0x2f9e44;
     const ILLEGAL_COLOR = 0xef476f;
     const AR_DEFAULT_SCALE = 0.065;
     const AR_MIN_SCALE = 0.035;
@@ -439,7 +439,7 @@
             if (!square) return;
 
             this.game.handleSquareClick({ target: square });
-            this.syncFromGame(this.game);
+            this.scheduleSync(this.game);
         }
 
         pointToBoardSquare(point) {
@@ -456,7 +456,7 @@
             }
             this.game = game;
             this.clearPieces();
-            const board = game.gameBoard || game.createInitialBoard();
+            const board = this.readBoardFromDOM() || game.gameBoard || game.createInitialBoard();
             for (let row = 0; row < BOARD_SIZE; row++) {
                 for (let col = 0; col < BOARD_SIZE; col++) {
                     const symbol = board[row] ? board[row][col] : '';
@@ -467,6 +467,46 @@
             }
             this.updateHighlights();
             this.applyMode();
+        }
+
+        readBoardFromDOM() {
+            const board = [];
+            let foundSquare = false;
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                board[row] = [];
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                    if (!square) continue;
+                    foundSquare = true;
+                    const piece = square.querySelector('.piece');
+                    board[row][col] = piece ? this.symbolFromPieceElement(piece) : '';
+                }
+            }
+            return foundSquare ? board : null;
+        }
+
+        symbolFromPieceElement(piece) {
+            const type = piece.dataset.type || '';
+            const color = piece.dataset.color || (piece.classList.contains('white-piece') ? 'white' : 'black');
+            if (type === 'dragon' || piece.classList.contains('dragon-piece')) {
+                return color === 'black' ? 'dragon-black' : 'dragon-white';
+            }
+            if (type === 'archer' || piece.classList.contains('archer-piece')) {
+                if (piece.dataset.symbol) return piece.dataset.symbol;
+                if (piece.dataset.base && piece.dataset.arrow) {
+                    return `${piece.dataset.base}${piece.dataset.arrow === '↑' ? '⇡' : '⇣'}`;
+                }
+                return color === 'black' ? '♟⇣' : '♙⇡';
+            }
+            return piece.dataset.symbol || piece.textContent.trim();
+        }
+
+        scheduleSync(game = this.game) {
+            if (!game) return;
+            this.syncFromGame(game);
+            requestAnimationFrame(() => this.syncFromGame(game));
+            setTimeout(() => this.syncFromGame(game), 80);
+            setTimeout(() => this.syncFromGame(game), 650);
         }
 
         clearPieces() {
@@ -967,7 +1007,7 @@
             if (!square) return;
 
             this.game.handleSquareClick({ target: square });
-            this.syncFromGame(this.game);
+            this.scheduleSync(this.game);
         }
 
         updateARPointer() {
@@ -1235,8 +1275,28 @@
         const originalMovePiece = ChessGame.prototype.movePiece;
         ChessGame.prototype.movePiece = function(...args) {
             const result = originalMovePiece.apply(this, args);
-            window.cloudChess3D?.syncFromGame(this);
-            window.cloudChess3D?.updateHighlights();
+            window.cloudChess3D?.scheduleSync(this);
+            return result;
+        };
+
+        const originalHandleSquareClick = ChessGame.prototype.handleSquareClick;
+        ChessGame.prototype.handleSquareClick = function(...args) {
+            const result = originalHandleSquareClick.apply(this, args);
+            window.cloudChess3D?.scheduleSync(this);
+            return result;
+        };
+
+        const originalTryMove = ChessGame.prototype.tryMove;
+        ChessGame.prototype.tryMove = function(...args) {
+            const result = originalTryMove.apply(this, args);
+            window.cloudChess3D?.scheduleSync(this);
+            return result;
+        };
+
+        const originalMakeAIMove = ChessGame.prototype.makeAIMove;
+        ChessGame.prototype.makeAIMove = function(...args) {
+            const result = originalMakeAIMove.apply(this, args);
+            window.cloudChess3D?.scheduleSync(this);
             return result;
         };
 
