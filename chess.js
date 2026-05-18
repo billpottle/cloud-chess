@@ -1856,10 +1856,24 @@ class ChessGame {
         }
         ctx.restore();
 
+        const labelOffset = Math.max(player.radius + 10, this.getBattleSpriteDrawHeight(player.type) * 0.45);
         ctx.fillStyle = isHuman ? '#ffffff' : 'rgba(255,255,255,0.72)';
-        ctx.font = '700 12px Arial, sans-serif';
+        ctx.font = '800 13px Arial, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(isHuman ? 'YOU' : 'CPU', player.x, player.y - player.radius - 10);
+        ctx.fillText(isHuman ? 'YOU' : 'CPU', player.x, player.y - labelOffset);
+    }
+
+    getBattleSpriteDrawHeight(type) {
+        return {
+            pawn: 116,
+            archer: 126,
+            knight: 136,
+            bishop: 136,
+            rook: 142,
+            queen: 142,
+            king: 146,
+            dragon: 168
+        }[type] || 124;
     }
 
     drawBattleSprite(ctx, player) {
@@ -1868,30 +1882,20 @@ class ChessGame {
             return false;
         }
 
-        const heightByType = {
-            pawn: 72,
-            archer: 78,
-            knight: 82,
-            bishop: 84,
-            rook: 86,
-            queen: 88,
-            king: 90,
-            dragon: 104
-        };
-        const drawHeight = heightByType[player.type] || 78;
+        const drawHeight = this.getBattleSpriteDrawHeight(player.type);
         const drawWidth = image.naturalWidth * (drawHeight / image.naturalHeight);
         const xOffset = player.type === 'dragon' ? -drawWidth * 0.42 : -drawWidth * 0.48;
         const yOffset = -drawHeight * 0.52;
 
         ctx.shadowColor = player.side === 'attacker' ? 'rgba(255, 87, 122, 0.35)' : 'rgba(118, 240, 180, 0.35)';
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = 16;
         ctx.drawImage(image, xOffset, yOffset, drawWidth, drawHeight);
         ctx.shadowBlur = 0;
         ctx.strokeStyle = player.accent;
         ctx.lineWidth = 2;
         ctx.globalAlpha = 0.75;
         ctx.beginPath();
-        ctx.ellipse(0, player.radius * 1.18, player.radius * 1.7, player.radius * 0.45, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, drawHeight * 0.36, Math.max(player.radius * 2.1, drawWidth * 0.28), drawHeight * 0.075, 0, 0, Math.PI * 2);
         ctx.stroke();
         ctx.globalAlpha = 1;
         return true;
@@ -3316,7 +3320,7 @@ class ChessGame {
     }
 
     setBoardDisabled(disabled) {
-        const boardEl = this.board || document.getElementById('board');
+        const boardEl = this.board?.classList ? this.board : document.getElementById('board');
         if (boardEl) {
             boardEl.classList.toggle('board-disabled', disabled);
         }

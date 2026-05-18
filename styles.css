@@ -562,8 +562,8 @@
 }
 
 .battle-panel.is-arena-active .battle-arena {
-    height: min(62dvh, 660px);
-    min-height: 320px;
+    height: min(68dvh, 720px);
+    min-height: 360px;
 }
 
 .battle-panel.is-arena-active .battle-log {
@@ -966,6 +966,7 @@ body.battle-arena-open {
     }
 
     .battle-panel.is-arena-active {
+        grid-template-rows: auto auto auto auto;
         padding: 10px;
     }
 
@@ -978,9 +979,14 @@ body.battle-arena-open {
         padding: 10px;
     }
 
+    .battle-panel.is-arena-active .battle-arena-shell {
+        grid-template-rows: auto auto;
+        gap: 8px;
+    }
+
     .battle-panel.is-arena-active .battle-arena {
-        min-height: 260px;
-        height: 50dvh;
+        min-height: 240px;
+        height: 42dvh;
     }
 
     .battle-touch-controls {

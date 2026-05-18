@@ -56,14 +56,14 @@ ob_end_flush();
     <link rel="stylesheet" href="css/modals.css">
     <link rel="stylesheet" href="css/tables.css">
     <link rel="stylesheet" href="css/challenges.css">
-    <link rel="stylesheet" href="styles.css?v=20260517k">
+    <link rel="stylesheet" href="styles.css?v=20260518c">
 
     <!-- Favicon -->
     <link rel="icon" href="images/favicon.ico" sizes="any">
     <link rel="manifest" href="manifest.webmanifest">
 
     <!-- JavaScript files -->
-    <script src="chess.js?v=20260518a"></script>
+    <script src="chess.js?v=20260518c"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="js/vendor/GLTFLoader.js?v=20260517a"></script>
     <script src="js/three-board.js?v=20260517k"></script>
