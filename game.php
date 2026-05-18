@@ -63,7 +63,7 @@ ob_end_flush();
     <link rel="manifest" href="manifest.webmanifest">
 
     <!-- JavaScript files -->
-    <script src="chess.js"></script>
+    <script src="chess.js?v=20260518a"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="js/vendor/GLTFLoader.js?v=20260517a"></script>
     <script src="js/three-board.js?v=20260517k"></script>

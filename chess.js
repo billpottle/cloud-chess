@@ -16,6 +16,17 @@ function cloudChessLog(...args) {
 
 window.cloudChessLog = window.cloudChessLog || cloudChessLog;
 
+const BATTLE_SPRITE_PATHS = {
+    pawn: 'assets/battle-sprites/pawn.png?v=20260518a',
+    archer: 'assets/battle-sprites/archer.png?v=20260518a',
+    knight: 'assets/battle-sprites/knight.png?v=20260518a',
+    bishop: 'assets/battle-sprites/bishop.png?v=20260518a',
+    rook: 'assets/battle-sprites/rook.png?v=20260518a',
+    queen: 'assets/battle-sprites/queen.png?v=20260518a',
+    king: 'assets/battle-sprites/king.png?v=20260518a',
+    dragon: 'assets/battle-sprites/dragon.png?v=20260518a'
+};
+
 // Update the navigation links based on game state
 function updateNavigation(inGame) {
     const homeLink = document.querySelector('.navbar a:first-child');
@@ -143,6 +154,7 @@ class ChessGame {
         this.battleKeyDownHandler = null;
         this.battleKeyUpHandler = null;
         this.battleFrameRequest = null;
+        this.battleSprites = this.loadBattleSprites();
         this.capturedPieces = { white: [], black: [] };
         this.scores = { white: 0, black: 0 };
         this.pieceScoreValues = {
@@ -1035,6 +1047,30 @@ class ChessGame {
         return { ...base, type };
     }
 
+    loadBattleSprites() {
+        const sprites = {};
+        if (typeof Image === 'undefined') {
+            return sprites;
+        }
+
+        Object.entries(BATTLE_SPRITE_PATHS).forEach(([type, src]) => {
+            const image = new Image();
+            image.onload = () => {
+                if (this.activeBattle?.arcade) {
+                    this.renderBattleArcadeFrame();
+                }
+            };
+            image.src = src;
+            sprites[type] = image;
+        });
+        return sprites;
+    }
+
+    getBattleSprite(type) {
+        const image = this.battleSprites?.[type];
+        return image && image.complete && image.naturalWidth > 0 ? image : null;
+    }
+
     getMoveCaptureInfo(fromRow, fromCol, toRow, toCol, isArcherCaptureMove = this.isArcherCapture) {
         const fromSquare = document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`);
         const toSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
@@ -1815,13 +1851,50 @@ class ChessGame {
         ctx.translate(player.x, player.y);
         ctx.rotate(angle);
         ctx.globalAlpha = player.invulnerable > 0 && Math.floor(performance.now() / 70) % 2 === 0 ? 0.5 : 1;
-        this.drawBattlePieceShape(ctx, player);
+        if (!this.drawBattleSprite(ctx, player)) {
+            this.drawBattlePieceShape(ctx, player);
+        }
         ctx.restore();
 
         ctx.fillStyle = isHuman ? '#ffffff' : 'rgba(255,255,255,0.72)';
         ctx.font = '700 12px Arial, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(isHuman ? 'YOU' : 'CPU', player.x, player.y - player.radius - 10);
+    }
+
+    drawBattleSprite(ctx, player) {
+        const image = this.getBattleSprite(player.type);
+        if (!image) {
+            return false;
+        }
+
+        const heightByType = {
+            pawn: 72,
+            archer: 78,
+            knight: 82,
+            bishop: 84,
+            rook: 86,
+            queen: 88,
+            king: 90,
+            dragon: 104
+        };
+        const drawHeight = heightByType[player.type] || 78;
+        const drawWidth = image.naturalWidth * (drawHeight / image.naturalHeight);
+        const xOffset = player.type === 'dragon' ? -drawWidth * 0.42 : -drawWidth * 0.48;
+        const yOffset = -drawHeight * 0.52;
+
+        ctx.shadowColor = player.side === 'attacker' ? 'rgba(255, 87, 122, 0.35)' : 'rgba(118, 240, 180, 0.35)';
+        ctx.shadowBlur = 12;
+        ctx.drawImage(image, xOffset, yOffset, drawWidth, drawHeight);
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = player.accent;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.75;
+        ctx.beginPath();
+        ctx.ellipse(0, player.radius * 1.18, player.radius * 1.7, player.radius * 0.45, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        return true;
     }
 
     drawBattlePieceShape(ctx, player) {
