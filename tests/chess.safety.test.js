@@ -158,4 +158,30 @@ describe('Battle chess captures', () => {
     expect(board.querySelector('[data-row="3"][data-col="5"] .piece')?.dataset.color).toBe('black');
     expect(game.currentPlayer).toBe('white');
   });
+
+  test('computer capture starts a player-defense battle', () => {
+    game.currentPlayer = 'black';
+
+    const result = game.executeMove({
+      fromRow: 3,
+      fromCol: 5,
+      toRow: 4,
+      toCol: 4
+    });
+
+    expect(result).toBe('battle');
+    expect(game.activeBattle).toMatchObject({
+      fromRow: 3,
+      fromCol: 5,
+      toRow: 4,
+      toCol: 4,
+      humanSide: 'defender',
+      aiSide: 'attacker',
+      attackerName: 'Black Pawn',
+      defenderName: 'White Pawn'
+    });
+    expect(document.getElementById('battle-panel').hidden).toBe(false);
+    expect(board.querySelector('[data-row="3"][data-col="5"] .piece')?.dataset.color).toBe('black');
+    expect(board.querySelector('[data-row="4"][data-col="4"] .piece')?.dataset.color).toBe('white');
+  });
 });

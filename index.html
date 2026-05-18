@@ -11,14 +11,14 @@
     <link rel="stylesheet" href="css/tables.css">
     <link rel="stylesheet" href="css/modals.css">
     <link rel="stylesheet" href="css/challenges.css">
-    <link rel="stylesheet" href="styles.css?v=20260517i">
+    <link rel="stylesheet" href="styles.css?v=20260517j">
 
     <!-- Favicon -->
     <link rel="icon" href="images/favicon.ico" sizes="any">
     <link rel="manifest" href="manifest.webmanifest">
 
     <!-- Scripts -->
-    <script src="chess.js?v=20260517b" defer></script>
+    <script src="chess.js?v=20260517c" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
     <script src="js/vendor/GLTFLoader.js?v=20260517a" defer></script>
     <script src="js/three-board.js?v=20260517k" defer></script>
@@ -216,7 +216,17 @@
                                 <div id="battle-defender-stats" class="battle-stats"></div>
                             </div>
                         </div>
-                        <div id="battle-log" class="battle-log">Choose an attack.</div>
+                        <div class="battle-arena-shell">
+                            <canvas id="battle-arena" class="battle-arena" width="640" height="360" aria-label="Battle arena"></canvas>
+                            <div class="battle-touch-controls" aria-label="Battle controls">
+                                <button type="button" data-battle-control="up" aria-label="Move up">▲</button>
+                                <button type="button" data-battle-control="left" aria-label="Move left">◀</button>
+                                <button type="button" data-battle-control="attack" aria-label="Attack">Attack</button>
+                                <button type="button" data-battle-control="right" aria-label="Move right">▶</button>
+                                <button type="button" data-battle-control="down" aria-label="Move down">▼</button>
+                            </div>
+                        </div>
+                        <div id="battle-log" class="battle-log">Move with WASD or arrows. Attack with Space or J.</div>
                         <div class="battle-actions">
                             <button type="button" class="battle-action" data-action="strike">Strike</button>
                             <button type="button" class="battle-action" data-action="guard">Guard</button>

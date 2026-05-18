@@ -601,8 +601,51 @@
     line-height: 1.35;
 }
 
-.battle-actions {
+.battle-arena-shell {
+    margin-top: 12px;
+}
+
+.battle-arena {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 2px solid #1c2943;
+    border-radius: 8px;
+    background: #0c1325;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    touch-action: none;
+}
+
+.battle-touch-controls {
     display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.battle-touch-controls button {
+    min-height: 42px;
+    border: 1px solid rgba(49, 95, 159, 0.28);
+    border-radius: 6px;
+    background: #243958;
+    color: #ffffff;
+    font-weight: 800;
+    cursor: pointer;
+    user-select: none;
+    touch-action: manipulation;
+}
+
+.battle-touch-controls button[data-battle-control="attack"] {
+    background: #9a3d4f;
+}
+
+.battle-touch-controls button.is-pressed {
+    transform: translateY(1px);
+    filter: brightness(1.16);
+}
+
+.battle-actions {
+    display: none;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
 }

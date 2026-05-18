@@ -140,6 +140,9 @@ class ChessGame {
         this.isArcherCapture = false;
         this.battleMode = false;
         this.activeBattle = null;
+        this.battleKeyDownHandler = null;
+        this.battleKeyUpHandler = null;
+        this.battleFrameRequest = null;
         this.capturedPieces = { white: [], black: [] };
         this.scores = { white: 0, black: 0 };
         this.pieceScoreValues = {
@@ -1099,9 +1102,11 @@ class ChessGame {
     startBattleForMove(captureInfo) {
         const attackerStats = this.getBattleStatsForPiece(captureInfo.attacker);
         const defenderStats = this.getBattleStatsForPiece(captureInfo.defender);
+        const humanSide = captureInfo.attacker.dataset.color === 'white' ? 'attacker' : 'defender';
+        const aiSide = humanSide === 'attacker' ? 'defender' : 'attacker';
         this.activeBattle = {
             ...captureInfo,
-            round: 1,
+            round: 0,
             attackerHp: attackerStats.hp,
             defenderHp: defenderStats.hp + 1,
             attackerMaxHp: attackerStats.hp,
@@ -1110,11 +1115,21 @@ class ChessGame {
             defenderAttack: defenderStats.attack,
             attackerName: this.getPieceDisplayName(captureInfo.attacker),
             defenderName: this.getPieceDisplayName(captureInfo.defender),
-            log: `${this.getPieceDisplayName(captureInfo.attacker)} challenges ${this.getPieceDisplayName(captureInfo.defender)}.`
+            humanSide,
+            aiSide,
+            log: humanSide === 'attacker'
+                ? `${this.getPieceDisplayName(captureInfo.attacker)} breaks into the arena. Chase down the defender.`
+                : `${this.getPieceDisplayName(captureInfo.defender)} is defending the square. Dodge and counterattack.`
         };
         this.renderBattlePanel();
+        this.startBattleArcade();
         this.setBoardDisabled(true);
-        this.setStatusMessage('Battle started. Choose how your piece fights.', 'thinking');
+        this.setStatusMessage(
+            humanSide === 'attacker'
+                ? 'Battle started. Move with WASD or arrows, attack with Space or J.'
+                : 'The computer is attacking. Defend with WASD or arrows, attack with Space or J.',
+            'thinking'
+        );
     }
 
     bindBattleActions(panel) {
@@ -1145,7 +1160,7 @@ class ChessGame {
             el.textContent = `${Math.max(0, hp)} / ${maxHp}`;
         };
 
-        setText('battle-round', `Round ${battle.round}`);
+        setText('battle-round', battle.round > 0 ? `Hit ${battle.round}` : 'Arcade duel');
         setText('battle-attacker-name', battle.attackerName);
         setText('battle-defender-name', battle.defenderName);
         setText('battle-attacker-stats', `HP ${battle.attackerMaxHp} / ATK ${battle.attackerAttack}`);
@@ -1153,6 +1168,479 @@ class ChessGame {
         setText('battle-log', battle.log);
         setHp('battle-attacker-hp', battle.attackerHp, battle.attackerMaxHp);
         setHp('battle-defender-hp', battle.defenderHp, battle.defenderMaxHp);
+    }
+
+    getArcadeBattleProfile(pieceEl, side) {
+        const stats = this.getBattleStatsForPiece(pieceEl);
+        const type = stats.type || 'pawn';
+        const rangedTypes = ['archer', 'bishop', 'queen', 'dragon'];
+        const heavyTypes = ['rook', 'king', 'dragon'];
+        const quickTypes = ['pawn', 'knight', 'archer'];
+        return {
+            side,
+            type,
+            ranged: rangedTypes.includes(type),
+            radius: type === 'dragon' ? 18 : heavyTypes.includes(type) ? 15 : 13,
+            speed: quickTypes.includes(type) ? 158 : heavyTypes.includes(type) ? 122 : 138,
+            damage: Math.max(2, stats.attack),
+            cooldown: type === 'dragon' ? 0.55 : rangedTypes.includes(type) ? 0.42 : 0.34,
+            projectileSpeed: type === 'dragon' ? 260 : type === 'archer' ? 330 : 285,
+            slashRange: type === 'dragon' ? 54 : type === 'rook' ? 44 : 38,
+            color: side === 'attacker' ? '#f2d37a' : '#7fd4ff',
+            accent: side === 'attacker' ? '#ff5a7a' : '#76f0b4'
+        };
+    }
+
+    startBattleArcade() {
+        const battle = this.activeBattle;
+        const canvas = document.getElementById('battle-arena');
+        if (!battle || !canvas || typeof canvas.getContext !== 'function') {
+            return false;
+        }
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            return false;
+        }
+
+        this.stopBattleArcade();
+
+        const width = canvas.width || 640;
+        const height = canvas.height || 360;
+        const attackerProfile = this.getArcadeBattleProfile(battle.attacker, 'attacker');
+        const defenderProfile = this.getArcadeBattleProfile(battle.defender, 'defender');
+        battle.arcade = {
+            canvas,
+            ctx,
+            width,
+            height,
+            running: true,
+            keys: new Set(),
+            controls: new Set(),
+            projectiles: [],
+            slashes: [],
+            effects: [],
+            stars: Array.from({ length: 52 }, (_, index) => ({
+                x: (index * 137) % width,
+                y: (index * 71) % height,
+                size: 1 + (index % 3) * 0.45
+            })),
+            players: {
+                attacker: {
+                    ...attackerProfile,
+                    x: 88,
+                    y: height / 2,
+                    vx: 0,
+                    vy: 0,
+                    aimX: 1,
+                    aimY: 0,
+                    hp: battle.attackerHp,
+                    maxHp: battle.attackerMaxHp,
+                    cooldownLeft: 0,
+                    invulnerable: 0
+                },
+                defender: {
+                    ...defenderProfile,
+                    x: width - 88,
+                    y: height / 2,
+                    vx: 0,
+                    vy: 0,
+                    aimX: -1,
+                    aimY: 0,
+                    hp: battle.defenderHp,
+                    maxHp: battle.defenderMaxHp,
+                    cooldownLeft: 0,
+                    invulnerable: 0
+                }
+            },
+            lastTime: performance.now()
+        };
+
+        this.bindBattleControls();
+        this.renderBattleArcadeFrame();
+        const tick = (time) => this.updateBattleArcade(time);
+        this.battleFrameRequest = requestAnimationFrame(tick);
+        return true;
+    }
+
+    stopBattleArcade() {
+        if (this.battleFrameRequest) {
+            cancelAnimationFrame(this.battleFrameRequest);
+            this.battleFrameRequest = null;
+        }
+        if (this.battleKeyDownHandler) {
+            window.removeEventListener('keydown', this.battleKeyDownHandler);
+            this.battleKeyDownHandler = null;
+        }
+        if (this.battleKeyUpHandler) {
+            window.removeEventListener('keyup', this.battleKeyUpHandler);
+            this.battleKeyUpHandler = null;
+        }
+        if (this.activeBattle?.arcade) {
+            this.activeBattle.arcade.running = false;
+        }
+        document.querySelectorAll('[data-battle-control].is-pressed').forEach(button => {
+            button.classList.remove('is-pressed');
+        });
+    }
+
+    bindBattleControls() {
+        const battle = this.activeBattle;
+        if (!battle?.arcade) return;
+
+        const normalizeKey = (key) => ({
+            ArrowUp: 'up',
+            w: 'up',
+            W: 'up',
+            ArrowDown: 'down',
+            s: 'down',
+            S: 'down',
+            ArrowLeft: 'left',
+            a: 'left',
+            A: 'left',
+            ArrowRight: 'right',
+            d: 'right',
+            D: 'right',
+            ' ': 'attack',
+            Spacebar: 'attack',
+            j: 'attack',
+            J: 'attack'
+        })[key];
+
+        this.battleKeyDownHandler = (event) => {
+            const control = normalizeKey(event.key);
+            if (!control || !this.activeBattle?.arcade) return;
+            this.activeBattle.arcade.keys.add(control);
+            event.preventDefault();
+        };
+        this.battleKeyUpHandler = (event) => {
+            const control = normalizeKey(event.key);
+            if (!control || !this.activeBattle?.arcade) return;
+            this.activeBattle.arcade.keys.delete(control);
+            event.preventDefault();
+        };
+        window.addEventListener('keydown', this.battleKeyDownHandler);
+        window.addEventListener('keyup', this.battleKeyUpHandler);
+
+        document.querySelectorAll('[data-battle-control]').forEach(button => {
+            if (button.dataset.arcadeBound === 'true') return;
+            button.dataset.arcadeBound = 'true';
+            const control = button.dataset.battleControl;
+            const press = (event) => {
+                if (!this.activeBattle?.arcade) return;
+                this.activeBattle.arcade.controls.add(control);
+                button.classList.add('is-pressed');
+                event.preventDefault();
+            };
+            const release = (event) => {
+                if (this.activeBattle?.arcade) {
+                    this.activeBattle.arcade.controls.delete(control);
+                }
+                button.classList.remove('is-pressed');
+                event.preventDefault();
+            };
+            button.addEventListener('pointerdown', press);
+            button.addEventListener('pointerup', release);
+            button.addEventListener('pointercancel', release);
+            button.addEventListener('pointerleave', release);
+        });
+    }
+
+    getBattleInputVector(arcade) {
+        const active = (control) => arcade.keys.has(control) || arcade.controls.has(control);
+        const x = (active('right') ? 1 : 0) - (active('left') ? 1 : 0);
+        const y = (active('down') ? 1 : 0) - (active('up') ? 1 : 0);
+        const length = Math.hypot(x, y) || 1;
+        return {
+            x: x / length,
+            y: y / length,
+            attacking: active('attack')
+        };
+    }
+
+    updateBattleArcade(time) {
+        const battle = this.activeBattle;
+        const arcade = battle?.arcade;
+        if (!battle || !arcade?.running) return;
+
+        const delta = Math.min(0.04, Math.max(0.001, (time - arcade.lastTime) / 1000));
+        arcade.lastTime = time;
+
+        this.updateBattlePlayer('attacker', delta);
+        this.updateBattlePlayer('defender', delta);
+        this.updateBattleProjectiles(delta);
+        this.updateBattleSlashes(delta);
+        this.updateBattleEffects(delta);
+        this.renderBattleArcadeFrame();
+
+        if (!this.activeBattle?.arcade?.running) return;
+        this.battleFrameRequest = requestAnimationFrame((nextTime) => this.updateBattleArcade(nextTime));
+    }
+
+    updateBattlePlayer(side, delta) {
+        const battle = this.activeBattle;
+        const arcade = battle?.arcade;
+        if (!arcade) return;
+
+        const player = arcade.players[side];
+        const targetSide = side === 'attacker' ? 'defender' : 'attacker';
+        const target = arcade.players[targetSide];
+        let moveX = 0;
+        let moveY = 0;
+        let attacking = false;
+
+        if (battle.humanSide === side) {
+            const input = this.getBattleInputVector(arcade);
+            moveX = input.x;
+            moveY = input.y;
+            attacking = input.attacking;
+        } else {
+            const dx = target.x - player.x;
+            const dy = target.y - player.y;
+            const distance = Math.hypot(dx, dy) || 1;
+            const preferred = player.ranged ? 170 : player.slashRange * 0.78;
+            const chase = distance > preferred ? 1 : distance < preferred * 0.62 ? -0.75 : 0;
+            const strafe = player.ranged ? Math.sin(performance.now() / 420) * 0.75 : 0.18;
+            moveX = (dx / distance) * chase + (-dy / distance) * strafe;
+            moveY = (dy / distance) * chase + (dx / distance) * strafe;
+            const length = Math.hypot(moveX, moveY) || 1;
+            moveX /= length;
+            moveY /= length;
+            attacking = player.ranged ? distance < 260 : distance < player.slashRange + target.radius + 10;
+        }
+
+        if (moveX || moveY) {
+            player.aimX = moveX;
+            player.aimY = moveY;
+        } else {
+            const dx = target.x - player.x;
+            const dy = target.y - player.y;
+            const length = Math.hypot(dx, dy) || 1;
+            player.aimX = dx / length;
+            player.aimY = dy / length;
+        }
+
+        player.cooldownLeft = Math.max(0, player.cooldownLeft - delta);
+        player.invulnerable = Math.max(0, player.invulnerable - delta);
+        player.x = Math.max(player.radius + 8, Math.min(arcade.width - player.radius - 8, player.x + moveX * player.speed * delta));
+        player.y = Math.max(player.radius + 8, Math.min(arcade.height - player.radius - 8, player.y + moveY * player.speed * delta));
+
+        if (attacking && player.cooldownLeft <= 0) {
+            this.performBattleAttack(side);
+        }
+    }
+
+    performBattleAttack(side) {
+        const battle = this.activeBattle;
+        const arcade = battle?.arcade;
+        if (!arcade) return;
+
+        const player = arcade.players[side];
+        const targetSide = side === 'attacker' ? 'defender' : 'attacker';
+        const target = arcade.players[targetSide];
+        player.cooldownLeft = player.cooldown;
+
+        if (player.ranged) {
+            const dx = target.x - player.x;
+            const dy = target.y - player.y;
+            const length = Math.hypot(dx, dy) || 1;
+            arcade.projectiles.push({
+                side,
+                targetSide,
+                x: player.x + (dx / length) * (player.radius + 4),
+                y: player.y + (dy / length) * (player.radius + 4),
+                vx: (dx / length) * player.projectileSpeed,
+                vy: (dy / length) * player.projectileSpeed,
+                radius: player.type === 'dragon' ? 6 : 4,
+                damage: player.damage,
+                life: 1.35,
+                color: player.accent
+            });
+            return;
+        }
+
+        const reach = player.slashRange + target.radius;
+        const dx = target.x - player.x;
+        const dy = target.y - player.y;
+        const distance = Math.hypot(dx, dy);
+        arcade.slashes.push({
+            side,
+            x: player.x,
+            y: player.y,
+            aimX: player.aimX,
+            aimY: player.aimY,
+            range: player.slashRange,
+            life: 0.18,
+            maxLife: 0.18,
+            color: player.accent
+        });
+        if (distance <= reach) {
+            this.applyBattleDamage(targetSide, player.damage, side);
+        }
+    }
+
+    updateBattleProjectiles(delta) {
+        const arcade = this.activeBattle?.arcade;
+        if (!arcade) return;
+
+        arcade.projectiles = arcade.projectiles.filter(projectile => {
+            projectile.x += projectile.vx * delta;
+            projectile.y += projectile.vy * delta;
+            projectile.life -= delta;
+
+            const target = arcade.players[projectile.targetSide];
+            const hit = Math.hypot(projectile.x - target.x, projectile.y - target.y) <= projectile.radius + target.radius;
+            if (hit) {
+                this.applyBattleDamage(projectile.targetSide, projectile.damage, projectile.side);
+                return false;
+            }
+            return projectile.life > 0 &&
+                projectile.x > -20 && projectile.x < arcade.width + 20 &&
+                projectile.y > -20 && projectile.y < arcade.height + 20;
+        });
+    }
+
+    updateBattleSlashes(delta) {
+        const arcade = this.activeBattle?.arcade;
+        if (!arcade) return;
+        arcade.slashes = arcade.slashes.filter(slash => {
+            slash.life -= delta;
+            return slash.life > 0;
+        });
+    }
+
+    updateBattleEffects(delta) {
+        const arcade = this.activeBattle?.arcade;
+        if (!arcade) return;
+        arcade.effects = arcade.effects.filter(effect => {
+            effect.life -= delta;
+            effect.radius += 80 * delta;
+            return effect.life > 0;
+        });
+    }
+
+    applyBattleDamage(targetSide, damage, sourceSide) {
+        const battle = this.activeBattle;
+        const arcade = battle?.arcade;
+        if (!battle || !arcade) return;
+
+        const target = arcade.players[targetSide];
+        if (target.invulnerable > 0) return;
+
+        target.hp = Math.max(0, target.hp - damage);
+        target.invulnerable = 0.22;
+        battle.round += 1;
+        battle.attackerHp = Math.ceil(arcade.players.attacker.hp);
+        battle.defenderHp = Math.ceil(arcade.players.defender.hp);
+        const sourceName = sourceSide === 'attacker' ? battle.attackerName : battle.defenderName;
+        const targetName = targetSide === 'attacker' ? battle.attackerName : battle.defenderName;
+        battle.log = `${sourceName} hit ${targetName} for ${damage}.`;
+        arcade.effects.push({ x: target.x, y: target.y, radius: target.radius, life: 0.22, color: '#ffffff' });
+        this.renderBattlePanel();
+
+        if (arcade.players.attacker.hp <= 0 || arcade.players.defender.hp <= 0) {
+            this.finishBattle(arcade.players.defender.hp <= 0 && (arcade.players.attacker.hp > 0 || battle.attackerAttack >= battle.defenderAttack));
+        }
+    }
+
+    renderBattleArcadeFrame() {
+        const battle = this.activeBattle;
+        const arcade = battle?.arcade;
+        if (!arcade) return;
+
+        const { ctx, width, height } = arcade;
+        ctx.clearRect(0, 0, width, height);
+        const gradient = ctx.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, '#08101f');
+        gradient.addColorStop(1, '#172642');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+        arcade.stars.forEach(star => {
+            ctx.fillRect(star.x, star.y, star.size, star.size);
+        });
+
+        ctx.strokeStyle = 'rgba(126, 207, 255, 0.16)';
+        ctx.lineWidth = 1;
+        for (let x = 32; x < width; x += 32) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
+            ctx.stroke();
+        }
+        for (let y = 32; y < height; y += 32) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(width, y);
+            ctx.stroke();
+        }
+
+        arcade.projectiles.forEach(projectile => {
+            ctx.fillStyle = projectile.color;
+            ctx.beginPath();
+            ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        arcade.slashes.forEach(slash => {
+            const progress = slash.life / slash.maxLife;
+            ctx.strokeStyle = slash.color;
+            ctx.globalAlpha = Math.max(0.25, progress);
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.arc(
+                slash.x + slash.aimX * 18,
+                slash.y + slash.aimY * 18,
+                slash.range,
+                Math.atan2(slash.aimY, slash.aimX) - 0.65,
+                Math.atan2(slash.aimY, slash.aimX) + 0.65
+            );
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+        });
+
+        this.drawBattlePlayer(arcade.players.attacker, battle.humanSide === 'attacker');
+        this.drawBattlePlayer(arcade.players.defender, battle.humanSide === 'defender');
+
+        arcade.effects.forEach(effect => {
+            ctx.strokeStyle = effect.color;
+            ctx.globalAlpha = Math.max(0, effect.life / 0.22);
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+        });
+    }
+
+    drawBattlePlayer(player, isHuman) {
+        const arcade = this.activeBattle?.arcade;
+        if (!arcade) return;
+        const { ctx } = arcade;
+        const angle = Math.atan2(player.aimY, player.aimX);
+
+        ctx.save();
+        ctx.translate(player.x, player.y);
+        ctx.rotate(angle);
+        ctx.globalAlpha = player.invulnerable > 0 && Math.floor(performance.now() / 70) % 2 === 0 ? 0.5 : 1;
+        ctx.fillStyle = player.color;
+        ctx.strokeStyle = player.accent;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(player.radius + 8, 0);
+        ctx.lineTo(-player.radius, player.radius * 0.78);
+        ctx.lineTo(-player.radius * 0.62, 0);
+        ctx.lineTo(-player.radius, -player.radius * 0.78);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.fillStyle = isHuman ? '#ffffff' : 'rgba(255,255,255,0.72)';
+        ctx.font = '700 12px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(isHuman ? 'YOU' : 'CPU', player.x, player.y - player.radius - 10);
     }
 
     chooseComputerBattleAction(battle, side = 'defender') {
@@ -1215,6 +1703,7 @@ class ChessGame {
         const battle = this.activeBattle;
         if (!battle) return;
 
+        this.stopBattleArcade();
         this.activeBattle = null;
         const panel = document.getElementById('battle-panel');
         if (panel) {
@@ -1244,6 +1733,7 @@ class ChessGame {
         }
         this.clearValidMoves();
         this.selectedPiece = null;
+        this.isAiThinking = false;
         this.setBoardDisabled(false);
         this.finishTurnAfterAction();
     }
@@ -1364,6 +1854,10 @@ class ChessGame {
             moveMade = this.makeMediumAIMove();
         } else if (this.aiLevel === 3) {
             moveMade = this.makeHardAIMove();
+        }
+
+        if (moveMade === 'battle') {
+            return;
         }
 
         if (!moveMade) {
@@ -1687,10 +2181,8 @@ class ChessGame {
         this.isArcherCapture = !!archerShot;
         const captureInfo = this.getMoveCaptureInfo(fromRow, fromCol, toRow, toCol, this.isArcherCapture);
         if (this.shouldBattleForCapture(captureInfo)) {
-            const attackerWon = this.autoResolveBattle(captureInfo);
-            if (!attackerWon) {
-                return true;
-            }
+            this.startBattleForMove(captureInfo);
+            return 'battle';
         }
         this.movePiece(toRow, toCol);
         return true;
@@ -2422,6 +2914,7 @@ class ChessGame {
     }
 
     startGame(mode, aiLevel = 0, options = {}) {
+        this.stopBattleArcade();
         this.gameMode = mode;
         this.aiLevel = aiLevel;
         this.battleMode = mode === 'pvc' && Boolean(options.battleMode);
