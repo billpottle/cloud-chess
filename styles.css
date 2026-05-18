@@ -511,6 +511,71 @@
     box-sizing: border-box;
 }
 
+.battle-panel.is-arena-active {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    width: 100vw;
+    max-width: none;
+    min-height: 100dvh;
+    overflow: auto;
+    border: 0;
+    border-radius: 0;
+    background: #07101e;
+    color: #ffffff;
+    padding: clamp(12px, 2vw, 24px);
+    box-shadow: none;
+}
+
+.battle-panel.is-arena-active .battle-panel-header,
+.battle-panel.is-arena-active .battle-piece-name,
+.battle-panel.is-arena-active .battle-log {
+    color: #ffffff;
+}
+
+.battle-panel.is-arena-active .battle-panel-header {
+    max-width: 1180px;
+    width: 100%;
+    margin: 0 auto 12px;
+}
+
+.battle-panel.is-arena-active .battle-combatants {
+    max-width: 1180px;
+    width: 100%;
+    margin: 0 auto 12px;
+}
+
+.battle-panel.is-arena-active .battle-card {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.battle-panel.is-arena-active .battle-arena-shell {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 12px;
+    width: min(1180px, 100%);
+    margin: 0 auto;
+    min-height: 0;
+}
+
+.battle-panel.is-arena-active .battle-arena {
+    height: min(62dvh, 660px);
+    min-height: 320px;
+}
+
+.battle-panel.is-arena-active .battle-log {
+    width: min(1180px, 100%);
+    margin: 12px auto 0;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+body.battle-arena-open {
+    overflow: hidden;
+}
+
 .battle-panel-header {
     display: flex;
     align-items: center;
@@ -618,7 +683,7 @@
 
 .battle-touch-controls {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 8px;
     margin-top: 10px;
 }
@@ -637,6 +702,10 @@
 
 .battle-touch-controls button[data-battle-control="attack"] {
     background: #9a3d4f;
+}
+
+.battle-touch-controls button[data-battle-control="special"] {
+    background: #7050a8;
 }
 
 .battle-touch-controls button.is-pressed {
@@ -894,6 +963,28 @@
     .battle-combatants,
     .battle-actions {
         grid-template-columns: 1fr;
+    }
+
+    .battle-panel.is-arena-active {
+        padding: 10px;
+    }
+
+    .battle-panel.is-arena-active .battle-combatants {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .battle-panel.is-arena-active .battle-card {
+        padding: 10px;
+    }
+
+    .battle-panel.is-arena-active .battle-arena {
+        min-height: 260px;
+        height: 50dvh;
+    }
+
+    .battle-touch-controls {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .score-item {

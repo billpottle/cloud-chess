@@ -1118,16 +1118,16 @@ class ChessGame {
             humanSide,
             aiSide,
             log: humanSide === 'attacker'
-                ? `${this.getPieceDisplayName(captureInfo.attacker)} breaks into the arena. Chase down the defender.`
-                : `${this.getPieceDisplayName(captureInfo.defender)} is defending the square. Dodge and counterattack.`
+                ? `${this.getPieceDisplayName(captureInfo.attacker)} enters the arena. Press Space or Attack to start.`
+                : `${this.getPieceDisplayName(captureInfo.defender)} is defending the square. Press Space or Attack to start.`
         };
-        this.renderBattlePanel();
         this.startBattleArcade();
+        this.renderBattlePanel();
         this.setBoardDisabled(true);
         this.setStatusMessage(
             humanSide === 'attacker'
-                ? 'Battle started. Move with WASD or arrows, attack with Space or J.'
-                : 'The computer is attacking. Defend with WASD or arrows, attack with Space or J.',
+                ? 'Battle ready. Press Space or Attack to start the duel.'
+                : 'Defensive battle ready. Press Space or Attack to start the duel.',
             'thinking'
         );
     }
@@ -1146,6 +1146,8 @@ class ChessGame {
         if (!panel || !battle) return;
 
         panel.hidden = false;
+        panel.classList.add('is-arena-active');
+        document.body.classList.add('battle-arena-open');
         this.bindBattleActions(panel);
 
         const setText = (id, text) => {
@@ -1160,7 +1162,7 @@ class ChessGame {
             el.textContent = `${Math.max(0, hp)} / ${maxHp}`;
         };
 
-        setText('battle-round', battle.round > 0 ? `Hit ${battle.round}` : 'Arcade duel');
+        setText('battle-round', battle.arcade?.started ? (battle.round > 0 ? `Hit ${battle.round}` : 'Fight!') : 'Press Space');
         setText('battle-attacker-name', battle.attackerName);
         setText('battle-defender-name', battle.defenderName);
         setText('battle-attacker-stats', `HP ${battle.attackerMaxHp} / ATK ${battle.attackerAttack}`);
@@ -1176,6 +1178,16 @@ class ChessGame {
         const rangedTypes = ['archer', 'bishop', 'queen', 'dragon'];
         const heavyTypes = ['rook', 'king', 'dragon'];
         const quickTypes = ['pawn', 'knight', 'archer'];
+        const moveNames = {
+            pawn: ['sword jab', 'shield rush'],
+            archer: ['arrow shot', 'triple volley'],
+            knight: ['lance slash', 'horse charge'],
+            bishop: ['star bolt', 'diagonal beam'],
+            rook: ['hammer swing', 'stone charge'],
+            queen: ['royal bolt', 'crown storm'],
+            king: ['scepter swing', 'royal guard'],
+            dragon: ['fire breath', 'wing blast']
+        };
         return {
             side,
             type,
@@ -1184,8 +1196,10 @@ class ChessGame {
             speed: quickTypes.includes(type) ? 158 : heavyTypes.includes(type) ? 122 : 138,
             damage: Math.max(2, stats.attack),
             cooldown: type === 'dragon' ? 0.55 : rangedTypes.includes(type) ? 0.42 : 0.34,
+            specialCooldown: type === 'dragon' ? 1.15 : heavyTypes.includes(type) ? 0.95 : 0.8,
             projectileSpeed: type === 'dragon' ? 260 : type === 'archer' ? 330 : 285,
             slashRange: type === 'dragon' ? 54 : type === 'rook' ? 44 : 38,
+            moveNames: moveNames[type] || ['strike', 'special'],
             color: side === 'attacker' ? '#f2d37a' : '#7fd4ff',
             accent: side === 'attacker' ? '#ff5a7a' : '#76f0b4'
         };
@@ -1215,6 +1229,7 @@ class ChessGame {
             width,
             height,
             running: true,
+            started: false,
             keys: new Set(),
             controls: new Set(),
             projectiles: [],
@@ -1237,6 +1252,7 @@ class ChessGame {
                     hp: battle.attackerHp,
                     maxHp: battle.attackerMaxHp,
                     cooldownLeft: 0,
+                    specialCooldownLeft: 0,
                     invulnerable: 0
                 },
                 defender: {
@@ -1250,6 +1266,7 @@ class ChessGame {
                     hp: battle.defenderHp,
                     maxHp: battle.defenderMaxHp,
                     cooldownLeft: 0,
+                    specialCooldownLeft: 0,
                     invulnerable: 0
                 }
             },
@@ -1279,6 +1296,8 @@ class ChessGame {
         if (this.activeBattle?.arcade) {
             this.activeBattle.arcade.running = false;
         }
+        document.getElementById('battle-panel')?.classList.remove('is-arena-active');
+        document.body.classList.remove('battle-arena-open');
         document.querySelectorAll('[data-battle-control].is-pressed').forEach(button => {
             button.classList.remove('is-pressed');
         });
@@ -1304,13 +1323,24 @@ class ChessGame {
             ' ': 'attack',
             Spacebar: 'attack',
             j: 'attack',
-            J: 'attack'
+            J: 'attack',
+            Shift: 'special',
+            k: 'special',
+            K: 'special'
         })[key];
 
         this.battleKeyDownHandler = (event) => {
             const control = normalizeKey(event.key);
             if (!control || !this.activeBattle?.arcade) return;
+            if ((control === 'attack' || control === 'special') && !this.activeBattle.arcade.started) {
+                this.startBattleDuel();
+                event.preventDefault();
+                return;
+            }
             this.activeBattle.arcade.keys.add(control);
+            if (control === 'attack' || control === 'special') {
+                this.tryHumanBattleAttack(control === 'special');
+            }
             event.preventDefault();
         };
         this.battleKeyUpHandler = (event) => {
@@ -1328,8 +1358,16 @@ class ChessGame {
             const control = button.dataset.battleControl;
             const press = (event) => {
                 if (!this.activeBattle?.arcade) return;
+                if ((control === 'attack' || control === 'special') && !this.activeBattle.arcade.started) {
+                    this.startBattleDuel();
+                    event.preventDefault();
+                    return;
+                }
                 this.activeBattle.arcade.controls.add(control);
                 button.classList.add('is-pressed');
+                if (control === 'attack' || control === 'special') {
+                    this.tryHumanBattleAttack(control === 'special');
+                }
                 event.preventDefault();
             };
             const release = (event) => {
@@ -1346,6 +1384,21 @@ class ChessGame {
         });
     }
 
+    tryHumanBattleAttack(special = false) {
+        const battle = this.activeBattle;
+        const arcade = battle?.arcade;
+        if (!battle || !arcade?.started) return;
+
+        const player = arcade.players[battle.humanSide];
+        if (special) {
+            if (player.specialCooldownLeft <= 0) {
+                this.performBattleAttack(battle.humanSide, true);
+            }
+        } else if (player.cooldownLeft <= 0) {
+            this.performBattleAttack(battle.humanSide, false);
+        }
+    }
+
     getBattleInputVector(arcade) {
         const active = (control) => arcade.keys.has(control) || arcade.controls.has(control);
         const x = (active('right') ? 1 : 0) - (active('left') ? 1 : 0);
@@ -1354,8 +1407,21 @@ class ChessGame {
         return {
             x: x / length,
             y: y / length,
-            attacking: active('attack')
+            attacking: active('attack'),
+            special: active('special')
         };
+    }
+
+    startBattleDuel() {
+        const battle = this.activeBattle;
+        const arcade = battle?.arcade;
+        if (!battle || !arcade || arcade.started) return;
+
+        arcade.started = true;
+        arcade.lastTime = performance.now();
+        battle.log = `${battle.humanSide === 'attacker' ? battle.attackerName : battle.defenderName} is under your control. Attack with Space/J, special with Shift/K.`;
+        this.renderBattlePanel();
+        this.setStatusMessage('Battle in progress.', 'thinking');
     }
 
     updateBattleArcade(time) {
@@ -1366,10 +1432,12 @@ class ChessGame {
         const delta = Math.min(0.04, Math.max(0.001, (time - arcade.lastTime) / 1000));
         arcade.lastTime = time;
 
-        this.updateBattlePlayer('attacker', delta);
-        this.updateBattlePlayer('defender', delta);
-        this.updateBattleProjectiles(delta);
-        this.updateBattleSlashes(delta);
+        if (arcade.started) {
+            this.updateBattlePlayer('attacker', delta);
+            this.updateBattlePlayer('defender', delta);
+            this.updateBattleProjectiles(delta);
+            this.updateBattleSlashes(delta);
+        }
         this.updateBattleEffects(delta);
         this.renderBattleArcadeFrame();
 
@@ -1388,12 +1456,14 @@ class ChessGame {
         let moveX = 0;
         let moveY = 0;
         let attacking = false;
+        let special = false;
 
         if (battle.humanSide === side) {
             const input = this.getBattleInputVector(arcade);
             moveX = input.x;
             moveY = input.y;
             attacking = input.attacking;
+            special = input.special;
         } else {
             const dx = target.x - player.x;
             const dy = target.y - player.y;
@@ -1407,6 +1477,7 @@ class ChessGame {
             moveX /= length;
             moveY /= length;
             attacking = player.ranged ? distance < 260 : distance < player.slashRange + target.radius + 10;
+            special = attacking && player.specialCooldownLeft <= 0 && Math.random() < 0.025;
         }
 
         if (moveX || moveY) {
@@ -1421,16 +1492,19 @@ class ChessGame {
         }
 
         player.cooldownLeft = Math.max(0, player.cooldownLeft - delta);
+        player.specialCooldownLeft = Math.max(0, player.specialCooldownLeft - delta);
         player.invulnerable = Math.max(0, player.invulnerable - delta);
         player.x = Math.max(player.radius + 8, Math.min(arcade.width - player.radius - 8, player.x + moveX * player.speed * delta));
         player.y = Math.max(player.radius + 8, Math.min(arcade.height - player.radius - 8, player.y + moveY * player.speed * delta));
 
-        if (attacking && player.cooldownLeft <= 0) {
-            this.performBattleAttack(side);
+        if (special && player.specialCooldownLeft <= 0) {
+            this.performBattleAttack(side, true);
+        } else if (attacking && player.cooldownLeft <= 0) {
+            this.performBattleAttack(side, false);
         }
     }
 
-    performBattleAttack(side) {
+    performBattleAttack(side, special = false) {
         const battle = this.activeBattle;
         const arcade = battle?.arcade;
         if (!arcade) return;
@@ -1438,7 +1512,18 @@ class ChessGame {
         const player = arcade.players[side];
         const targetSide = side === 'attacker' ? 'defender' : 'attacker';
         const target = arcade.players[targetSide];
-        player.cooldownLeft = player.cooldown;
+        if (special) {
+            player.specialCooldownLeft = player.specialCooldown;
+            player.cooldownLeft = Math.max(player.cooldownLeft, player.cooldown * 0.65);
+        } else {
+            player.cooldownLeft = player.cooldown;
+        }
+        const damage = special ? Math.ceil(player.damage * 1.45) : player.damage;
+
+        if (special) {
+            this.performBattleSpecial(side, targetSide, damage);
+            return;
+        }
 
         if (player.ranged) {
             const dx = target.x - player.x;
@@ -1451,10 +1536,12 @@ class ChessGame {
                 y: player.y + (dy / length) * (player.radius + 4),
                 vx: (dx / length) * player.projectileSpeed,
                 vy: (dy / length) * player.projectileSpeed,
-                radius: player.type === 'dragon' ? 6 : 4,
-                damage: player.damage,
+                radius: player.type === 'dragon' ? 7 : 4,
+                damage,
                 life: 1.35,
-                color: player.accent
+                color: player.type === 'dragon' ? '#ff8848' : player.accent,
+                kind: player.type === 'dragon' ? 'fire' : 'bolt',
+                moveName: player.moveNames[0]
             });
             return;
         }
@@ -1472,10 +1559,88 @@ class ChessGame {
             range: player.slashRange,
             life: 0.18,
             maxLife: 0.18,
-            color: player.accent
+            color: player.accent,
+            kind: 'slash'
         });
         if (distance <= reach) {
-            this.applyBattleDamage(targetSide, player.damage, side);
+            this.applyBattleDamage(targetSide, damage, side, player.moveNames[0]);
+        }
+    }
+
+    performBattleSpecial(side, targetSide, damage) {
+        const arcade = this.activeBattle?.arcade;
+        if (!arcade) return;
+
+        const player = arcade.players[side];
+        const target = arcade.players[targetSide];
+        const dx = target.x - player.x;
+        const dy = target.y - player.y;
+        const length = Math.hypot(dx, dy) || 1;
+        const aimX = dx / length;
+        const aimY = dy / length;
+        const moveName = player.moveNames[1];
+
+        if (player.type === 'dragon') {
+            [-0.26, 0, 0.26].forEach(offset => {
+                const cos = Math.cos(offset);
+                const sin = Math.sin(offset);
+                arcade.projectiles.push({
+                    side,
+                    targetSide,
+                    x: player.x + aimX * (player.radius + 8),
+                    y: player.y + aimY * (player.radius + 8),
+                    vx: (aimX * cos - aimY * sin) * 230,
+                    vy: (aimX * sin + aimY * cos) * 230,
+                    radius: 9,
+                    damage,
+                    life: 0.9,
+                    color: '#ff6a2a',
+                    kind: 'fire',
+                    moveName
+                });
+            });
+            return;
+        }
+
+        if (player.ranged) {
+            [-0.18, 0, 0.18].forEach(offset => {
+                const cos = Math.cos(offset);
+                const sin = Math.sin(offset);
+                arcade.projectiles.push({
+                    side,
+                    targetSide,
+                    x: player.x + aimX * (player.radius + 6),
+                    y: player.y + aimY * (player.radius + 6),
+                    vx: (aimX * cos - aimY * sin) * player.projectileSpeed,
+                    vy: (aimX * sin + aimY * cos) * player.projectileSpeed,
+                    radius: player.type === 'queen' ? 6 : 4,
+                    damage,
+                    life: 1.1,
+                    color: player.type === 'queen' ? '#ffe58a' : player.accent,
+                    kind: player.type === 'bishop' ? 'beam' : 'bolt',
+                    moveName
+                });
+            });
+            return;
+        }
+
+        const chargeDistance = player.type === 'knight' ? 86 : player.type === 'rook' ? 72 : 54;
+        player.x = Math.max(player.radius + 8, Math.min(arcade.width - player.radius - 8, player.x + aimX * chargeDistance));
+        player.y = Math.max(player.radius + 8, Math.min(arcade.height - player.radius - 8, player.y + aimY * chargeDistance));
+        arcade.slashes.push({
+            side,
+            x: player.x,
+            y: player.y,
+            aimX,
+            aimY,
+            range: player.slashRange + 18,
+            life: 0.25,
+            maxLife: 0.25,
+            color: player.type === 'king' ? '#ffe58a' : player.accent,
+            kind: 'special'
+        });
+        if (Math.hypot(player.x - target.x, player.y - target.y) <= player.slashRange + target.radius + 20) {
+            this.applyBattleDamage(targetSide, damage, side, moveName);
         }
     }
 
@@ -1491,7 +1656,7 @@ class ChessGame {
             const target = arcade.players[projectile.targetSide];
             const hit = Math.hypot(projectile.x - target.x, projectile.y - target.y) <= projectile.radius + target.radius;
             if (hit) {
-                this.applyBattleDamage(projectile.targetSide, projectile.damage, projectile.side);
+                this.applyBattleDamage(projectile.targetSide, projectile.damage, projectile.side, projectile.moveName);
                 return false;
             }
             return projectile.life > 0 &&
@@ -1519,7 +1684,7 @@ class ChessGame {
         });
     }
 
-    applyBattleDamage(targetSide, damage, sourceSide) {
+    applyBattleDamage(targetSide, damage, sourceSide, moveName = 'hit') {
         const battle = this.activeBattle;
         const arcade = battle?.arcade;
         if (!battle || !arcade) return;
@@ -1534,7 +1699,7 @@ class ChessGame {
         battle.defenderHp = Math.ceil(arcade.players.defender.hp);
         const sourceName = sourceSide === 'attacker' ? battle.attackerName : battle.defenderName;
         const targetName = targetSide === 'attacker' ? battle.attackerName : battle.defenderName;
-        battle.log = `${sourceName} hit ${targetName} for ${damage}.`;
+        battle.log = `${sourceName} used ${moveName} on ${targetName} for ${damage}.`;
         arcade.effects.push({ x: target.x, y: target.y, radius: target.radius, life: 0.22, color: '#ffffff' });
         this.renderBattlePanel();
 
@@ -1578,9 +1743,24 @@ class ChessGame {
 
         arcade.projectiles.forEach(projectile => {
             ctx.fillStyle = projectile.color;
+            ctx.strokeStyle = projectile.kind === 'fire' ? '#ffd08a' : projectile.color;
+            ctx.lineWidth = projectile.kind === 'beam' ? 4 : 2;
             ctx.beginPath();
-            ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
-            ctx.fill();
+            if (projectile.kind === 'fire') {
+                ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 0.35;
+                ctx.arc(projectile.x - projectile.vx * 0.02, projectile.y - projectile.vy * 0.02, projectile.radius * 1.8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            } else if (projectile.kind === 'beam') {
+                ctx.moveTo(projectile.x - projectile.vx * 0.04, projectile.y - projectile.vy * 0.04);
+                ctx.lineTo(projectile.x, projectile.y);
+                ctx.stroke();
+            } else {
+                ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
         });
 
         arcade.slashes.forEach(slash => {
@@ -1612,6 +1792,17 @@ class ChessGame {
             ctx.stroke();
             ctx.globalAlpha = 1;
         });
+
+        if (!arcade.started) {
+            ctx.fillStyle = 'rgba(7, 16, 30, 0.72)';
+            ctx.fillRect(0, 0, width, height);
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.font = '800 30px Arial, sans-serif';
+            ctx.fillText('Press Space to Start', width / 2, height / 2 - 18);
+            ctx.font = '700 16px Arial, sans-serif';
+            ctx.fillText('Move: WASD / arrows   Attack: Space/J   Special: Shift/K', width / 2, height / 2 + 18);
+        }
     }
 
     drawBattlePlayer(player, isHuman) {
@@ -1624,23 +1815,170 @@ class ChessGame {
         ctx.translate(player.x, player.y);
         ctx.rotate(angle);
         ctx.globalAlpha = player.invulnerable > 0 && Math.floor(performance.now() / 70) % 2 === 0 ? 0.5 : 1;
-        ctx.fillStyle = player.color;
-        ctx.strokeStyle = player.accent;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(player.radius + 8, 0);
-        ctx.lineTo(-player.radius, player.radius * 0.78);
-        ctx.lineTo(-player.radius * 0.62, 0);
-        ctx.lineTo(-player.radius, -player.radius * 0.78);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
+        this.drawBattlePieceShape(ctx, player);
         ctx.restore();
 
         ctx.fillStyle = isHuman ? '#ffffff' : 'rgba(255,255,255,0.72)';
         ctx.font = '700 12px Arial, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(isHuman ? 'YOU' : 'CPU', player.x, player.y - player.radius - 10);
+    }
+
+    drawBattlePieceShape(ctx, player) {
+        const r = player.radius;
+        ctx.lineWidth = 3;
+        ctx.fillStyle = player.color;
+        ctx.strokeStyle = player.accent;
+
+        const drawBase = () => {
+            ctx.beginPath();
+            ctx.ellipse(-r * 0.25, r * 0.82, r * 0.95, r * 0.28, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        };
+        const drawSword = () => {
+            ctx.strokeStyle = '#f8f4df';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(r * 0.2, -r * 0.1);
+            ctx.lineTo(r * 1.45, -r * 0.48);
+            ctx.stroke();
+            ctx.strokeStyle = player.accent;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(r * 0.35, r * 0.15);
+            ctx.lineTo(r * 0.05, -r * 0.32);
+            ctx.stroke();
+        };
+        const drawCrown = () => {
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.7, -r * 0.35);
+            ctx.lineTo(-r * 0.42, -r * 1.0);
+            ctx.lineTo(-r * 0.08, -r * 0.45);
+            ctx.lineTo(r * 0.26, -r * 1.05);
+            ctx.lineTo(r * 0.62, -r * 0.32);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        };
+
+        if (player.type === 'dragon') {
+            ctx.fillStyle = player.side === 'attacker' ? '#b82034' : '#2774a8';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, r * 1.2, r * 0.72, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#f05a5a';
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.4, -r * 0.25);
+            ctx.lineTo(-r * 1.35, -r * 1.15);
+            ctx.lineTo(-r * 0.05, -r * 0.88);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.4, r * 0.25);
+            ctx.lineTo(-r * 1.35, r * 1.15);
+            ctx.lineTo(-r * 0.05, r * 0.88);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#ff9a3c';
+            ctx.beginPath();
+            ctx.moveTo(r * 1.05, 0);
+            ctx.lineTo(r * 1.7, -r * 0.28);
+            ctx.lineTo(r * 1.45, 0);
+            ctx.lineTo(r * 1.7, r * 0.28);
+            ctx.closePath();
+            ctx.fill();
+            return;
+        }
+
+        if (player.type === 'knight') {
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.75, r * 0.65);
+            ctx.lineTo(-r * 0.58, -r * 0.48);
+            ctx.lineTo(r * 0.1, -r * 0.95);
+            ctx.lineTo(r * 0.82, -r * 0.2);
+            ctx.lineTo(r * 0.32, r * 0.7);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            drawSword();
+            return;
+        }
+
+        if (player.type === 'rook') {
+            ctx.fillRect(-r * 0.72, -r * 0.52, r * 1.35, r * 1.25);
+            ctx.strokeRect(-r * 0.72, -r * 0.52, r * 1.35, r * 1.25);
+            for (let i = -1; i <= 1; i += 1) {
+                ctx.fillRect(i * r * 0.42 - r * 0.14, -r * 0.95, r * 0.28, r * 0.42);
+                ctx.strokeRect(i * r * 0.42 - r * 0.14, -r * 0.95, r * 0.28, r * 0.42);
+            }
+            drawBase();
+            return;
+        }
+
+        if (player.type === 'bishop') {
+            ctx.beginPath();
+            ctx.ellipse(0, -r * 0.12, r * 0.68, r * 1.02, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.strokeStyle = player.accent;
+            ctx.beginPath();
+            ctx.moveTo(r * 0.15, -r * 0.85);
+            ctx.lineTo(-r * 0.18, -r * 0.12);
+            ctx.stroke();
+            drawBase();
+            return;
+        }
+
+        if (player.type === 'queen' || player.type === 'king') {
+            ctx.beginPath();
+            ctx.ellipse(0, r * 0.1, r * 0.62, r * 0.86, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            drawCrown();
+            if (player.type === 'king') {
+                ctx.strokeStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.moveTo(r * 0.85, -r * 0.78);
+                ctx.lineTo(r * 0.85, -r * 1.35);
+                ctx.moveTo(r * 0.62, -r * 1.08);
+                ctx.lineTo(r * 1.08, -r * 1.08);
+                ctx.stroke();
+            }
+            drawBase();
+            return;
+        }
+
+        if (player.type === 'archer') {
+            ctx.beginPath();
+            ctx.arc(-r * 0.25, 0, r * 0.72, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.strokeStyle = '#f8f4df';
+            ctx.beginPath();
+            ctx.arc(r * 0.15, 0, r * 0.95, -Math.PI / 2, Math.PI / 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(r * 0.2, 0);
+            ctx.lineTo(r * 1.45, 0);
+            ctx.stroke();
+            drawBase();
+            return;
+        }
+
+        ctx.beginPath();
+        ctx.arc(0, -r * 0.55, r * 0.48, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(0, r * 0.15, r * 0.58, r * 0.8, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        drawBase();
+        drawSword();
     }
 
     chooseComputerBattleAction(battle, side = 'defender') {
@@ -1708,7 +2046,9 @@ class ChessGame {
         const panel = document.getElementById('battle-panel');
         if (panel) {
             panel.hidden = true;
+            panel.classList.remove('is-arena-active');
         }
+        document.body.classList.remove('battle-arena-open');
 
         if (attackerWon) {
             this.setStatusMessage(`${battle.attackerName} won the battle and takes the square.`, 'ready');

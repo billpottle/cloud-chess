@@ -56,7 +56,7 @@ ob_end_flush();
     <link rel="stylesheet" href="css/modals.css">
     <link rel="stylesheet" href="css/tables.css">
     <link rel="stylesheet" href="css/challenges.css">
-    <link rel="stylesheet" href="styles.css?v=20260517j">
+    <link rel="stylesheet" href="styles.css?v=20260517k">
 
     <!-- Favicon -->
     <link rel="icon" href="images/favicon.ico" sizes="any">
