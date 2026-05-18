@@ -172,14 +172,14 @@ class ChessGame {
             king: 0
         };
         this.pieceBattleStats = {
-            pawn: { hp: 5, attack: 2 },
-            archer: { hp: 6, attack: 2 },
-            knight: { hp: 9, attack: 4 },
-            bishop: { hp: 8, attack: 4 },
-            rook: { hp: 12, attack: 5 },
-            queen: { hp: 14, attack: 6 },
-            king: { hp: 16, attack: 5 },
-            dragon: { hp: 22, attack: 8 }
+            pawn: { hp: 12, attack: 2 },
+            archer: { hp: 13, attack: 2 },
+            knight: { hp: 18, attack: 4 },
+            bishop: { hp: 17, attack: 4 },
+            rook: { hp: 26, attack: 5 },
+            queen: { hp: 30, attack: 6 },
+            king: { hp: 34, attack: 5 },
+            dragon: { hp: 44, attack: 8 }
         };
 
         // Game end flags
@@ -1795,7 +1795,7 @@ class ChessGame {
             loserSide,
             finisherName,
             timer: 0,
-            duration: 1.45
+            duration: 2.15
         };
         arcade.started = false;
         arcade.keys.clear();
@@ -1938,11 +1938,48 @@ class ChessGame {
         const loser = arcade.players[finisher.loserSide];
         const progress = Math.min(1, finisher.timer / finisher.duration);
         const pulse = Math.sin(progress * Math.PI);
+        const impact = Math.min(1, Math.max(0, (progress - 0.18) / 0.64));
+        const flash = Math.max(0, 1 - Math.abs(progress - 0.28) / 0.18);
+        const endFlash = Math.max(0, 1 - Math.abs(progress - 0.82) / 0.14);
+        const dx = loser.x - winner.x;
+        const dy = loser.y - winner.y;
+        const distance = Math.hypot(dx, dy) || 1;
+        const aimX = dx / distance;
+        const aimY = dy / distance;
+        const perpX = -aimY;
+        const perpY = aimX;
 
         ctx.save();
-        ctx.globalAlpha = 0.24 + pulse * 0.22;
-        ctx.fillStyle = finisher.winnerSide === 'attacker' ? '#9b1230' : '#0b5b78';
+        ctx.globalAlpha = 0.32 + pulse * 0.28;
+        ctx.fillStyle = finisher.winnerSide === 'attacker' ? '#7f0824' : '#063f61';
         ctx.fillRect(0, 0, width, height);
+        ctx.restore();
+
+        if (flash > 0 || endFlash > 0) {
+            ctx.save();
+            ctx.globalAlpha = Math.min(0.85, flash * 0.55 + endFlash * 0.72);
+            ctx.fillStyle = '#fff3b0';
+            ctx.fillRect(0, 0, width, height);
+            ctx.restore();
+        }
+
+        ctx.save();
+        ctx.strokeStyle = '#ff315c';
+        ctx.lineWidth = 8 + pulse * 8;
+        ctx.globalAlpha = 0.62 + pulse * 0.22;
+        ctx.shadowColor = '#ff315c';
+        ctx.shadowBlur = 22;
+        ctx.beginPath();
+        ctx.moveTo(winner.x + perpX * 18, winner.y + perpY * 18);
+        ctx.lineTo(loser.x - aimX * 18, loser.y - aimY * 18);
+        ctx.stroke();
+        ctx.strokeStyle = '#fff1a8';
+        ctx.lineWidth = 3;
+        ctx.globalAlpha = 0.78;
+        ctx.beginPath();
+        ctx.moveTo(winner.x - perpX * 10, winner.y - perpY * 10);
+        ctx.lineTo(loser.x + aimX * 26, loser.y + aimY * 26);
+        ctx.stroke();
         ctx.restore();
 
         ctx.save();
@@ -1950,14 +1987,44 @@ class ChessGame {
         ctx.strokeStyle = winner.accent;
         ctx.lineWidth = 4;
         ctx.globalAlpha = 0.86;
-        for (let i = 0; i < 18; i += 1) {
-            const angle = (Math.PI * 2 * i) / 18 + progress * 2.4;
-            const inner = 20 + pulse * 18;
-            const outer = 78 + pulse * 42;
+        for (let i = 0; i < 24; i += 1) {
+            const angle = (Math.PI * 2 * i) / 24 + progress * 4.8;
+            const inner = 18 + pulse * 22;
+            const outer = 90 + pulse * 64 + impact * 42;
             ctx.beginPath();
             ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
             ctx.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
             ctx.stroke();
+        }
+
+        ctx.strokeStyle = '#ffe58a';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.78;
+        for (let i = 0; i < 10; i += 1) {
+            const angle = (Math.PI * 2 * i) / 10 - progress * 2.2;
+            const radius = 24 + i * 8 + impact * 34;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(angle) * radius * 0.35, Math.sin(angle) * radius * 0.35);
+            ctx.lineTo(Math.cos(angle + 0.22) * radius, Math.sin(angle + 0.22) * radius);
+            ctx.stroke();
+        }
+
+        ctx.fillStyle = '#ff315c';
+        ctx.globalAlpha = 0.72;
+        for (let i = 0; i < 18; i += 1) {
+            const angle = (Math.PI * 2 * i) / 18 + 0.37;
+            const radius = 34 + impact * (52 + (i % 4) * 18);
+            const size = 5 + (i % 3) * 2;
+            ctx.save();
+            ctx.translate(Math.cos(angle) * radius, Math.sin(angle) * radius);
+            ctx.rotate(angle + progress * 8);
+            ctx.beginPath();
+            ctx.moveTo(0, -size);
+            ctx.lineTo(size * 0.7, size);
+            ctx.lineTo(-size * 0.7, size);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
         }
         ctx.restore();
 
@@ -1975,6 +2042,9 @@ class ChessGame {
         ctx.font = '700 14px Arial, sans-serif';
         ctx.fillStyle = 'rgba(255,255,255,0.82)';
         ctx.fillText(`${winner.moveNames[1]} seals the capture`, width / 2, 130);
+        ctx.font = '900 18px Arial, sans-serif';
+        ctx.fillStyle = '#ff6b88';
+        ctx.fillText('K.O.', width / 2, 158);
         ctx.restore();
     }
 
@@ -1983,15 +2053,37 @@ class ChessGame {
         if (!arcade) return;
         const { ctx } = arcade;
         const facing = player.aimX < -0.08 ? -1 : 1;
+        const finisher = arcade.finisher;
+        const isFinisherLoser = finisher?.loserSide === player.side;
+        const isFinisherWinner = finisher?.winnerSide === player.side;
+        const finisherProgress = finisher ? Math.min(1, finisher.timer / finisher.duration) : 0;
+        const shake = isFinisherLoser ? Math.sin(finisherProgress * 95) * (2 + finisherProgress * 7) : 0;
+        const loserScale = isFinisherLoser ? Math.max(0.62, 1 - finisherProgress * 0.28) : 1;
+        const winnerScale = isFinisherWinner ? 1 + Math.sin(finisherProgress * Math.PI) * 0.08 : 1;
+        const finisherAlpha = isFinisherLoser ? Math.max(0.2, 1 - finisherProgress * 0.78) : 1;
 
         ctx.save();
-        ctx.translate(player.x, player.y);
-        ctx.scale(facing, 1);
-        ctx.globalAlpha = player.invulnerable > 0 && Math.floor(performance.now() / 70) % 2 === 0 ? 0.5 : 1;
+        ctx.translate(player.x + shake, player.y);
+        ctx.scale(facing * winnerScale * loserScale, winnerScale * loserScale);
+        ctx.globalAlpha = (player.invulnerable > 0 && Math.floor(performance.now() / 70) % 2 === 0 ? 0.5 : 1) * finisherAlpha;
         if (!this.drawBattleSprite(ctx, player)) {
             this.drawBattlePieceShape(ctx, player);
         }
         ctx.restore();
+
+        if (isFinisherLoser && finisherProgress > 0.28) {
+            ctx.save();
+            ctx.globalAlpha = Math.min(0.8, (finisherProgress - 0.28) * 1.4);
+            ctx.strokeStyle = '#ff315c';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(player.x - 34, player.y - 58);
+            ctx.lineTo(player.x + 30, player.y + 48);
+            ctx.moveTo(player.x + 38, player.y - 48);
+            ctx.lineTo(player.x - 28, player.y + 42);
+            ctx.stroke();
+            ctx.restore();
+        }
 
         const labelOffset = Math.max(player.radius + 10, this.getBattleSpriteDrawHeight(player.type) * 0.45);
         ctx.fillStyle = isHuman ? '#ffffff' : 'rgba(255,255,255,0.72)';

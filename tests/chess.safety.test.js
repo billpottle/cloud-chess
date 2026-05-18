@@ -156,6 +156,8 @@ describe('Battle chess captures', () => {
     expect(game.activeBattle).toMatchObject({
       attackerAttack: 3,
       attackerBonusPercent: 50,
+      attackerMaxHp: 12,
+      defenderMaxHp: 13,
       finishingMoves: true
     });
     expect(document.getElementById('battle-panel').hidden).toBe(false);
