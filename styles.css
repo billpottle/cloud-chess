@@ -494,6 +494,10 @@
     cursor: pointer;
 }
 
+.battle-mode-toggle + .battle-mode-toggle {
+    margin-top: 6px;
+}
+
 .battle-mode-toggle input {
     width: 18px;
     height: 18px;

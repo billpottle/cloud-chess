@@ -131,7 +131,7 @@ describe('Battle chess captures', () => {
       <ol id="move-history-list"></ol>
     `;
     game = new ChessGame();
-    game.startGame('pvc', 1, { battleMode: true });
+    game.startGame('pvc', 1, { battleMode: true, finishingMoves: true });
     board = document.getElementById('board');
     clearPieces(board);
     placePiece(board, 9, 5, { type: 'king', color: 'white', symbol: '♔' });
@@ -152,6 +152,11 @@ describe('Battle chess captures', () => {
       toCol: 5,
       attackerName: 'White Pawn',
       defenderName: 'Black Pawn'
+    });
+    expect(game.activeBattle).toMatchObject({
+      attackerAttack: 3,
+      attackerBonusPercent: 50,
+      finishingMoves: true
     });
     expect(document.getElementById('battle-panel').hidden).toBe(false);
     expect(board.querySelector('[data-row="4"][data-col="4"] .piece')?.dataset.color).toBe('white');

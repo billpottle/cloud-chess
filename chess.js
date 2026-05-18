@@ -79,9 +79,11 @@ document.addEventListener('DOMContentLoaded', () => {
         computerDifficulty.addEventListener('change', () => {
             const difficulty = parseInt(computerDifficulty.value);
             const battleToggle = document.getElementById('battle-mode-toggle');
+            const finishingMovesToggle = document.getElementById('finishing-moves-toggle');
             if (difficulty > 0) {
                 window.gameInstance.startGame('pvc', difficulty, {
-                    battleMode: Boolean(battleToggle?.checked)
+                    battleMode: Boolean(battleToggle?.checked),
+                    finishingMoves: Boolean(finishingMovesToggle?.checked)
                 });
             }
         });
@@ -150,6 +152,8 @@ class ChessGame {
         this.isAiThinking = false;
         this.isArcherCapture = false;
         this.battleMode = false;
+        this.finishingMoves = false;
+        this.attackerBattleBonus = 1.5;
         this.activeBattle = null;
         this.battleKeyDownHandler = null;
         this.battleKeyUpHandler = null;
@@ -1047,6 +1051,10 @@ class ChessGame {
         return { ...base, type };
     }
 
+    getBattleAttackForSide(attack, side) {
+        return side === 'attacker' ? Math.ceil(attack * this.attackerBattleBonus) : attack;
+    }
+
     loadBattleSprites() {
         const sprites = {};
         if (typeof Image === 'undefined') {
@@ -1138,6 +1146,7 @@ class ChessGame {
     startBattleForMove(captureInfo) {
         const attackerStats = this.getBattleStatsForPiece(captureInfo.attacker);
         const defenderStats = this.getBattleStatsForPiece(captureInfo.defender);
+        const attackerAttack = this.getBattleAttackForSide(attackerStats.attack, 'attacker');
         const humanSide = captureInfo.attacker.dataset.color === 'white' ? 'attacker' : 'defender';
         const aiSide = humanSide === 'attacker' ? 'defender' : 'attacker';
         this.activeBattle = {
@@ -1147,8 +1156,10 @@ class ChessGame {
             defenderHp: defenderStats.hp + 1,
             attackerMaxHp: attackerStats.hp,
             defenderMaxHp: defenderStats.hp + 1,
-            attackerAttack: attackerStats.attack,
+            attackerAttack,
             defenderAttack: defenderStats.attack,
+            attackerBonusPercent: Math.round((this.attackerBattleBonus - 1) * 100),
+            finishingMoves: this.finishingMoves,
             attackerName: this.getPieceDisplayName(captureInfo.attacker),
             defenderName: this.getPieceDisplayName(captureInfo.defender),
             humanSide,
@@ -1198,10 +1209,11 @@ class ChessGame {
             el.textContent = `${Math.max(0, hp)} / ${maxHp}`;
         };
 
-        setText('battle-round', battle.arcade?.started ? (battle.round > 0 ? `Hit ${battle.round}` : 'Fight!') : 'Press Space');
+        setText('battle-round', battle.arcade?.finisher ? 'Finisher!' : battle.arcade?.started ? (battle.round > 0 ? `Hit ${battle.round}` : 'Fight!') : 'Press Space');
         setText('battle-attacker-name', battle.attackerName);
         setText('battle-defender-name', battle.defenderName);
-        setText('battle-attacker-stats', `HP ${battle.attackerMaxHp} / ATK ${battle.attackerAttack}`);
+        const attackerBonus = battle.attackerBonusPercent ? ` +${battle.attackerBonusPercent}%` : '';
+        setText('battle-attacker-stats', `HP ${battle.attackerMaxHp} / ATK ${battle.attackerAttack}${attackerBonus}`);
         setText('battle-defender-stats', `HP ${battle.defenderMaxHp} / ATK ${battle.defenderAttack}`);
         setText('battle-log', battle.log);
         setHp('battle-attacker-hp', battle.attackerHp, battle.attackerMaxHp);
@@ -1230,7 +1242,7 @@ class ChessGame {
             ranged: rangedTypes.includes(type),
             radius: type === 'dragon' ? 18 : heavyTypes.includes(type) ? 15 : 13,
             speed: quickTypes.includes(type) ? 158 : heavyTypes.includes(type) ? 122 : 138,
-            damage: Math.max(2, stats.attack),
+            damage: Math.max(2, this.getBattleAttackForSide(stats.attack, side)),
             cooldown: type === 'dragon' ? 0.55 : rangedTypes.includes(type) ? 0.42 : 0.34,
             specialCooldown: type === 'dragon' ? 1.15 : heavyTypes.includes(type) ? 0.95 : 0.8,
             projectileSpeed: type === 'dragon' ? 260 : type === 'archer' ? 330 : 285,
@@ -1423,7 +1435,7 @@ class ChessGame {
     tryHumanBattleAttack(special = false) {
         const battle = this.activeBattle;
         const arcade = battle?.arcade;
-        if (!battle || !arcade?.started) return;
+        if (!battle || !arcade?.started || arcade.finisher) return;
 
         const player = arcade.players[battle.humanSide];
         if (special) {
@@ -1468,7 +1480,9 @@ class ChessGame {
         const delta = Math.min(0.04, Math.max(0.001, (time - arcade.lastTime) / 1000));
         arcade.lastTime = time;
 
-        if (arcade.started) {
+        if (arcade.finisher) {
+            this.updateBattleFinisher(delta);
+        } else if (arcade.started) {
             this.updateBattlePlayer('attacker', delta);
             this.updateBattlePlayer('defender', delta);
             this.updateBattleProjectiles(delta);
@@ -1484,7 +1498,7 @@ class ChessGame {
     updateBattlePlayer(side, delta) {
         const battle = this.activeBattle;
         const arcade = battle?.arcade;
-        if (!arcade) return;
+        if (!arcade || arcade.finisher) return;
 
         const player = arcade.players[side];
         const targetSide = side === 'attacker' ? 'defender' : 'attacker';
@@ -1543,7 +1557,7 @@ class ChessGame {
     performBattleAttack(side, special = false) {
         const battle = this.activeBattle;
         const arcade = battle?.arcade;
-        if (!arcade) return;
+        if (!arcade || arcade.finisher) return;
 
         const player = arcade.players[side];
         const targetSide = side === 'attacker' ? 'defender' : 'attacker';
@@ -1740,7 +1754,77 @@ class ChessGame {
         this.renderBattlePanel();
 
         if (arcade.players.attacker.hp <= 0 || arcade.players.defender.hp <= 0) {
-            this.finishBattle(arcade.players.defender.hp <= 0 && (arcade.players.attacker.hp > 0 || battle.attackerAttack >= battle.defenderAttack));
+            const attackerWon = arcade.players.defender.hp <= 0 && (arcade.players.attacker.hp > 0 || battle.attackerAttack >= battle.defenderAttack);
+            if (battle.finishingMoves) {
+                this.startBattleFinisher(attackerWon, sourceSide, targetSide, moveName);
+            } else {
+                this.finishBattle(attackerWon);
+            }
+        }
+    }
+
+    getBattleFinisherName(type) {
+        return {
+            pawn: 'Final Thrust',
+            archer: 'Skyfall Volley',
+            knight: 'Comet Charge',
+            bishop: 'Astral Judgment',
+            rook: 'Citadel Crush',
+            queen: 'Crown Eclipse',
+            king: 'Royal Decree',
+            dragon: 'Inferno Crown'
+        }[type] || 'Final Strike';
+    }
+
+    startBattleFinisher(attackerWon, sourceSide, targetSide, moveName) {
+        const battle = this.activeBattle;
+        const arcade = battle?.arcade;
+        if (!battle || !arcade || arcade.finisher) return;
+
+        const winnerSide = attackerWon ? 'attacker' : 'defender';
+        const loserSide = attackerWon ? 'defender' : 'attacker';
+        const winner = arcade.players[winnerSide];
+        const loser = arcade.players[loserSide];
+        const finisherName = this.getBattleFinisherName(winner.type);
+        arcade.finisher = {
+            attackerWon,
+            sourceSide,
+            targetSide,
+            moveName,
+            winnerSide,
+            loserSide,
+            finisherName,
+            timer: 0,
+            duration: 1.45
+        };
+        arcade.started = false;
+        arcade.keys.clear();
+        arcade.controls.clear();
+        arcade.effects.push({ x: loser.x, y: loser.y, radius: loser.radius * 1.5, life: 0.55, color: winner.accent });
+        battle.log = `${winnerSide === 'attacker' ? battle.attackerName : battle.defenderName} unleashes ${finisherName}.`;
+        this.renderBattlePanel();
+        this.setStatusMessage('Finishing move!', 'thinking');
+    }
+
+    updateBattleFinisher(delta) {
+        const battle = this.activeBattle;
+        const arcade = battle?.arcade;
+        const finisher = arcade?.finisher;
+        if (!battle || !arcade || !finisher) return;
+
+        finisher.timer += delta;
+        const winner = arcade.players[finisher.winnerSide];
+        const loser = arcade.players[finisher.loserSide];
+        const dx = loser.x - winner.x;
+        const dy = loser.y - winner.y;
+        const length = Math.hypot(dx, dy) || 1;
+        winner.aimX = dx / length;
+        winner.aimY = dy / length;
+        loser.aimX = -winner.aimX;
+        loser.aimY = -winner.aimY;
+
+        if (finisher.timer > finisher.duration) {
+            this.finishBattle(finisher.attackerWon);
         }
     }
 
@@ -1829,7 +1913,9 @@ class ChessGame {
             ctx.globalAlpha = 1;
         });
 
-        if (!arcade.started) {
+        if (arcade.finisher) {
+            this.drawBattleFinisher();
+        } else if (!arcade.started) {
             ctx.fillStyle = 'rgba(7, 16, 30, 0.72)';
             ctx.fillRect(0, 0, width, height);
             ctx.fillStyle = '#ffffff';
@@ -1841,15 +1927,66 @@ class ChessGame {
         }
     }
 
+    drawBattleFinisher() {
+        const battle = this.activeBattle;
+        const arcade = battle?.arcade;
+        const finisher = arcade?.finisher;
+        if (!arcade || !finisher) return;
+
+        const { ctx, width, height } = arcade;
+        const winner = arcade.players[finisher.winnerSide];
+        const loser = arcade.players[finisher.loserSide];
+        const progress = Math.min(1, finisher.timer / finisher.duration);
+        const pulse = Math.sin(progress * Math.PI);
+
+        ctx.save();
+        ctx.globalAlpha = 0.24 + pulse * 0.22;
+        ctx.fillStyle = finisher.winnerSide === 'attacker' ? '#9b1230' : '#0b5b78';
+        ctx.fillRect(0, 0, width, height);
+        ctx.restore();
+
+        ctx.save();
+        ctx.translate(loser.x, loser.y);
+        ctx.strokeStyle = winner.accent;
+        ctx.lineWidth = 4;
+        ctx.globalAlpha = 0.86;
+        for (let i = 0; i < 18; i += 1) {
+            const angle = (Math.PI * 2 * i) / 18 + progress * 2.4;
+            const inner = 20 + pulse * 18;
+            const outer = 78 + pulse * 42;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
+            ctx.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
+            ctx.stroke();
+        }
+        ctx.restore();
+
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(255, 224, 128, 0.7)';
+        ctx.shadowBlur = 18;
+        ctx.fillStyle = '#ffe68a';
+        ctx.font = '900 38px Arial, sans-serif';
+        ctx.fillText('FINISHING MOVE', width / 2, 72);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '800 21px Arial, sans-serif';
+        ctx.fillText(finisher.finisherName, width / 2, 104);
+        ctx.font = '700 14px Arial, sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.82)';
+        ctx.fillText(`${winner.moveNames[1]} seals the capture`, width / 2, 130);
+        ctx.restore();
+    }
+
     drawBattlePlayer(player, isHuman) {
         const arcade = this.activeBattle?.arcade;
         if (!arcade) return;
         const { ctx } = arcade;
-        const angle = Math.atan2(player.aimY, player.aimX);
+        const facing = player.aimX < -0.08 ? -1 : 1;
 
         ctx.save();
         ctx.translate(player.x, player.y);
-        ctx.rotate(angle);
+        ctx.scale(facing, 1);
         ctx.globalAlpha = player.invulnerable > 0 && Math.floor(performance.now() / 70) % 2 === 0 ? 0.5 : 1;
         if (!this.drawBattleSprite(ctx, player)) {
             this.drawBattlePieceShape(ctx, player);
@@ -2158,12 +2295,13 @@ class ChessGame {
     autoResolveBattle(captureInfo) {
         const attackerStats = this.getBattleStatsForPiece(captureInfo.attacker);
         const defenderStats = this.getBattleStatsForPiece(captureInfo.defender);
+        const attackerAttack = this.getBattleAttackForSide(attackerStats.attack, 'attacker');
         const battle = {
             attackerHp: attackerStats.hp,
             defenderHp: defenderStats.hp + 1,
             attackerMaxHp: attackerStats.hp,
             defenderMaxHp: defenderStats.hp + 1,
-            attackerAttack: attackerStats.attack,
+            attackerAttack,
             defenderAttack: defenderStats.attack,
             attackerName: this.getPieceDisplayName(captureInfo.attacker),
             defenderName: this.getPieceDisplayName(captureInfo.defender)
@@ -3335,6 +3473,7 @@ class ChessGame {
         this.gameMode = mode;
         this.aiLevel = aiLevel;
         this.battleMode = mode === 'pvc' && Boolean(options.battleMode);
+        this.finishingMoves = this.battleMode && Boolean(options.finishingMoves);
         this.activeBattle = null;
         this.isAiThinking = false;
         this.gameOver = false;
@@ -3388,7 +3527,7 @@ class ChessGame {
         this.setBoardDisabled(false);
         this.setStatusMessage(
             mode === 'pvc'
-                ? `Single player: you are White. Computer difficulty ${aiLevel}${this.battleMode ? ' with battle captures' : ''}.`
+                ? `Single player: you are White. Computer difficulty ${aiLevel}${this.battleMode ? ` with battle captures${this.finishingMoves ? ' and finishing moves' : ''}` : ''}.`
                 : 'Local two-player: pass the device between White and Black.',
             'ready'
         );
@@ -3400,7 +3539,7 @@ class ChessGame {
 
         // Track game usage
         if (mode === 'computer' || mode === 'pvc') {
-            updateGameStats('Vs Computer Level ' + aiLevel + (this.battleMode ? ' Battle Chess' : ''));
+            updateGameStats('Vs Computer Level ' + aiLevel + (this.battleMode ? ` Battle Chess${this.finishingMoves ? ' Finishers' : ''}` : ''));
         } else if (mode === 'player' || mode === 'pvp') {
             updateGameStats('Player Vs Player (Local)');
         }
