@@ -2361,7 +2361,15 @@ class ChessGame {
             this.isArcherCapture = battle.archerShot;
             this.movePiece(battle.toRow, battle.toCol);
         } else {
-            this.setStatusMessage(`${battle.defenderName} held the square. The capture fails.`, 'warning');
+            const defenderColor = battle.defender.dataset.color || this.getOpponentColor(battle.attacker.dataset.color);
+            if (battle.attacker.dataset.type === 'king') {
+                this.kingCaptured = battle.attacker.dataset.color;
+            }
+            this.recordCapture(defenderColor, battle.attacker);
+            if (battle.attackerSquare) {
+                battle.attackerSquare.innerHTML = '';
+            }
+            this.setStatusMessage(`${battle.defenderName} won the battle and captured ${battle.attackerName}.`, 'warning');
             this.recordLastMove({
                 color: battle.attacker.dataset.color,
                 type: battle.attacker.dataset.type || this.inferPieceType(battle.attacker.textContent, battle.attacker.dataset.type),
@@ -2370,7 +2378,7 @@ class ChessGame {
                 toRow: battle.toRow,
                 toCol: battle.toCol,
                 archerShot: battle.archerShot,
-                summary: `${battle.attackerName} lost battle at ${this.squareName(battle.toRow, battle.toCol)}`
+                summary: `${battle.attackerName} lost battle and was captured at ${this.squareName(battle.toRow, battle.toCol)}`
             });
         }
 

@@ -166,6 +166,22 @@ describe('Battle chess captures', () => {
     expect(game.currentPlayer).toBe('white');
   });
 
+  test('defender victory removes the attacking piece', () => {
+    game.selectPiece(board.querySelector('[data-row="4"][data-col="4"]'));
+    game.tryMove(3, 5);
+    game.aiLevel = 0;
+
+    game.finishBattle(false);
+
+    expect(board.querySelector('[data-row="4"][data-col="4"] .piece')).toBeNull();
+    expect(board.querySelector('[data-row="3"][data-col="5"] .piece')?.dataset.color).toBe('black');
+    expect(game.capturedPieces.black).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'pawn', color: 'white' })])
+    );
+    expect(game.scores.black).toBe(1);
+    expect(game.activeBattle).toBeNull();
+  });
+
   test('computer capture starts a player-defense battle', () => {
     game.currentPlayer = 'black';
 
