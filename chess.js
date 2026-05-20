@@ -157,8 +157,10 @@ class ChessGame {
         this.activeBattle = null;
         this.battleKeyDownHandler = null;
         this.battleKeyUpHandler = null;
+        this.battleCanvasPointerHandler = null;
         this.battleFrameRequest = null;
         this.battleSprites = this.loadBattleSprites();
+        this.generatedFinisherArt = {};
         this.capturedPieces = { white: [], black: [] };
         this.scores = { white: 0, black: 0 };
         this.pieceScoreValues = {
@@ -187,11 +189,26 @@ class ChessGame {
         this.kingCaptured = null; // 'white' or 'black' when a king is removed
         this.lastMoves = { white: null, black: null }; // per-color last move
         this.moveHistory = [];
+        this.castlingRights = this.createInitialCastlingRights();
 
         // Bind the handleSquareClick method
         this.handleSquareClick = this.handleSquareClick.bind(this);
 
         this.resetGraveyards();
+    }
+
+    createInitialCastlingRights() {
+        return {
+            white: { king: true, kingside: true, queenside: true },
+            black: { king: true, kingside: true, queenside: true }
+        };
+    }
+
+    cloneCastlingRights() {
+        return {
+            white: { ...this.castlingRights.white },
+            black: { ...this.castlingRights.black }
+        };
     }
 
 
@@ -226,6 +243,37 @@ class ChessGame {
         board[9][9] = 'dragon-white'; // White Wrath
 
         return board;
+    }
+
+    getSymbolForPieceData(pieceData) {
+        if (!pieceData || typeof pieceData !== 'object') {
+            return '';
+        }
+
+        const symbols = {
+            white: {
+                king: '♔',
+                queen: '♕',
+                rook: '♖',
+                bishop: '♗',
+                knight: '♘',
+                pawn: '♙',
+                archer: '♙⇡',
+                dragon: 'dragon-white'
+            },
+            black: {
+                king: '♚',
+                queen: '♛',
+                rook: '♜',
+                bishop: '♝',
+                knight: '♞',
+                pawn: '♟',
+                archer: '♟⇣',
+                dragon: 'dragon-black'
+            }
+        };
+
+        return symbols[pieceData.color]?.[pieceData.type] || '';
     }
 
     initializeBoard() {
@@ -267,10 +315,16 @@ class ChessGame {
                 square.style.height = '100%';
 
                 // Place the piece if there is one
-                const pieceSymbol = this.gameBoard[row][col];
+                const rawPiece = this.gameBoard[row][col];
+                const pieceSymbol = typeof rawPiece === 'object' && rawPiece !== null
+                    ? this.getSymbolForPieceData(rawPiece)
+                    : rawPiece;
                 if (pieceSymbol) {
                     const piece = document.createElement('div');
                     piece.className = 'piece';
+                    if (typeof rawPiece === 'object' && rawPiece !== null && rawPiece.hasMoved) {
+                        piece.dataset.hasMoved = 'true';
+                    }
 
                     // Handle dragon pieces
                     if (pieceSymbol === 'dragon-white' || pieceSymbol === 'dragon-black') {
@@ -409,6 +463,9 @@ class ChessGame {
         if (targetPiece && targetPiece.dataset.color === piece.dataset.color) {
             return false;
         }
+        if (targetPiece && targetPiece.dataset.type === 'king') {
+            return false;
+        }
 
         // Check if this is a dragon piece
         // Check if this is a dragon piece
@@ -432,6 +489,10 @@ class ChessGame {
                     const midCol = (fromCol + toCol) / 2;
                     const midSquare = document.querySelector(`[data-row="${midRow}"][data-col="${midCol}"]`);
                     const midPiece = midSquare?.querySelector('.piece');
+
+                    if (midPiece && midPiece.dataset.type === 'king') {
+                        return false;
+                    }
 
                     // Calculate the destination square
                     const toSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
@@ -562,6 +623,10 @@ class ChessGame {
             const rowDiff = Math.abs(fromRow - toRow);
             const colDiff = Math.abs(fromCol - toCol);
 
+            if (rowDiff === 0 && colDiff === 2) {
+                return this.canCastle(piece.dataset.color, fromRow, fromCol, toCol);
+            }
+
             // King can move 1 square in any direction
             return rowDiff <= 1 && colDiff <= 1 && !(rowDiff === 0 && colDiff === 0);
         }
@@ -651,6 +716,47 @@ class ChessGame {
         return true;
     }
 
+    canCastle(color, fromRow, fromCol, toCol) {
+        const homeRow = color === 'white' ? 9 : 0;
+        if (fromRow !== homeRow || fromCol !== 5 || (toCol !== 3 && toCol !== 7)) {
+            return false;
+        }
+
+        const side = toCol > fromCol ? 'kingside' : 'queenside';
+        const rookCol = side === 'kingside' ? 8 : 1;
+        const rights = this.castlingRights?.[color];
+        if (!rights?.king || !rights?.[side]) {
+            return false;
+        }
+
+        const kingSquare = document.querySelector(`[data-row="${homeRow}"][data-col="5"]`);
+        const king = kingSquare?.querySelector('.piece');
+        const rookSquare = document.querySelector(`[data-row="${homeRow}"][data-col="${rookCol}"]`);
+        const rook = rookSquare?.querySelector('.piece');
+        if (!king || !rook || king.dataset.type !== 'king' || rook.dataset.type !== 'rook') {
+            return false;
+        }
+        if (king.dataset.color !== color || rook.dataset.color !== color) {
+            return false;
+        }
+        if (king.dataset.hasMoved === 'true' || rook.dataset.hasMoved === 'true') {
+            return false;
+        }
+
+        const betweenCols = side === 'kingside' ? [6, 7] : [2, 3, 4];
+        for (const col of betweenCols) {
+            const square = document.querySelector(`[data-row="${homeRow}"][data-col="${col}"]`);
+            if (square?.querySelector('.piece')) {
+                return false;
+            }
+        }
+
+        const boardState = this.getBoardSnapshot();
+        const opponentColor = this.getOpponentColor(color);
+        const kingPath = side === 'kingside' ? [5, 6, 7] : [5, 4, 3];
+        return kingPath.every(col => !this.isSquareAttackedBy(homeRow, col, opponentColor, boardState));
+    }
+
     showValidMoves() {
         if (!this.selectedPiece) {
             return;
@@ -710,6 +816,7 @@ class ChessGame {
         let midCaptureOccurred = false;
         const fromRowInt = parseInt(fromSquare.dataset.row);
         const fromColInt = parseInt(fromSquare.dataset.col);
+        const isCastlingMove = piece.dataset.type === 'king' && fromRowInt === toRow && Math.abs(toCol - fromColInt) === 2;
 
         if (isArcherCapture) {
             // For archer capture without moving, just remove the target piece
@@ -770,9 +877,25 @@ class ChessGame {
 
             // Move the piece to the new square
             const pieceClone = piece.cloneNode(true);
+            pieceClone.dataset.hasMoved = 'true';
             toSquare.innerHTML = '';
             toSquare.appendChild(pieceClone);
             fromSquare.innerHTML = '';
+
+            if (isCastlingMove) {
+                const rookFromCol = toCol > fromColInt ? 8 : 1;
+                const rookToCol = toCol > fromColInt ? 6 : 4;
+                const rookFromSquare = document.querySelector(`[data-row="${fromRowInt}"][data-col="${rookFromCol}"]`);
+                const rookToSquare = document.querySelector(`[data-row="${fromRowInt}"][data-col="${rookToCol}"]`);
+                const rook = rookFromSquare?.querySelector('.piece');
+                if (rook && rookToSquare) {
+                    const rookClone = rook.cloneNode(true);
+                    rookClone.dataset.hasMoved = 'true';
+                    rookToSquare.innerHTML = '';
+                    rookToSquare.appendChild(rookClone);
+                    rookFromSquare.innerHTML = '';
+                }
+            }
             this.recordLastMove({
                 color: movingColor,
                 type: piece.dataset.type || this.inferPieceType(piece.textContent, piece.dataset.type),
@@ -780,7 +903,8 @@ class ChessGame {
                 fromCol: fromColInt,
                 toRow: toRow,
                 toCol: toCol,
-                archerShot: false
+                archerShot: false,
+                castle: isCastlingMove ? (toCol > fromColInt ? 'kingside' : 'queenside') : null
             });
 
             // Check for pawn/archer promotion
@@ -812,6 +936,16 @@ class ChessGame {
                 setTimeout(() => { alert(`${winner.charAt(0).toUpperCase() + winner.slice(1)} wins by king capture!`); }, 1200);
             } catch (e) {}
         }
+
+        this.updateCastlingRightsAfterMove({
+            color: movingColor,
+            pieceType: piece.dataset.type || this.inferPieceType(piece.textContent, piece.dataset.type),
+            fromRow: fromRowInt,
+            fromCol: fromColInt,
+            toRow,
+            toCol,
+            capturedPiece: targetPiece
+        });
 
         // Notify hooks/listeners about the completed move (before turn switches)
         if (typeof this.onAfterMove === 'function') {
@@ -927,6 +1061,9 @@ class ChessGame {
 
     formatMoveSummary(move) {
         if (!move) return '';
+        if (move.castle) {
+            return move.castle === 'kingside' ? 'Castles kingside' : 'Castles queenside';
+        }
         const typeMap = {
             king: 'King',
             queen: 'Queen',
@@ -944,6 +1081,36 @@ class ChessGame {
             return `${typeName} shot ${from} → ${to}`;
         }
         return `${typeName} ${from} → ${to}`;
+    }
+
+    updateCastlingRightsAfterMove(move) {
+        if (!move || !this.castlingRights?.[move.color]) {
+            return;
+        }
+
+        const homeRows = { white: 9, black: 0 };
+        const homeRow = homeRows[move.color];
+        if (move.pieceType === 'king') {
+            this.castlingRights[move.color].king = false;
+            this.castlingRights[move.color].kingside = false;
+            this.castlingRights[move.color].queenside = false;
+        }
+        if (move.pieceType === 'rook' && move.fromRow === homeRow) {
+            if (move.fromCol === 8) this.castlingRights[move.color].kingside = false;
+            if (move.fromCol === 1) this.castlingRights[move.color].queenside = false;
+        }
+
+        const captured = move.capturedPiece;
+        if (!captured || captured.dataset?.type !== 'rook') {
+            return;
+        }
+        const capturedColor = captured.dataset.color;
+        const capturedHomeRow = homeRows[capturedColor];
+        if (!this.castlingRights?.[capturedColor] || move.toRow !== capturedHomeRow) {
+            return;
+        }
+        if (move.toCol === 8) this.castlingRights[capturedColor].kingside = false;
+        if (move.toCol === 1) this.castlingRights[capturedColor].queenside = false;
     }
 
     attachLastMoveHover(el, move) {
@@ -1025,6 +1192,17 @@ class ChessGame {
 
     getOpponentColor(color) {
         return color === 'white' ? 'black' : 'white';
+    }
+
+    getAILevelName(aiLevel = this.aiLevel) {
+        return {
+            1: 'Easy',
+            2: 'Medium',
+            3: 'Hard',
+            4: 'Expert',
+            5: 'Master',
+            6: 'Grandmaster'
+        }[aiLevel] || String(aiLevel);
     }
 
     getPieceDisplayName(pieceEl) {
@@ -1280,6 +1458,7 @@ class ChessGame {
             started: false,
             keys: new Set(),
             controls: new Set(),
+            touchTarget: null,
             projectiles: [],
             slashes: [],
             effects: [],
@@ -1341,6 +1520,12 @@ class ChessGame {
             window.removeEventListener('keyup', this.battleKeyUpHandler);
             this.battleKeyUpHandler = null;
         }
+        if (this.battleCanvasPointerHandler) {
+            const canvas = document.getElementById('battle-arena');
+            canvas?.removeEventListener('pointerdown', this.battleCanvasPointerHandler);
+            canvas?.removeEventListener('pointermove', this.battleCanvasPointerHandler);
+            this.battleCanvasPointerHandler = null;
+        }
         if (this.activeBattle?.arcade) {
             this.activeBattle.arcade.running = false;
         }
@@ -1400,6 +1585,32 @@ class ChessGame {
         window.addEventListener('keydown', this.battleKeyDownHandler);
         window.addEventListener('keyup', this.battleKeyUpHandler);
 
+        this.battleCanvasPointerHandler = (event) => {
+            const arcade = this.activeBattle?.arcade;
+            const activeBattle = this.activeBattle;
+            if (!arcade || !activeBattle) return;
+            if (!arcade.started) {
+                this.startBattleDuel();
+            }
+
+            const rect = arcade.canvas.getBoundingClientRect();
+            const scaleX = arcade.width / rect.width;
+            const scaleY = arcade.height / rect.height;
+            arcade.touchTarget = {
+                x: Math.max(0, Math.min(arcade.width, (event.clientX - rect.left) * scaleX)),
+                y: Math.max(0, Math.min(arcade.height, (event.clientY - rect.top) * scaleY))
+            };
+            const human = arcade.players[activeBattle.humanSide];
+            const dx = arcade.touchTarget.x - human.x;
+            const dy = arcade.touchTarget.y - human.y;
+            const length = Math.hypot(dx, dy) || 1;
+            human.aimX = dx / length;
+            human.aimY = dy / length;
+            event.preventDefault();
+        };
+        battle.arcade.canvas.addEventListener('pointerdown', this.battleCanvasPointerHandler);
+        battle.arcade.canvas.addEventListener('pointermove', this.battleCanvasPointerHandler);
+
         document.querySelectorAll('[data-battle-control]').forEach(button => {
             if (button.dataset.arcadeBound === 'true') return;
             button.dataset.arcadeBound = 'true';
@@ -1449,8 +1660,23 @@ class ChessGame {
 
     getBattleInputVector(arcade) {
         const active = (control) => arcade.keys.has(control) || arcade.controls.has(control);
-        const x = (active('right') ? 1 : 0) - (active('left') ? 1 : 0);
-        const y = (active('down') ? 1 : 0) - (active('up') ? 1 : 0);
+        let x = (active('right') ? 1 : 0) - (active('left') ? 1 : 0);
+        let y = (active('down') ? 1 : 0) - (active('up') ? 1 : 0);
+        if ((x || y) && arcade.touchTarget) {
+            arcade.touchTarget = null;
+        }
+        if (!x && !y && arcade.touchTarget && this.activeBattle?.humanSide) {
+            const human = arcade.players[this.activeBattle.humanSide];
+            const dx = arcade.touchTarget.x - human.x;
+            const dy = arcade.touchTarget.y - human.y;
+            const distance = Math.hypot(dx, dy);
+            if (distance <= Math.max(10, human.radius * 0.75)) {
+                arcade.touchTarget = null;
+            } else {
+                x = dx / distance;
+                y = dy / distance;
+            }
+        }
         const length = Math.hypot(x, y) || 1;
         return {
             x: x / length,
@@ -1776,6 +2002,89 @@ class ChessGame {
         }[type] || 'Final Strike';
     }
 
+    getGeneratedFinisherArt(type) {
+        if (this.generatedFinisherArt[type]) {
+            return this.generatedFinisherArt[type];
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 768;
+        canvas.height = 432;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            return null;
+        }
+
+        const palettes = {
+            pawn: ['#b7f7d3', '#315f9f', '#f8f4df'],
+            archer: ['#a9ffd8', '#215a42', '#f9de75'],
+            knight: ['#f7d37a', '#283f70', '#ff6a88'],
+            bishop: ['#cdb7ff', '#28356e', '#fff0a0'],
+            rook: ['#a8d8ff', '#23364f', '#f6f8ff'],
+            queen: ['#ffe58a', '#722b7a', '#ff7ab2'],
+            king: ['#fff2b0', '#244a7a', '#76f0b4'],
+            dragon: ['#ff8a3d', '#5c1124', '#ffe58a']
+        };
+        const [primary, deep, highlight] = palettes[type] || palettes.pawn;
+
+        const bg = ctx.createRadialGradient(384, 210, 20, 384, 210, 520);
+        bg.addColorStop(0, primary);
+        bg.addColorStop(0.36, deep);
+        bg.addColorStop(1, '#050916');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.globalCompositeOperation = 'screen';
+        for (let i = 0; i < 34; i += 1) {
+            const angle = (Math.PI * 2 * i) / 34;
+            const inner = 42 + (i % 5) * 13;
+            const outer = 340 + (i % 7) * 28;
+            ctx.strokeStyle = i % 2 === 0 ? primary : highlight;
+            ctx.globalAlpha = 0.18 + (i % 4) * 0.035;
+            ctx.lineWidth = 4 + (i % 3) * 3;
+            ctx.beginPath();
+            ctx.moveTo(384 + Math.cos(angle) * inner, 218 + Math.sin(angle) * inner);
+            ctx.lineTo(384 + Math.cos(angle + 0.08) * outer, 218 + Math.sin(angle + 0.08) * outer);
+            ctx.stroke();
+        }
+
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 0.9;
+        ctx.strokeStyle = highlight;
+        ctx.lineWidth = 5;
+        ctx.shadowColor = primary;
+        ctx.shadowBlur = 26;
+        for (let i = 0; i < 5; i += 1) {
+            ctx.beginPath();
+            ctx.ellipse(384, 220, 74 + i * 46, 28 + i * 20, i * 0.42, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        ctx.shadowBlur = 0;
+
+        const sigils = {
+            pawn: 'P',
+            archer: 'A',
+            knight: 'N',
+            bishop: 'B',
+            rook: 'R',
+            queen: 'Q',
+            king: 'K',
+            dragon: 'D'
+        };
+        ctx.globalAlpha = 0.22;
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '900 210px Arial, sans-serif';
+        ctx.fillText(sigils[type] || 'X', 384, 218);
+        ctx.globalAlpha = 1;
+
+        const image = new Image();
+        image.src = canvas.toDataURL('image/png');
+        this.generatedFinisherArt[type] = image;
+        return image;
+    }
+
     startBattleFinisher(attackerWon, sourceSide, targetSide, moveName) {
         const battle = this.activeBattle;
         const arcade = battle?.arcade;
@@ -1794,6 +2103,7 @@ class ChessGame {
             winnerSide,
             loserSide,
             finisherName,
+            art: this.getGeneratedFinisherArt(winner.type),
             timer: 0,
             duration: 2.15
         };
@@ -1921,9 +2231,25 @@ class ChessGame {
             ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'center';
             ctx.font = '800 30px Arial, sans-serif';
-            ctx.fillText('Press Space to Start', width / 2, height / 2 - 18);
+            ctx.fillText('Tap or Press Space to Start', width / 2, height / 2 - 18);
             ctx.font = '700 16px Arial, sans-serif';
-            ctx.fillText('Move: WASD / arrows   Attack: Space/J   Special: Shift/K', width / 2, height / 2 + 18);
+            ctx.fillText('Tap the arena to move   Attack: Space/J   Special: Shift/K', width / 2, height / 2 + 18);
+        } else if (arcade.touchTarget) {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 230, 138, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 6]);
+            ctx.beginPath();
+            ctx.arc(arcade.touchTarget.x, arcade.touchTarget.y, 15, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(arcade.touchTarget.x - 7, arcade.touchTarget.y);
+            ctx.lineTo(arcade.touchTarget.x + 7, arcade.touchTarget.y);
+            ctx.moveTo(arcade.touchTarget.x, arcade.touchTarget.y - 7);
+            ctx.lineTo(arcade.touchTarget.x, arcade.touchTarget.y + 7);
+            ctx.stroke();
+            ctx.restore();
         }
     }
 
@@ -1954,6 +2280,14 @@ class ChessGame {
         ctx.fillStyle = finisher.winnerSide === 'attacker' ? '#7f0824' : '#063f61';
         ctx.fillRect(0, 0, width, height);
         ctx.restore();
+
+        if (finisher.art?.complete) {
+            ctx.save();
+            ctx.globalAlpha = 0.42 + pulse * 0.18;
+            ctx.globalCompositeOperation = 'screen';
+            ctx.drawImage(finisher.art, 0, 0, width, height);
+            ctx.restore();
+        }
 
         if (flash > 0 || endFlash > 0) {
             ctx.save();
@@ -2509,6 +2843,12 @@ class ChessGame {
             moveMade = this.makeMediumAIMove();
         } else if (this.aiLevel === 3) {
             moveMade = this.makeHardAIMove();
+        } else if (this.aiLevel === 4) {
+            moveMade = this.makeExpertAIMove();
+        } else if (this.aiLevel === 5) {
+            moveMade = this.makeMasterAIMove();
+        } else if (this.aiLevel >= 6) {
+            moveMade = this.makeGrandmasterAIMove();
         }
 
         if (moveMade === 'battle') {
@@ -2676,8 +3016,12 @@ class ChessGame {
                     for (let toCol = 0; toCol < 10; toCol++) {
                         if (this.isValidMove(toRow, toCol)) {
                             // Check if this move would make the piece safe
-                            if (!this.wouldPieceBeInDanger(row, col, toRow, toCol)) {
-                                safeMoves.push({ fromRow: row, fromCol: col, toRow, toCol });
+                            const candidateMove = { fromRow: row, fromCol: col, toRow, toCol };
+                            if (
+                                this.isMoveInList(candidateMove, allMoves) &&
+                                !this.wouldPieceBeInDanger(row, col, toRow, toCol)
+                            ) {
+                                safeMoves.push(candidateMove);
                             }
                         }
                     }
@@ -2827,10 +3171,220 @@ class ChessGame {
         return false;
     }
 
+    makeExpertAIMove() {
+        return this.executeBestEngineMove(1, 24, {
+            scanMate: false
+        });
+    }
+
+    makeMasterAIMove() {
+        return this.executeBestEngineMove(1, 32, {
+            scanMate: false
+        });
+    }
+
+    makeGrandmasterAIMove() {
+        return this.executeBestEngineMove(2, 8, {
+            scanMate: false
+        });
+    }
+
+    executeBestEngineMove(depth, maxMovesPerPly, options = {}) {
+        const { captureMoves, normalMoves } = this.getAllMovesForColor('black');
+        const allMoves = this.orderMovesForSearch([...captureMoves, ...normalMoves], 'black', options);
+        if (allMoves.length === 0) {
+            cloudChessLog("No valid moves for black");
+            return false;
+        }
+
+        if (options.scanMate) {
+            const mateCandidates = allMoves.slice(0, options.mateScanBreadth || 8);
+            const mateMoves = mateCandidates.filter(move => this.doesMoveDeliverCheckmate(move, 'white'));
+            if (mateMoves.length > 0) {
+                return this.executeMove(this.orderMovesForSearch(mateMoves, 'black', options)[0]);
+            }
+        }
+
+        const searchMoves = allMoves.slice(0, maxMovesPerPly);
+        let bestScore = -Infinity;
+        let bestMoves = [];
+
+        for (const move of searchMoves) {
+            const score = this.simulateMoveOnBoard(move, () =>
+                this.minimaxSearch(depth - 1, -Infinity, Infinity, false, maxMovesPerPly, options)
+            );
+            if (score > bestScore + 0.001) {
+                bestScore = score;
+                bestMoves = [move];
+            } else if (Math.abs(score - bestScore) <= 0.001) {
+                bestMoves.push(move);
+            }
+        }
+
+        const bestMove = this.pickRandomMove(bestMoves);
+        return bestMove ? this.executeMove(bestMove) : false;
+    }
+
+    minimaxSearch(depth, alpha, beta, maximizingBlack, maxMovesPerPly, options = {}) {
+        if (this.isCheckmate('white')) return 100000 + depth;
+        if (this.isCheckmate('black')) return -100000 - depth;
+        if (this.isStalemate(maximizingBlack ? 'black' : 'white')) return 0;
+
+        const color = maximizingBlack ? 'black' : 'white';
+        const inCheck = this.isKingInCheck(color);
+        if (inCheck && options.checkExtensionDepth > 0 && depth <= 1) {
+            depth += 1;
+            options = { ...options, checkExtensionDepth: options.checkExtensionDepth - 1 };
+        }
+
+        if (depth <= 0) {
+            const quietScore = this.evaluatePositionForBlack();
+            const quiescenceDepth = options.quiescenceDepth || 0;
+            return quiescenceDepth > 0
+                ? this.quiescenceSearch(quietScore, alpha, beta, maximizingBlack, quiescenceDepth, options)
+                : quietScore;
+        }
+
+        const { captureMoves, normalMoves } = this.getAllMovesForColor(color);
+        const moves = this.orderMovesForSearch([...captureMoves, ...normalMoves], color, options).slice(0, maxMovesPerPly);
+        if (moves.length === 0) {
+            return this.evaluatePositionForBlack();
+        }
+
+        if (maximizingBlack) {
+            let value = -Infinity;
+            for (const move of moves) {
+                value = Math.max(value, this.simulateMoveOnBoard(move, () =>
+                    this.minimaxSearch(depth - 1, alpha, beta, false, maxMovesPerPly, options)
+                ));
+                alpha = Math.max(alpha, value);
+                if (alpha >= beta) break;
+            }
+            return value;
+        }
+
+        let value = Infinity;
+        for (const move of moves) {
+            value = Math.min(value, this.simulateMoveOnBoard(move, () =>
+                this.minimaxSearch(depth - 1, alpha, beta, true, maxMovesPerPly, options)
+            ));
+            beta = Math.min(beta, value);
+            if (alpha >= beta) break;
+        }
+        return value;
+    }
+
+    quiescenceSearch(standPat, alpha, beta, maximizingBlack, depth, options = {}) {
+        if (depth <= 0) {
+            return standPat;
+        }
+
+        if (maximizingBlack) {
+            if (standPat >= beta) return beta;
+            alpha = Math.max(alpha, standPat);
+        } else {
+            if (standPat <= alpha) return alpha;
+            beta = Math.min(beta, standPat);
+        }
+
+        const color = maximizingBlack ? 'black' : 'white';
+        const { captureMoves } = this.getAllMovesForColor(color);
+        const tacticalMoves = captureMoves;
+        const moves = this.orderMovesForSearch(tacticalMoves, color, options).slice(0, options.tacticalBreadth || 8);
+        if (moves.length === 0) {
+            return standPat;
+        }
+
+        if (maximizingBlack) {
+            let value = standPat;
+            for (const move of moves) {
+                value = Math.max(value, this.simulateMoveOnBoard(move, () =>
+                    this.quiescenceSearch(this.evaluatePositionForBlack(), alpha, beta, false, depth - 1, options)
+                ));
+                alpha = Math.max(alpha, value);
+                if (alpha >= beta) break;
+            }
+            return value;
+        }
+
+        let value = standPat;
+        for (const move of moves) {
+            value = Math.min(value, this.simulateMoveOnBoard(move, () =>
+                this.quiescenceSearch(this.evaluatePositionForBlack(), alpha, beta, true, depth - 1, options)
+            ));
+            beta = Math.min(beta, value);
+            if (alpha >= beta) break;
+        }
+        return value;
+    }
+
+    orderMovesForSearch(moves, color, options = {}) {
+        return [...moves].sort((a, b) => this.scoreMoveForOrdering(b, color, options) - this.scoreMoveForOrdering(a, color, options));
+    }
+
+    scoreMoveForOrdering(move, color, options = {}) {
+        const targetValue = this.getPieceValue(move.toRow, move.toCol);
+        const movingValue = this.getPieceValue(move.fromRow, move.fromCol);
+        const opponentColor = this.getOpponentColor(color);
+        let score = targetValue * 12 - movingValue * 0.2;
+        const targetSquare = document.querySelector(`[data-row="${move.toRow}"][data-col="${move.toCol}"]`);
+        const targetPiece = targetSquare?.querySelector('.piece');
+        if (targetPiece && targetPiece.dataset.color === opponentColor) score += 20;
+        if (options.deepOrdering) {
+            if (!this.wouldPieceBeInDanger(move.fromRow, move.fromCol, move.toRow, move.toCol)) score += 4;
+            if (options.checkOrdering && this.doesMoveDeliverCheck(move, opponentColor)) score += 35;
+        }
+        const centerDistance = Math.abs(move.toRow - 4.5) + Math.abs(move.toCol - 4.5);
+        score += (9 - centerDistance) * 0.15;
+        return score;
+    }
+
+    evaluatePositionForBlack() {
+        const boardState = this.getBoardSnapshot();
+        if (!boardState) {
+            return 0;
+        }
+
+        const values = {
+            pawn: 100,
+            archer: 300,
+            knight: 320,
+            bishop: 330,
+            rook: 500,
+            dragon: 700,
+            queen: 900,
+            king: 20000
+        };
+        let score = 0;
+
+        for (let row = 0; row < boardState.length; row++) {
+            for (let col = 0; col < boardState[row].length; col++) {
+                const piece = boardState[row][col];
+                if (!piece) continue;
+                const sign = piece.color === 'black' ? 1 : -1;
+                const centerDistance = Math.abs(row - 4.5) + Math.abs(col - 4.5);
+                const advancement = piece.type === 'pawn' || piece.type === 'archer'
+                    ? (piece.color === 'black' ? row : 9 - row) * 4
+                    : 0;
+                score += sign * ((values[piece.type] || 0) + (9 - centerDistance) * 3 + advancement);
+            }
+        }
+
+        if (this.isKingInCheck('white')) score += 35;
+        if (this.isKingInCheck('black')) score -= 55;
+        score += (this.findPiecesInDanger('white').length - this.findPiecesInDanger('black').length) * 18;
+        return score;
+    }
+
     executeMove(move) {
         const { fromRow, fromCol, toRow, toCol, archerShot } = move;
+        if (this.selectedPiece) {
+            this.selectedPiece.classList.remove('selected');
+            this.selectedPiece = null;
+        }
+        this.selectPieceAt(fromRow, fromCol);
         if (!this.selectedPiece) {
-            this.selectPieceAt(fromRow, fromCol);
+            return false;
         }
         // Ensure archerShot behavior is honored for engine-controlled moves
         this.isArcherCapture = !!archerShot;
@@ -2998,9 +3552,14 @@ class ChessGame {
         const originalToHTML = toSquare.innerHTML;
         const originalSelected = this.selectedPiece;
         const originalIsArcherCapture = this.isArcherCapture;
+        const originalCastlingRights = this.cloneCastlingRights();
 
         let midSquare = null;
         let originalMidHTML = null;
+        let rookFromSquare = null;
+        let rookToSquare = null;
+        let originalRookFromHTML = null;
+        let originalRookToHTML = null;
         let result = false;
 
         try {
@@ -3020,6 +3579,8 @@ class ChessGame {
                     (colDiff === 0 && rowDiff === direction) ||
                     (Math.abs(colDiff) === 1 && rowDiff === direction)
                 );
+
+            const isCastlingMove = pieceType === 'king' && move.fromRow === move.toRow && Math.abs(move.toCol - move.fromCol) === 2;
 
             if (isArcherCapture) {
                 toSquare.innerHTML = '';
@@ -3045,7 +3606,27 @@ class ChessGame {
 
                 fromSquare.innerHTML = '';
                 toSquare.innerHTML = '';
+                pieceClone.dataset.hasMoved = 'true';
                 toSquare.appendChild(pieceClone);
+
+                if (isCastlingMove) {
+                    const rookFromCol = move.toCol > move.fromCol ? 8 : 1;
+                    const rookToCol = move.toCol > move.fromCol ? 6 : 4;
+                    rookFromSquare = document.querySelector(`[data-row="${move.fromRow}"][data-col="${rookFromCol}"]`);
+                    rookToSquare = document.querySelector(`[data-row="${move.fromRow}"][data-col="${rookToCol}"]`);
+                    if (rookFromSquare && rookToSquare) {
+                        originalRookFromHTML = rookFromSquare.innerHTML;
+                        originalRookToHTML = rookToSquare.innerHTML;
+                        const rook = rookFromSquare.querySelector('.piece');
+                        if (rook) {
+                            const rookClone = rook.cloneNode(true);
+                            rookClone.dataset.hasMoved = 'true';
+                            rookToSquare.innerHTML = '';
+                            rookToSquare.appendChild(rookClone);
+                            rookFromSquare.innerHTML = '';
+                        }
+                    }
+                }
 
                 const isPawn = pieceType === 'pawn';
                 const isArcher = pieceType === 'archer';
@@ -3070,8 +3651,15 @@ class ChessGame {
             if (midSquare) {
                 midSquare.innerHTML = originalMidHTML;
             }
+            if (rookFromSquare) {
+                rookFromSquare.innerHTML = originalRookFromHTML;
+            }
+            if (rookToSquare) {
+                rookToSquare.innerHTML = originalRookToHTML;
+            }
             this.selectedPiece = originalSelected;
             this.isArcherCapture = originalIsArcherCapture;
+            this.castlingRights = originalCastlingRights;
         }
 
         return result;
@@ -3112,7 +3700,7 @@ class ChessGame {
         if (symbol.includes('♜') || symbol.includes('♖')) return 5;
         if (symbol.includes('♝') || symbol.includes('♗')) return 3;
         if (symbol.includes('♞') || symbol.includes('♘')) return 3;
-        if (symbol.includes('♟⇣') || symbol.includes('♙⇡')) return 2;
+        if (symbol.includes('♟⇣') || symbol.includes('♙⇡')) return 3;
         if (symbol.includes('♟') || symbol.includes('♙')) return 1;
         if (symbol.includes('♚') || symbol.includes('♔')) return 100;
 
@@ -3272,7 +3860,8 @@ class ChessGame {
         return {
             type,
             color,
-            symbol
+            symbol,
+            hasMoved: pieceEl.dataset.hasMoved === 'true'
         };
     }
 
@@ -3578,6 +4167,7 @@ class ChessGame {
         this.isAiThinking = false;
         this.gameOver = false;
         this.kingCaptured = null;
+        this.castlingRights = this.createInitialCastlingRights();
 
         // Clear any existing game boards
         const gameBoard = document.getElementById('game-board');
@@ -3627,7 +4217,7 @@ class ChessGame {
         this.setBoardDisabled(false);
         this.setStatusMessage(
             mode === 'pvc'
-                ? `Single player: you are White. Computer difficulty ${aiLevel}${this.battleMode ? ` with battle captures${this.finishingMoves ? ' and finishing moves' : ''}` : ''}.`
+                ? `Single player: you are White. Computer difficulty ${this.getAILevelName(aiLevel)}${this.battleMode ? ` with battle captures${this.finishingMoves ? ' and finishing moves' : ''}` : ''}.`
                 : 'Local two-player: pass the device between White and Black.',
             'ready'
         );
@@ -3639,7 +4229,7 @@ class ChessGame {
 
         // Track game usage
         if (mode === 'computer' || mode === 'pvc') {
-            updateGameStats('Vs Computer Level ' + aiLevel + (this.battleMode ? ` Battle Chess${this.finishingMoves ? ' Finishers' : ''}` : ''));
+            updateGameStats('Vs Computer ' + this.getAILevelName(aiLevel) + (this.battleMode ? ` Battle Chess${this.finishingMoves ? ' Finishers' : ''}` : ''));
         } else if (mode === 'player' || mode === 'pvp') {
             updateGameStats('Player Vs Player (Local)');
         }

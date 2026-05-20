@@ -65,7 +65,8 @@ function chess_normalize_piece($piece) {
     $color = isset($piece['color']) ? strtolower(trim((string)$piece['color'])) : '';
     if (!in_array($type, ['king', 'queen', 'rook', 'bishop', 'knight', 'pawn', 'archer', 'dragon'], true)) return null;
     if ($color !== 'white' && $color !== 'black') return null;
-    return ['type' => $type, 'color' => $color];
+    $has_moved = !empty($piece['has_moved']) || !empty($piece['hasMoved']);
+    return ['type' => $type, 'color' => $color, 'has_moved' => $has_moved];
 }
 
 function chess_board_from_state($board_state) {
@@ -106,12 +107,16 @@ function chess_board_to_pieces($board) {
     for ($row = 0; $row < 10; $row++) {
         for ($col = 0; $col < 10; $col++) {
             if ($board[$row][$col]) {
-                $pieces[] = [
+                $piece = [
                     'row' => $row,
                     'col' => $col,
                     'type' => $board[$row][$col]['type'],
                     'color' => $board[$row][$col]['color']
                 ];
+                if (!empty($board[$row][$col]['has_moved'])) {
+                    $piece['has_moved'] = true;
+                }
+                $pieces[] = $piece;
             }
         }
     }
@@ -153,6 +158,9 @@ function chess_basic_move_info($board, $from_row, $from_col, $to_row, $to_col, $
     if ($target && $target['color'] === $color) {
         return ['valid' => false, 'message' => 'Cannot capture your own piece'];
     }
+    if ($target && $target['type'] === 'king') {
+        return ['valid' => false, 'message' => 'Kings cannot be captured'];
+    }
 
     $row_diff = $to_row - $from_row;
     $col_diff = $to_col - $from_col;
@@ -173,6 +181,9 @@ function chess_basic_move_info($board, $from_row, $from_col, $to_row, $to_col, $
                 $mid_row = (int)(($from_row + $to_row) / 2);
                 $mid_col = (int)(($from_col + $to_col) / 2);
                 $mid = $board[$mid_row][$mid_col];
+                if ($mid && $mid['type'] === 'king') {
+                    return ['valid' => false, 'message' => 'Kings cannot be captured'];
+                }
                 if ($mid && $mid['color'] === $color) {
                     return ['valid' => false, 'message' => 'Dragon path blocked by your piece'];
                 }
@@ -219,6 +230,34 @@ function chess_basic_move_info($board, $from_row, $from_col, $to_row, $to_col, $
             break;
 
         case 'king':
+            if ($abs_row === 0 && $abs_col === 2) {
+                $side = $col_diff > 0 ? 'kingside' : 'queenside';
+                $home_row = $color === 'white' ? 9 : 0;
+                $rook_col = $side === 'kingside' ? 8 : 1;
+                if ($from_row !== $home_row || $from_col !== 5 || ($to_col !== 3 && $to_col !== 7)) {
+                    return ['valid' => false, 'message' => 'Invalid castling move'];
+                }
+                if (!empty($piece['has_moved'])) {
+                    return ['valid' => false, 'message' => 'King has already moved'];
+                }
+                $rook = $board[$home_row][$rook_col];
+                if (!$rook || $rook['type'] !== 'rook' || $rook['color'] !== $color || !empty($rook['has_moved'])) {
+                    return ['valid' => false, 'message' => 'Cannot castle without an unmoved rook'];
+                }
+                $between_cols = $side === 'kingside' ? [6, 7] : [2, 3, 4];
+                foreach ($between_cols as $col) {
+                    if ($board[$home_row][$col]) {
+                        return ['valid' => false, 'message' => 'Castling path is blocked'];
+                    }
+                }
+                $king_path = $side === 'kingside' ? [5, 6, 7] : [5, 4, 3];
+                foreach ($king_path as $col) {
+                    if (chess_square_attacked_by($board, $home_row, $col, chess_opponent($color))) {
+                        return ['valid' => false, 'message' => 'Cannot castle through check'];
+                    }
+                }
+                break;
+            }
             if ($abs_row > 1 || $abs_col > 1 || ($abs_row === 0 && $abs_col === 0)) {
                 return ['valid' => false, 'message' => 'Invalid king move'];
             }
@@ -271,6 +310,8 @@ function chess_apply_move_unchecked($board, $move_info, $from_row, $from_col, $t
         return ['board' => $board, 'king_captured' => $king_captured, 'promoted' => false];
     }
 
+    $is_castling = $piece['type'] === 'king' && $from_row === $to_row && abs($to_col - $from_col) === 2;
+
     if ($move_info['target'] && $move_info['target']['type'] === 'king') {
         $king_captured = $move_info['target']['color'];
     }
@@ -284,12 +325,24 @@ function chess_apply_move_unchecked($board, $move_info, $from_row, $from_col, $t
 
     $board[$from_row][$from_col] = null;
     $promoted = false;
+    $piece['has_moved'] = true;
     if (($piece['type'] === 'pawn' || $piece['type'] === 'archer') &&
         (($piece['color'] === 'white' && $to_row === 0) || ($piece['color'] === 'black' && $to_row === 9))) {
         $piece['type'] = 'queen';
         $promoted = true;
     }
     $board[$to_row][$to_col] = $piece;
+
+    if ($is_castling) {
+        $rook_from_col = $to_col > $from_col ? 8 : 1;
+        $rook_to_col = $to_col > $from_col ? 6 : 4;
+        $rook = $board[$from_row][$rook_from_col];
+        if ($rook) {
+            $rook['has_moved'] = true;
+            $board[$from_row][$rook_from_col] = null;
+            $board[$from_row][$rook_to_col] = $rook;
+        }
+    }
 
     return ['board' => $board, 'king_captured' => $king_captured, 'promoted' => $promoted];
 }
@@ -401,6 +454,10 @@ function chess_square_name($row, $col) {
 }
 
 function chess_move_summary($piece, $from_row, $from_col, $to_row, $to_col, $archer_shot) {
+    if ($piece['type'] === 'king' && $from_row === $to_row && abs($to_col - $from_col) === 2) {
+        return $to_col > $from_col ? 'Castles kingside' : 'Castles queenside';
+    }
+
     $names = [
         'king' => 'King',
         'queen' => 'Queen',

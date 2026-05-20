@@ -7,6 +7,139 @@ let currentSpecialStatus = null;
 let currentMoveTimeLimitSeconds = 86400;
 let currentLastMoveTimestamp = null;
 
+const MULTIPLAYER_PIECE_SYMBOLS = {
+    white: {
+        king: '♔',
+        queen: '♕',
+        rook: '♖',
+        bishop: '♗',
+        knight: '♘',
+        pawn: '♙',
+        archer: '♙⇡',
+        dragon: 'dragon-white'
+    },
+    black: {
+        king: '♚',
+        queen: '♛',
+        rook: '♜',
+        bishop: '♝',
+        knight: '♞',
+        pawn: '♟',
+        archer: '♟⇣',
+        dragon: 'dragon-black'
+    }
+};
+
+const MULTIPLAYER_SYMBOL_TO_PIECE = Object.entries(MULTIPLAYER_PIECE_SYMBOLS).reduce((symbols, [color, pieces]) => {
+    Object.entries(pieces).forEach(([type, symbol]) => {
+        symbols[symbol] = { type, color };
+    });
+    return symbols;
+}, {});
+
+function normalizeMultiplayerPiece(piece) {
+    if (!piece) {
+        return null;
+    }
+
+    if (typeof piece === 'string') {
+        return MULTIPLAYER_SYMBOL_TO_PIECE[piece] || null;
+    }
+
+    if (typeof piece === 'object' && piece.type && piece.color) {
+        return { type: piece.type, color: piece.color };
+    }
+
+    return null;
+}
+
+function countMultiplayerPieces(boardState) {
+    const counts = {
+        white: { total: 0, types: {} },
+        black: { total: 0, types: {} }
+    };
+
+    const countPiece = (piece) => {
+        const normalized = normalizeMultiplayerPiece(piece);
+        if (!normalized || !counts[normalized.color]) {
+            return;
+        }
+
+        counts[normalized.color].total += 1;
+        counts[normalized.color].types[normalized.type] = (counts[normalized.color].types[normalized.type] || 0) + 1;
+    };
+
+    if (Array.isArray(boardState) && boardState.length === 10 && Array.isArray(boardState[0])) {
+        boardState.forEach(row => row.forEach(countPiece));
+    } else if (Array.isArray(boardState)) {
+        boardState.forEach(countPiece);
+    }
+
+    return counts;
+}
+
+function createCapturedPieceElementFromData(pieceData) {
+    const piece = document.createElement('div');
+    piece.className = 'piece';
+    piece.dataset.type = pieceData.type;
+    piece.dataset.color = pieceData.color;
+
+    const symbol = MULTIPLAYER_PIECE_SYMBOLS[pieceData.color]?.[pieceData.type] || '';
+    piece.dataset.symbol = symbol;
+
+    if (pieceData.type === 'dragon') {
+        piece.classList.add('dragon-piece', `${pieceData.color}-piece`);
+    } else {
+        piece.textContent = symbol;
+        piece.classList.add(`${pieceData.color}-piece`);
+
+        if (pieceData.type === 'archer') {
+            piece.dataset.base = pieceData.color === 'white' ? '♙' : '♟';
+            piece.dataset.arrow = pieceData.color === 'white' ? '↑' : '↓';
+            piece.classList.add('archer-piece', pieceData.color === 'white' ? 'archer-up' : 'archer-down');
+        }
+    }
+
+    return piece;
+}
+
+function syncCaptureDisplayFromBoard(boardState) {
+    if (!multiplayerGame || !boardState) {
+        return;
+    }
+
+    const initialCounts = countMultiplayerPieces(multiplayerGame.createInitialBoard());
+    const currentCounts = countMultiplayerPieces(boardState);
+
+    multiplayerGame.resetGraveyards();
+
+    ['white', 'black'].forEach(capturedColor => {
+        const missingTotal = initialCounts[capturedColor].total - currentCounts[capturedColor].total;
+        if (missingTotal <= 0) {
+            return;
+        }
+
+        const capturingColor = capturedColor === 'white' ? 'black' : 'white';
+        let remaining = missingTotal;
+
+        Object.keys(initialCounts[capturedColor].types).forEach(type => {
+            if (remaining <= 0) {
+                return;
+            }
+
+            const missingOfType = Math.max(
+                0,
+                (initialCounts[capturedColor].types[type] || 0) - (currentCounts[capturedColor].types[type] || 0)
+            );
+
+            for (let i = 0; i < missingOfType && remaining > 0; i++) {
+                multiplayerGame.recordCapture(capturingColor, createCapturedPieceElementFromData({ type, color: capturedColor }));
+                remaining -= 1;
+            }
+        });
+    });
+}
+
 function rememberServerLastMove(color, summary) {
     if (!multiplayerGame || summary === undefined) {
         return;
@@ -45,25 +178,15 @@ function convertPiecesToBoard(pieces) {
     // Create empty 10x10 board
     const board = Array(10).fill().map(() => Array(10).fill(''));
 
-    // Map piece types to Unicode chess symbols
-    const pieceSymbols = {
-        'king': { 'white': '♔', 'black': '♚' },
-        'queen': { 'white': '♕', 'black': '♛' },
-        'rook': { 'white': '♖', 'black': '♜' },
-        'bishop': { 'white': '♗', 'black': '♝' },
-        'knight': { 'white': '♘', 'black': '♞' },
-        'pawn': { 'white': '♙', 'black': '♟' },
-        'archer': { 'white': '♙⇡', 'black': '♟⇣' },
-        'dragon': { 'white': 'dragon-white', 'black': 'dragon-black' }
-    };
-
     // Place each piece on the board
     pieces.forEach(piece => {
         if (piece && piece.row !== undefined && piece.col !== undefined) {
-            if (piece.type === 'dragon') {
-                board[piece.row][piece.col] = pieceSymbols.dragon[piece.color];
-            } else if (pieceSymbols[piece.type] && pieceSymbols[piece.type][piece.color]) {
-                board[piece.row][piece.col] = pieceSymbols[piece.type][piece.color];
+            if (MULTIPLAYER_PIECE_SYMBOLS[piece.color]?.[piece.type]) {
+                board[piece.row][piece.col] = {
+                    type: piece.type,
+                    color: piece.color,
+                    hasMoved: piece.has_moved === true || piece.has_moved === 1 || piece.has_moved === '1' || piece.hasMoved === true
+                };
             } else {
                 console.warn('Unknown piece type or color:', piece);
             }
@@ -124,6 +247,7 @@ function initializeMultiplayerGame(gameId, color, currentTurn, boardState, isSpe
             console.log('Converting provided board state');
             multiplayerGame.gameBoard = convertPiecesToBoard(boardState);
         }
+        syncCaptureDisplayFromBoard(multiplayerGame.gameBoard);
 
         // Set the current player to match the game's turn
         multiplayerGame.currentPlayer = currentTurn;
@@ -300,6 +424,7 @@ function updateBoardDisplay(boardState) {
 
     // Convert the board state to the format expected by the game
     multiplayerGame.gameBoard = convertPiecesToBoard(boardState);
+    syncCaptureDisplayFromBoard(multiplayerGame.gameBoard);
 
     // Re-initialize the board display
     multiplayerGame.initializeBoard();
@@ -553,7 +678,8 @@ function convertBoardToPieces(gameInstance) {
                     row: row,
                     col: col,
                     type: 'dragon',
-                    color: color
+                    color: color,
+                    has_moved: piece.dataset.hasMoved === 'true'
                 });
             } else {
                 // Handle regular pieces
@@ -562,7 +688,8 @@ function convertBoardToPieces(gameInstance) {
                     pieces.push({
                         row: row,
                         col: col,
-                        ...pieceTypes[pieceText]
+                        ...pieceTypes[pieceText],
+                        has_moved: piece.dataset.hasMoved === 'true'
                     });
                 }
             }

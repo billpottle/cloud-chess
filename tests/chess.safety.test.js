@@ -102,6 +102,64 @@ describe('ChessGame threat detection helpers', () => {
     expect(snapshot[2][2]).toMatchObject({ type: 'knight', color: 'white' });
     expect(snapshot[7][7]).toMatchObject({ type: 'queen', color: 'black' });
   });
+
+  test('king captures are not legal moves', () => {
+    placePiece(board, 4, 4, { type: 'queen', color: 'white', symbol: '♕' });
+    placePiece(board, 4, 7, { type: 'king', color: 'black', symbol: '♚' });
+
+    game.currentPlayer = 'white';
+    game.selectedPiece = board.querySelector('[data-row="4"][data-col="4"]');
+
+    expect(game.isValidMove(4, 7)).toBe(false);
+  });
+
+  test('castling moves the king and rook together', () => {
+    placePiece(board, 9, 5, { type: 'king', color: 'white', symbol: '♔' });
+    placePiece(board, 9, 8, { type: 'rook', color: 'white', symbol: '♖' });
+    placePiece(board, 0, 5, { type: 'king', color: 'black', symbol: '♚' });
+
+    game.currentPlayer = 'white';
+    game.selectedPiece = board.querySelector('[data-row="9"][data-col="5"]');
+
+    expect(game.isValidMove(9, 7)).toBe(true);
+    game.movePiece(9, 7);
+
+    expect(board.querySelector('[data-row="9"][data-col="7"] .piece')?.dataset.type).toBe('king');
+    expect(board.querySelector('[data-row="9"][data-col="6"] .piece')?.dataset.type).toBe('rook');
+    expect(board.querySelector('[data-row="9"][data-col="5"] .piece')).toBeNull();
+    expect(board.querySelector('[data-row="9"][data-col="8"] .piece')).toBeNull();
+  });
+
+  test('executeMove always uses the move source instead of stale selection', () => {
+    placePiece(board, 9, 5, { type: 'king', color: 'white', symbol: '♔' });
+    placePiece(board, 0, 5, { type: 'king', color: 'black', symbol: '♚' });
+    placePiece(board, 1, 0, { type: 'pawn', color: 'black', symbol: '♟' });
+    placePiece(board, 1, 1, { type: 'pawn', color: 'black', symbol: '♟' });
+
+    game.selectedPiece = board.querySelector('[data-row="1"][data-col="0"]');
+    const moved = game.executeMove({ fromRow: 1, fromCol: 1, toRow: 2, toCol: 1 });
+
+    expect(moved).toBe(true);
+    expect(board.querySelector('[data-row="1"][data-col="0"] .piece')).not.toBeNull();
+    expect(board.querySelector('[data-row="2"][data-col="1"] .piece')?.dataset.color).toBe('black');
+    expect(board.querySelector('[data-row="1"][data-col="1"] .piece')).toBeNull();
+  });
+
+  test('medium AI responds to check instead of moving an unrelated piece', () => {
+    placePiece(board, 9, 5, { type: 'king', color: 'white', symbol: '♔' });
+    placePiece(board, 0, 5, { type: 'king', color: 'black', symbol: '♚' });
+    placePiece(board, 3, 2, { type: 'bishop', color: 'white', symbol: '♗' });
+    placePiece(board, 1, 0, { type: 'pawn', color: 'black', symbol: '♟' });
+
+    game.aiLevel = 2;
+    game.currentPlayer = 'black';
+
+    expect(game.isKingInCheck('black')).toBe(true);
+    const moved = game.makeMediumAIMove();
+
+    expect(moved).toBe(true);
+    expect(game.isKingInCheck('black')).toBe(false);
+  });
 });
 
 describe('Battle chess captures', () => {

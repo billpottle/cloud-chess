@@ -1,6 +1,6 @@
 <div class="rules-content">
     <h2>Basic Rules</h2>
-    <p>Cloud Chess follows standard chess rules with the addition of special pieces and a larger 10x10 board.</p>
+    <p>Cloud Chess follows standard chess rules, including check, checkmate, pawn promotion, and castling, with the addition of special pieces and a larger 10x10 board.</p>
     
     <h2>Special Pieces</h2>
     <div class="piece-rules">
@@ -15,7 +15,7 @@
         </div>
         <div class="piece-rule">
             <div class="piece-icon">
-                <div class="piece white-piece archer-piece archer-up" data-base="♙" data-arrow="↑"></div>
+                <div class="piece white-piece archer-piece archer-up" data-base="♙" data-arrow="↑" style="--piece-color: white; --piece-shadow: 0 0 3px black, 0 0 3px black; --piece-font-size: 42px;"></div>
             </div>
             <div class="piece-description">
                 <h4>Archer</h4>
@@ -23,6 +23,9 @@
             </div>
         </div>
     </div>
+
+    <h2>Castling</h2>
+    <p>Kings may castle with an unmoved rook when the spaces between them are clear, the king is not in check, and the king does not pass through or land on an attacked square. On the 10x10 board, the king moves two files toward the rook and the rook slides to the square the king crossed.</p>
     
     <h2>Board Layout</h2>
     <p>The game is played on a 10x10 board with the following setup:</p>
@@ -54,5 +57,8 @@
         <li><strong>Player vs Computer (Easy):</strong> Play against an AI that prioritizes captures</li>
         <li><strong>Player vs Computer (Medium):</strong> Play against an AI that prioritizes captures and avoids danger</li>
         <li><strong>Player vs Computer (Hard):</strong> Play against an AI that prioritizes safe captures, avoids danger, and makes strategic sacrifices when necessary</li>
+        <li><strong>Player vs Computer (Expert):</strong> Play against a search-based AI that looks ahead before choosing a move</li>
+        <li><strong>Player vs Computer (Master):</strong> Play against a deeper built-in search with stronger positional evaluation</li>
+        <li><strong>Player vs Computer (Grandmaster):</strong> Play against the strongest built-in search, with reply-aware lookahead that weighs the opponent's best responses</li>
     </ul>
 </div> 
